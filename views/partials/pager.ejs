@@ -1,0 +1,13 @@
+<%# usage: include('pager', { pg, key: 'trang', anchor: '#id' }) %>
+<% const _key = typeof key !== 'undefined' ? key : 'trang'; const _anchor = typeof anchor !== 'undefined' ? anchor : ''; %>
+<% if (pg.total) { %>
+<nav class="pager" aria-label="Phân trang">
+  <span class="pager-info">Hiển thị <%= pg.from %>–<%= pg.to %> / <%= pg.total %></span>
+  <% if (pg.pages > 1) { %>
+    <% const nums = []; for (let i = 1; i <= pg.pages; i++) if (i === 1 || i === pg.pages || Math.abs(i - pg.page) <= 1) nums.push(i); %>
+    <a class="pg <%= pg.page === 1 ? 'off' : '' %>" href="<%= pageUrl(Math.max(1, pg.page - 1), _key) + _anchor %>" aria-label="Trang trước"><%- ic('chevron-left') %></a>
+    <% nums.forEach((n, i) => { if (i && n - nums[i - 1] > 1) { %><span class="pg gap">…</span><% } %><a class="pg <%= n === pg.page ? 'on' : '' %>" href="<%= pageUrl(n, _key) + _anchor %>"><%= n %></a><% }) %>
+    <a class="pg <%= pg.page === pg.pages ? 'off' : '' %>" href="<%= pageUrl(Math.min(pg.pages, pg.page + 1), _key) + _anchor %>" aria-label="Trang sau"><%- ic('chevron-right') %></a>
+  <% } %>
+</nav>
+<% } %>

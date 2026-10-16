@@ -1,0 +1,54 @@
+﻿PHỤ LỤC ĐẶC TẢ TRIỂN KHAI WEBGIS – MOBILEGIS KON TUM
+Phiên bản 1.1 | Bổ sung rừng khộp, kiến trúc GEE–Python, phân hệ Public/Admin và danh mục prototype.
+Phạm vi nghiên cứu: khu vực Kon Tum trước sắp xếp hành chính năm 2025; hỗ trợ đối chiếu đơn vị hành chính hiện hành. Mọi thống kê phải ghi rõ phiên bản ranh giới và năm dữ liệu.
+1. Nguyên tắc kiến trúc
+Google Earth Engine (GEE): tìm kiếm, lọc mây, lập danh mục và truy xuất ảnh Landsat/Sentinel/MODIS; có thể tạo ảnh tổ hợp để xuất phục vụ phân tích. Không phụ thuộc script GEE để thực hiện các thuật toán nghiệp vụ.
+Python: xử lý raster/vector, chuẩn hóa ảnh, tính chỉ số, phân loại rừng, đánh giá biến động, tính nguy cơ cháy, thống kê, kiểm định và sinh sản phẩm GeoTIFF/GeoPackage/COG.
+Node.js + EJS: giao diện và API nghiệp vụ; Mapbox GL JS: hiển thị WebGIS; PostgreSQL/PostGIS: dữ liệu không gian, nghiệp vụ và nhật ký. Python worker chạy tác vụ nền qua hàng đợi.
+GEE không phải nguồn ảnh thời gian thực tuyệt đối. Tần suất cập nhật phụ thuộc dữ liệu vệ tinh và độ trễ công bố. FIRMS dùng cho điểm nóng, không đồng nhất với cháy rừng đã xác minh.
+2. Phân loại rừng có xét rừng khộp
+Phân biệt ít nhất: rừng lá rộng thường xanh, rừng lá rộng nửa rụng lá, rừng khộp (rừng lá rộng rụng lá theo mùa), rừng lá kim, rừng hỗn giao, rừng tre nứa, rừng trồng, cây lâu năm/nông nghiệp, trảng cỏ-cây bụi, đất trống, nước và đất xây dựng; hợp nhất các lớp theo dữ liệu kiểm kê được phê duyệt.
+Rừng khộp có chu kỳ rụng lá mạnh vào mùa khô; NDVI/NDMI suy giảm theo mùa không mặc định là mất rừng hoặc suy thoái. Xây dựng đặc trưng đa mùa (mưa/khô), chuỗi thời gian nhiều năm, biên độ và pha mùa vụ, cùng địa hình và kết cấu ảnh.
+Không lấy ngưỡng NDVI hoặc NBR cố định làm căn cứ duy nhất cho thay đổi rừng khộp. So sánh cùng mùa và xác nhận với ảnh độ phân giải cao, mẫu kiểm định hoặc khảo sát thực địa.
+Random Forest là mô hình nền; đánh giá thêm XGBoost khi đủ mẫu. Dùng mẫu phân tầng theo loại rừng, vùng sinh thái và mùa; tách train/test theo không gian, báo cáo confusion matrix, precision, recall, F1, OA và sai số diện tích.
+Thiết lập cờ cảnh báo “rụng lá theo mùa” và “biến động nghi vấn”; chỉ đưa vào thống kê mất rừng sau bước xác minh hoặc kiểm định đạt yêu cầu.
+3. Đánh giá cháy rừng
+Tách ba sản phẩm: (a) dự báo nguy cơ cháy theo thời tiết/vật liệu cháy; (b) điểm nóng nhiệt VIIRS/MODIS; (c) diện tích và mức độ cháy sau sự kiện (dNBR/RdNBR hoặc chỉ số thích hợp).
+FWI (Canadian Fire Weather Index) có thể dùng làm chỉ số khí tượng nền, cần hiệu chỉnh theo điều kiện Tây Nguyên. Không sử dụng FWI như xác suất cháy trực tiếp nếu chưa hiệu chuẩn.
+Với rừng khộp, độ khô nhiên liệu và rụng lá mùa khô làm tăng nguy cơ, nhưng NDVI thấp tự nó không đủ kết luận cháy. Bổ sung mưa tích lũy, độ ẩm, nhiệt độ, gió, lịch sử cháy, kiểu rừng và khoảng cách hoạt động con người.
+Điểm FIRMS phải giữ thời gian UTC/gốc và giờ Việt Nam, vệ tinh, độ tin cậy, FRP nếu có; đối chiếu lớp rừng, loại bỏ/đánh dấu điểm nghi vấn ngoài rừng, và có luồng xác minh hiện trường.
+Trạng thái sự kiện: mới phát hiện → cần xác minh → đang xác minh → xác nhận/không xác nhận → đang xử lý → kết thúc; mọi thay đổi lưu người thao tác, thời gian, bằng chứng.
+4. Sitemap và phân quyền
+Public: P01 Trang chủ; P02 Bản đồ; P03 Tài nguyên rừng; P04 Cảnh báo cháy; P05 Tin tức; P06 Phản ánh; P07 Tài liệu/Bản đồ PDF; P08 Giới thiệu; P09 Thời tiết; P10 Thống kê/Báo cáo; P11 Hướng dẫn.
+Admin: Dashboard; quản lý tài khoản/quyền; lớp dữ liệu và metadata; ảnh vệ tinh; hiện trạng rừng; phân tích Python; cảnh báo cháy; quản lý API; tin tức; báo cáo-văn bản; bản đồ PDF; phản ánh; nhật ký/cấu hình.
+Vai trò: quản trị hệ thống, lãnh đạo UBND, cán bộ chuyên môn Sở NN&MT, người dân; phân quyền RBAC kết hợp phạm vi dữ liệu/địa bàn, trạng thái công bố và quyền phê duyệt.
+MobileGIS: chức năng công khai và nghiệp vụ chuyên môn trên cùng ứng dụng; hỗ trợ GPS, chụp ảnh có tọa độ, đồng bộ ngoại tuyến, phản ánh, xác minh cảnh báo và nhật ký cập nhật.
+5. Luồng xử lý ảnh bằng Python
+GEE catalog/search → lựa chọn cảnh ảnh và QA → xuất ảnh có metadata → lưu kho tệp → Python tiền xử lý (rasterio, GDAL, xarray, numpy) → chỉ số phổ & đặc trưng mùa → mô hình scikit-learn → hậu xử lý → kiểm định → COG/vector tiles → PostGIS/API/Mapbox.
+Quản lý mỗi job với mã job, vùng nghiên cứu, khoảng thời gian, bộ dữ liệu, phiên bản thuật toán, tham số, trạng thái, log, tệp đầu ra và chỉ số chất lượng; cho phép chạy lại và đối soát.
+Đối với ảnh Sentinel-2, áp dụng SCL/cloud mask và kiểm soát ảnh trống; đối với Landsat, chuẩn hóa hệ số scale và cloud QA; không ghép ảnh khác mùa tùy tiện khi tính biến động.
+6. Các nhóm bảng PostGIS tối thiểu
+identity: users, roles, permissions, role_permissions, user_scope; spatial: administrative_units, forest_compartments, forest_parcels, protected_areas, map_layers, layer_versions, metadata.
+imagery: satellite_scenes, imagery_products, processing_jobs, processing_outputs, model_versions, training_samples, validation_samples, classification_results, change_events.
+fire: active_fire_observations, fire_risk_runs, fire_risk_zones, fire_alerts, fire_incidents, incident_verifications, incident_actions, alert_notifications.
+operations: field_reports, report_attachments, report_assignments, report_status_history, news, documents, pdf_maps, api_clients, api_access_logs, audit_logs.
+Mọi đối tượng không gian có SRID rõ ràng (lưu trữ trao đổi EPSG:4326, phép đo diện tích dùng hệ tọa độ phù hợp), nguồn, thời điểm hiệu lực, phiên bản, trạng thái kiểm duyệt và khóa ngoại.
+7. API và tích hợp
+GET /api/public/map/layers; GET /api/public/forest/summary; GET /api/public/fire/hotspots; GET /api/public/fire/risk; GET /api/public/reports; POST /api/public/reports (có xác thực/chống spam theo chính sách).
+POST /api/admin/imagery/jobs; GET /api/admin/imagery/jobs/:id; POST /api/admin/classification/runs; GET /api/admin/change-events; POST /api/admin/fire-alerts/:id/verify; POST /api/admin/reports/:id/assign.
+API phân trang, lọc theo bbox/thời gian/địa bàn; xác thực phiên, RBAC, kiểm soát tần suất, audit log; không cung cấp tệp gốc nội bộ qua URL công khai.
+8. Cấu hình, bảo mật và triển khai
+Sử dụng biến môi trường cho kết nối PostgreSQL, Mapbox, OpenWeather và đường dẫn service account GEE. Không đưa giá trị bí mật vào mã nguồn, ảnh prototype, tài liệu hoặc gói bàn giao.
+Với PostgreSQL: tài khoản ứng dụng quyền tối thiểu, mật khẩu riêng thay cho tài khoản quản trị postgres, kết nối giới hạn mạng nội bộ; ưu tiên secrets manager hoặc biến môi trường máy chủ.
+Đường dẫn GOOGLE_APPLICATION_CREDENTIALS trỏ đến JSON key lưu ngoài repository. Mapbox public token được giới hạn origin/URL; API thời tiết được gọi từ backend và bảo vệ hạn mức.
+Không bắt buộc tích hợp tileset giao thông vào phiên bản lõi cảnh báo cháy; chỉ bật khi có nghiệp vụ tuyến tiếp cận và dữ liệu hỗ trợ phù hợp.
+9. Nghiệm thu và dữ liệu thực
+Kiểm thử quyền truy cập Public/Admin; tải dữ liệu SHP/GeoJSON/GeoTIFF; hiển thị bản đồ; xử lý job Python; đồng bộ MobileGIS; xác minh cảnh báo; xuất PDF/Excel; khôi phục lỗi.
+Báo cáo phân loại rừng phải có ma trận nhầm lẫn theo lớp, đặc biệt rừng khộp và đất cây bụi/nông nghiệp; đánh giá biến động theo cùng mùa; lưu bằng chứng kiểm định.
+Số liệu, điểm nóng, địa danh, bản đồ và ảnh trong prototype hiện chỉ minh họa. Khi triển khai phải thay bằng nguồn chính thức hoặc sản phẩm phân tích đã kiểm định.
+10. Danh mục giao diện đã bàn giao
+02_Sitemap: 2 ảnh sitemap (theo vai trò và Public/Admin).
+03_Prototype_Public: P01, P02, P03, P04, P05, P06, P07 và P10. Chưa có ảnh riêng P08, P09, P11.
+04_Prototype_Admin: 1 ảnh tổng hợp nhiều màn hình; chưa có bộ ảnh riêng đầy đủ A01–A13.
+05_Prototype_MobileGIS: 1 ảnh tổng hợp 14 màn hình; chưa có ảnh độc lập từng màn hình.
+Ảnh là mockup tĩnh, không phải mã nguồn giao diện hay sản phẩm có chức năng thực thi.

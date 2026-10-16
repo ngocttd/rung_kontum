@@ -1,0 +1,32 @@
+<%- include('_top') %>
+<div class="adm-tabs"><a class="on" href="#chuoi">Chuỗi ảnh hằng tháng</a><a href="#mua">Tổ hợp theo mùa</a><a href="#lop">Sản phẩm hiển thị</a></div>
+<section class="card" id="chuoi">
+  <div class="card-h"><h2><%- ic('globe2') %> Sentinel-2 SR Harmonized – tổ hợp median tháng (100 m)</h2><span class="more muted" style="font-weight:400"><%= months.length %> tháng</span></div>
+  <div class="card-b">
+    <div class="grid" style="grid-template-columns:repeat(6,minmax(0,1fr))" data-page-size="12">
+      <% months.forEach(m => { const vf = m.valid_fraction; %>
+        <div class="card" style="padding:10px">
+          <div style="height:70px;border-radius:6px;background:linear-gradient(135deg,#1d4d3a,#5d8f4e);display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px"><%= m.month.slice(5) %>/<%= m.month.slice(0, 4) %></div>
+          <div class="src" style="margin-top:6px">Sentinel-2 · <%= m.scenes %> cảnh</div>
+          <div class="src">Pixel hợp lệ: <b style="color:<%= vf === null ? '#999' : vf > 0.8 ? '#0c7a51' : vf > 0.4 ? '#c25f00' : '#c0261f' %>"><%= vf === null ? '—' : fmt.num(vf * 100, 0) + '%' %></b></div>
+          <div class="src"><%= fmt.bytes(m.bytes) %></div>
+        </div>
+      <% }) %>
+    </div>
+    <p class="src">Lọc mây theo SCL (loại 0, 1, 3, 8, 9, 10, 11), mây cảnh &lt; 70%; 6 băng B2/B3/B4/B8/B11/B12 và số quan sát hợp lệ. Tải bằng GEE, xử lý chỉ số và phát hiện biến động bằng Python (scripts/build_forest_change.py).</p>
+  </div>
+</section>
+<section class="card" id="mua" style="margin-top:16px">
+  <div class="card-h"><h2><%- ic('collection-fill') %> Tổ hợp theo mùa</h2></div>
+  <div class="card-b table-wrap"><table class="tbl"><thead><tr><th>Mùa</th><th>Số cảnh nguồn</th><th>Khoảng thời gian</th><th>Ghi chú</th></tr></thead><tbody>
+    <% seasonal.forEach(s => { const c = s.catalog; const n = c ? (Array.isArray(c) ? c.length : (c.scenes ? c.scenes.length : (c.count || '—'))) : '—'; %><tr><td>Sentinel-2 <%= s.key.replace('dry', 'mùa khô').replace('wet', 'mùa mưa') %></td><td><%= n %></td><td class="src"><%= c && c.start ? c.start + ' → ' + c.end : '' %></td><td class="src">Lưới 100 m (tổng quan); 2025 có thêm bản 30 m</td></tr><% }) %>
+  </tbody></table></div>
+</section>
+<section class="card" id="lop" style="margin-top:16px">
+  <div class="card-h"><h2><%- ic('image-fill') %> Sản phẩm ảnh đang hiển thị trên WebGIS</h2></div>
+  <div class="card-b grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+    <% overlays.forEach(o => { %><div class="card" style="overflow:hidden"><img src="<%= o.url %>" alt="" style="width:100%;height:140px;object-fit:contain;background:#20322e"><div class="card-b"><h3 style="font-size:13.5px"><%= o.title %></h3><p class="src" style="margin:4px 0 0"><%= o.source %> · <%= o.resolution || '' %></p></div></div><% }) %>
+  </div>
+</section>
+<%- include('_bottom') %>
+</body></html>

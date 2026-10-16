@@ -1,0 +1,18 @@
+<%- include('_top') %>
+<% const sB = { draft: 'b-yellow', review: 'b-orange', published: 'b-green', archived: 'b-gray' }; %>
+<div class="adm-tabs"><a class="<%= !filter.trang_thai ? 'on' : '' %>" href="/quan-tri/tin-tuc">Tất cả (<%= list.length %>)</a><% Object.entries(statuses).forEach(([k, l]) => { %><a class="<%= filter.trang_thai === k ? 'on' : '' %>" href="?trang_thai=<%= k %>"><%= l %></a><% }) %></div>
+<section class="card">
+  <div class="card-h"><h2><%- ic('newspaper') %> Danh sách tin tức</h2><% if (can('news.manage')) { %><a class="btn btn-primary btn-sm" style="margin-left:auto" href="/quan-tri/tin-tuc/moi"><%- ic('plus-lg') %> Thêm mới</a><% } %></div>
+  <div class="card-b">
+    <form class="filters"><label>Danh mục<select class="input" name="muc"><option value="">Tất cả</option><% Object.entries(categories).forEach(([k, c]) => { %><option value="<%= k %>" <%= filter.muc === k ? 'selected' : '' %>><%= c.label %></option><% }) %></select></label><label>Từ khóa<input class="input" name="q" value="<%= filter.q || '' %>"></label><button class="btn btn-outline btn-sm">Lọc</button></form>
+    <div class="table-wrap"><table class="tbl"><thead><tr><th>STT</th><th>Tiêu đề</th><th>Danh mục</th><th>Ngày</th><th>Lượt xem</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+      <% const pg = paginate(list, query.trang, 15); pg.items.forEach((a, i) => { %><tr><td><%= pg.offset + i + 1 %></td><td style="display:flex;gap:10px;align-items:center"><img src="<%= a.image %>" alt="" style="width:56px;height:38px;object-fit:cover;border-radius:4px"><a href="/tin-tuc/<%= a.slug %>" target="_blank"><%= a.title %></a></td><td><%= a.categoryLabel %></td><td><%= fmt.date(a.published_at || a.created_at) %></td><td><%= a.views || 0 %></td><td><span class="badge <%= sB[a.status] %>"><%= a.statusLabel %></span></td>
+        <td><% if (can('news.manage')) { %><div class="inline-form"><a class="btn btn-outline btn-sm" href="/quan-tri/tin-tuc/<%= a.id %>"><%- ic('pencil-fill') %></a>
+          <form method="post" action="/quan-tri/tin-tuc/<%= a.id %>/trang-thai" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <% if (a.status !== 'published') { %><button class="btn btn-primary btn-sm" name="status" value="<%= can('news.publish') ? 'published' : 'review' %>"><%= can('news.publish') ? 'Xuất bản' : 'Gửi duyệt' %></button><% } else { %><button class="btn btn-outline btn-sm" name="status" value="archived">Lưu trữ</button><% } %>
+            <button class="btn btn-outline btn-sm" name="status" value="deleted" onclick="return confirm('Xóa bài viết?')"><%- ic('trash-fill') %></button></form></div><% } %></td></tr><% }) %>
+    </tbody></table><%- include('../partials/pager', { pg: pg }) %></div>
+  </div>
+</section>
+<%- include('_bottom') %>
+</body></html>

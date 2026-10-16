@@ -1,0 +1,94 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<%
+  const pgN = paginate(list.slice(3), query.trang, 8); const firstPage = pgN.page === 1;
+  const feat = list[0], side = list.slice(1, 3), rest = pgN.items;
+  const noticeIcon = { hotspot: 'fire', fire_danger: 'temperature', forest_change: 'satellite' };
+  const draftBadge = a => a.status !== 'published' ? `<span class="badge b-draft">${a.statusLabel}</span>` : '';
+%>
+<%- include('../partials/banner', { banner: 'p05-news', heading: 'Tin tức', lead: 'Cập nhật thông tin về tài nguyên rừng, cảnh báo cháy rừng và hoạt động quản lý, bảo vệ rừng vùng Kon Tum.' }) %>
+<main class="container page">
+  <div class="layout-3" style="grid-template-columns:280px minmax(0,1fr) 330px">
+    <aside class="grid">
+      <section class="card">
+        <div class="side-title"><%- ic('grid-fill') %> Danh mục tin tức</div>
+        <ul class="side-menu">
+          <li><a href="/tin-tuc" class="<%= !current ? 'active' : '' %>"><%- cicon('news') %> Tất cả tin tức <span class="count"><%= all.length %></span></a></li>
+          <% Object.entries(categories).forEach(([k, c]) => { %><li><a href="/tin-tuc?muc=<%= k %>" class="<%= current === k ? 'active' : '' %>"><%- cicon(c.icon) %> <%= c.label %> <span class="count"><%= counts[k] %></span></a></li><% }) %>
+        </ul>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('newspaper') %> Tin nổi bật</h2></div>
+        <div class="card-b" style="padding-top:2px">
+          <% all.slice().sort((a,b)=>(b.views||0)-(a.views||0)).slice(0,4).forEach(a => { %>
+            <div class="news-row"><img src="<%= a.image %>" alt="" loading="lazy" style="width:86px;height:62px"><div><h4><a href="/tin-tuc/<%= a.slug %>"><%= a.title %></a></h4><span class="src"><%- ic('clock-history') %> <%= fmt.date(a.published_at || a.created_at) %></span></div></div>
+          <% }) %>
+        </div>
+      </section>
+    </aside>
+
+    <section class="grid" style="align-content:start">
+      <form class="card card-b" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end" action="/tin-tuc">
+        <label style="flex:1;min-width:220px"><span class="sr-only">Từ khóa</span><input class="input" name="q" value="<%= q %>" placeholder="Tìm kiếm tin tức, chủ đề, từ khóa..."></label>
+        <label><span class="src">Chủ đề</span><select class="input" name="muc" style="min-width:170px"><option value="">Tất cả</option><% Object.entries(categories).forEach(([k, c]) => { %><option value="<%= k %>" <%= current === k ? 'selected' : '' %>><%= c.label %></option><% }) %></select></label>
+        <label><span class="src">Thời gian</span><select class="input" name="tg" style="min-width:140px"><option value="">Tất cả</option><option value="7" <%= query.tg === '7' ? 'selected' : '' %>>7 ngày qua</option><option value="30" <%= query.tg === '30' ? 'selected' : '' %>>30 ngày qua</option><option value="365" <%= query.tg === '365' ? 'selected' : '' %>>12 tháng qua</option></select></label>
+        <button class="btn btn-primary"><%- ic('search') %> Tìm kiếm</button>
+      </form>
+      <% if (!list.length) { %>
+        <div class="card"><div class="empty-state"><%- ic('newspaper') %>Chưa có bài viết phù hợp.</div></div>
+      <% } else { %>
+        <% if (firstPage) { %><div class="grid" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)">
+          <article class="feature">
+            <img src="<%= feat.image %>" alt="">
+            <div class="fb"><span class="badge b-red"><%= feat.categoryLabel.toUpperCase() %></span> <%- draftBadge(feat) %>
+              <h2><a href="/tin-tuc/<%= feat.slug %>"><%= feat.title %></a></h2><p><%= feat.summary %></p>
+              <div class="meta" style="color:#dfe8ee"><span><%- ic('calendar3') %> <%= fmt.date(feat.published_at || feat.created_at) %></span><span><%- ic('eye-fill') %> <%= feat.views || 0 %> lượt xem</span></div></div>
+          </article>
+          <div class="grid">
+            <% side.forEach(a => { %>
+              <article class="feature small"><img src="<%= a.image %>" alt=""><div class="fb"><span class="badge b-green"><%= a.categoryLabel.toUpperCase() %></span> <%- draftBadge(a) %><h2><a href="/tin-tuc/<%= a.slug %>"><%= a.title %></a></h2>
+                <div class="meta" style="color:#dfe8ee"><span><%- ic('calendar3') %> <%= fmt.date(a.published_at || a.created_at) %></span><span><%- ic('eye-fill') %> <%= a.views || 0 %></span></div></div></article>
+            <% }) %>
+          </div>
+        </div><% } %>
+        <% if (pgN.total) { %>
+        <div class="card-h" style="padding:6px 0 0;border:0"><h2 id="moi"><%- ic('newspaper') %> Tin tức mới nhất</h2></div>
+        <div class="grid cols-4">
+          <% rest.forEach(a => { %>
+            <article class="card news-card"><div class="nc-img"><img src="<%= a.image %>" alt="" loading="lazy"><span class="cat badge b-purple"><%= a.categoryLabel.toUpperCase() %></span></div>
+              <div class="nc-b"><h3><a href="/tin-tuc/<%= a.slug %>"><%= a.title %></a></h3><div class="meta"><span><%= fmt.date(a.published_at || a.created_at) %></span><span><%- ic('eye-fill') %> <%= a.views || 0 %></span><%- draftBadge(a) %></div><p><%= a.summary %></p></div></article>
+          <% }) %>
+        </div>
+        <%- include('../partials/pager', { pg: pgN, anchor: '#moi' }) %>
+        <% } %>
+      <% } %>
+      <p class="src">Bài có nhãn “Bản nháp”/“Chờ duyệt” là nội dung biên soạn từ nguồn dẫn, đang chờ biên tập viên duyệt xuất bản. Ảnh minh họa không phải ảnh hiện trường của sự kiện.</p>
+    </section>
+
+    <aside class="grid">
+      <section class="card">
+        <div class="side-title"><%- ic('bell-fill') %> Thông báo mới <a href="/canh-bao-chay" style="margin-left:auto;color:#fff;font-weight:500;font-size:13px">Xem tất cả</a></div>
+        <div class="card-b" style="padding-top:2px;padding-bottom:2px">
+          <div class="alert-item"><img class="ai-ic" src="/assets/icons/colored/sync.svg" alt=""><div class="ai-b"><span class="src"><%= fmt.dateTime(freshness.fireDanger) %></span><span class="ai-t" style="font-weight:500">Cập nhật dự báo nguy cơ cháy 7 ngày cho 40 xã</span></div></div>
+          <div class="alert-item"><img class="ai-ic" src="/assets/icons/colored/satellite.svg" alt=""><div class="ai-b"><span class="src"><%= fmt.dateTime(freshness.firms) %></span><span class="ai-t" style="font-weight:500">Cập nhật điểm nóng vệ tinh NASA FIRMS 7 ngày</span></div></div>
+          <% notices.slice(0, 3).forEach(n => { %>
+            <a class="alert-item" href="<%= n.link %>" style="text-decoration:none;color:inherit"><img class="ai-ic" src="/assets/icons/colored/<%= noticeIcon[n.type] %>.svg" alt=""><div class="ai-b"><span class="src"><%= n.statusLabel %></span><span class="ai-t" style="font-weight:500"><%= n.title %></span></div></a>
+          <% }) %>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('cloud-sun-fill') %> Thời tiết khu vực</h2><a class="more" href="/thoi-tiet">Xem chi tiết</a></div>
+        <div class="card-b"><div class="wx"><%- cicon('weather') %><div><div class="t"><%= fmt.num(weather.temp, 0) %>°C</div><span class="muted"><%= weather.description %></span></div>
+          <div class="wx-grid" style="grid-template-columns:1fr 1fr"><div>Độ ẩm<strong><%= fmt.num(weather.humidity, 0) %>%</strong></div><div>Gió<strong><%= fmt.num(weather.wind_ms * 3.6, 0) %> km/h</strong></div></div></div></div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('file-earmark-text-fill') %> Văn bản – Chính sách</h2><a class="more" href="/tai-lieu">Xem tất cả</a></div>
+        <div class="card-b" style="padding-top:2px">
+          <% documents.forEach(d => { %><div class="news-row" style="align-items:center"><img src="/assets/icons/colored/<%= d.type === 'xlsx' ? 'excel' : 'pdf' %>.svg" alt="" style="width:32px;height:32px;object-fit:contain"><div><h4><a href="/tai-lieu?id=<%= d.id %>"><%= d.title %></a></h4><span class="src"><%= d.type.toUpperCase() %> · <%= fmt.bytes(d.bytes) %><%= d.issued ? ' · ' + fmt.ymd(d.issued) : '' %></span></div></div><% }) %>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>
+<%- include('../partials/footer') %>
+</body></html>

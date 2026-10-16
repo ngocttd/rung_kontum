@@ -1,0 +1,9 @@
+{
+  "asset_files_verified": 358,
+  "gallery_asset_links_verified": 234,
+  "original_docs_unchanged": 18,
+  "secrets_in_public_or_notes": 0,
+  "env_and_service_account_structure": "valid",
+  "api_authentication_tested": false,
+  "browser_visual_qa": false
+}

@@ -1,0 +1,140 @@
+<%- include('../partials/head', { needsMap: true }) %>
+<%- include('../partials/header') %>
+<%
+  const fv = fcg.forecast.validation;
+  const risk = fcg.forecast.risk_by_commune;
+  const highHa = Object.values(risk).filter(Boolean).reduce((a, r) => a + r.high_risk_ha, 0);
+  const expHa = Object.values(risk).filter(Boolean).reduce((a, r) => a + r.expected_loss_ha, 0);
+  const wet = fcg.candidates.windows[0], dry = fcg.candidates.windows[1];
+  const ov = Object.fromEntries(overlays.map(o => [o.id, o]));
+  const statusBadge = { unverified: 'b-red', verifying: 'b-orange', confirmed: 'b-purple', rejected: 'b-gray', seasonal: 'b-yellow' };
+%>
+<%- include('../partials/banner', { banner: 'p03-forest', heading: 'Biến động và dự báo mất rừng', crumb: 'Tài nguyên rừng › Biến động và dự báo',
+  lead: 'Phát hiện biến động nghi vấn từ chuỗi ảnh Sentinel-2, lịch sử mất tán cây 2001–2024 và bản đồ dự báo nguy cơ mất rừng giai đoạn 2025–2026 có kiểm định.',
+  kpis: [
+    { icon: 'exclamation-triangle-fill', value: String(wet.candidates + dry.candidates), label: 'Vùng biến động nghi vấn 2026', tone: 'warn', sub: fmt.num(wet.area_ha + dry.area_ha) + ' ha · chưa xác minh' },
+    { icon: 'graph-up-arrow', value: fmt.num(highHa) + ' ha', label: 'Rừng nguy cơ cao/rất cao', tone: 'fire', sub: 'dự báo 2025–2026' },
+    { icon: 'tree-fill', value: fmt.num(fcg.history.aoi_annual_loss_ha['2024']) + ' ha', label: 'Mất tán cây năm 2024', tone: 'green', sub: 'Hansen GFC v1.12' },
+    { icon: 'check-circle-fill', value: 'AUC ' + fmt.num(fv.auc, 2), label: 'Kiểm định mô hình 2023–2024', tone: 'blue', sub: '10% ô nguy cơ cao nhất chứa ' + fmt.num(fv.top10pct_capture * 100, 0) + '% diện tích mất' },
+  ] }) %>
+<main class="container page">
+  <div class="note info" style="margin:10px 0 14px">Ba sản phẩm được tách riêng: <strong>(1) biến động nghi vấn</strong> là quan sát vệ tinh cần xác minh; <strong>(2) mất tán cây Hansen</strong> là lịch sử đã xảy ra (mọi nguyên nhân, kể cả khai thác rừng trồng); <strong>(3) nguy cơ mất rừng</strong> là dự báo của mô hình. Chỉ kết luận “mất rừng” sau khi cán bộ chuyên môn xác minh.</div>
+
+  <div class="layout-3">
+    <aside class="card" style="display:flex;flex-direction:column">
+      <div class="card-h"><h2><%- ic('exclamation-triangle-fill') %> Biến động nghi vấn</h2><span class="more muted" style="font-weight:400" id="cand-count"></span></div>
+      <div class="card-b" style="padding-bottom:6px">
+        <select class="input" id="f-window" style="margin-bottom:8px">
+          <option value="">Tất cả kỳ so sánh</option><% fcg.candidates.windows.forEach(w => { %><option value="<%= w.window %>"><%= w.window %> (<%= w.candidates %>)</option><% }) %>
+        </select>
+        <select class="input" id="f-status"><option value="">Mọi trạng thái</option><option value="unverified">Chưa xác minh</option><option value="verifying">Đang xác minh</option><option value="confirmed">Xác nhận mất rừng</option><option value="rejected">Không phải mất rừng</option><option value="seasonal">Rụng lá theo mùa</option></select>
+      </div>
+      <div id="cand-list" style="padding:0 16px"></div>
+    </aside>
+
+    <section class="card">
+      <div class="card-h"><h2><%- ic('map-fill') %> Bản đồ biến động và nguy cơ mất rừng</h2>
+        <div class="seg" style="margin-left:auto" id="mode">
+          <button class="on" data-mode="risk">Dự báo nguy cơ</button><button data-mode="loss">Mất tán cây</button><button data-mode="cand">Nghi vấn 2026</button><button data-mode="lc">1991–2023</button><button data-mode="img">Ảnh vệ tinh</button>
+        </div></div>
+      <div class="map-shell" style="height:590px;border-radius:0 0 10px 10px">
+        <div id="map" class="map"></div>
+        <div class="map-tools"><button data-act="home" title="Toàn vùng"><%- ic('house-fill') %></button></div>
+        <div class="legend" id="legend"></div>
+      </div>
+    </section>
+
+    <aside class="grid">
+      <section class="card" id="detail">
+        <div class="card-h"><h2><%- ic('info-circle-fill') %> Chi tiết điểm biến động</h2></div>
+        <div class="card-b" id="detail-body"><p class="muted">Chọn một điểm trong danh sách hoặc trên bản đồ.</p></div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('clipboard-check-fill') %> Quy trình xử lý cảnh báo</h2></div>
+        <div class="card-b"><ul class="timeline">
+          <li class="done"><b>Phát hiện tự động</b><time>Sentinel-2 so cùng kỳ 2024/2025, lọc mây, lặp lại ≥ 2 tháng</time></li>
+          <li class="done"><b>Đối chiếu</b><time>Rừng còn đến 2024 (Hansen), xã, mùa rụng lá</time></li>
+          <li class="todo"><b>Giao xác minh hiện trường</b><time>Kiểm lâm/cán bộ chuyên môn</time></li>
+          <li class="todo"><b>Kết luận và công bố</b><time>Xác nhận mất rừng / không phải / rụng lá theo mùa</time></li>
+        </ul></div>
+      </section>
+    </aside>
+  </div>
+
+  <section id="du-bao" class="grid" style="margin-top:16px;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)">
+    <div class="card">
+      <div class="card-h"><h2><%- ic('graph-up-arrow') %> Dự báo nguy cơ mất rừng 2025–2026 theo xã</h2><span class="badge b-gray" style="margin-left:auto">Mô hình – chưa phê duyệt</span></div>
+      <div class="card-b table-wrap">
+        <table class="tbl" data-page-size="10" data-sortable><thead><tr><th>Xã/phường</th><th class="num">DT kỳ vọng mất (ha)</th><th class="num">Nguy cơ cao + rất cao (ha)</th><th class="num">Xác suất TB</th><th class="num">Mất tán cây 2020–24 (ha)</th></tr></thead><tbody>
+          <% communes.forEach(c => { %><tr data-code="<%= c.code %>"><td><%= c.fullName %></td><td class="num"><%= fmt.num(c.risk.expected_loss_ha) %></td><td class="num"><%= fmt.num(c.risk.high_risk_ha) %></td><td class="num"><%= fmt.num(c.risk.mean_probability * 100, 1) %>%</td><td class="num"><%= fmt.num(c.loss ? c.loss.last5 : null) %></td></tr><% }) %>
+        </tbody><tfoot><tr><td>Tổng vùng</td><td class="num"><%= fmt.num(expHa) %></td><td class="num"><%= fmt.num(highHa) %></td><td></td><td class="num"><%= fmt.num(['2020','2021','2022','2023','2024'].reduce((a,y)=>a+fcg.history.aoi_annual_loss_ha[y],0)) %></td></tr></tfoot></table>
+        <p class="src">Diện tích kỳ vọng = tổng (xác suất đã hiệu chỉnh × diện tích rừng của ô 100 m). Kỳ dự báo 01/2025–12/2026; mục tiêu là mất tán cây theo định nghĩa Hansen.</p>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-h"><h2><%- ic('check-circle-fill') %> Kiểm định mô hình (dữ liệu độc lập theo thời gian)</h2></div>
+        <div class="card-b">
+          <table class="kv"><tr><td>Huấn luyện</td><td>Đặc trưng cuối 2018 → mất 2019–2020 (<%= fmt.num(fv.train.cells) %> ô)</td></tr>
+            <tr><td>Kiểm định</td><td>Đặc trưng cuối 2022 → mất 2023–2024 (<%= fmt.num(fv.test.cells) %> ô)</td></tr>
+            <tr><td>AUC</td><td><b><%= fmt.num(fv.auc, 3) %></b></td></tr><tr><td>Brier (đã hiệu chỉnh)</td><td><%= fmt.num(fv.brier_calibrated, 4) %></td></tr>
+            <tr><td>10% ô nguy cơ cao nhất</td><td>chứa <%= fmt.num(fv.top10pct_capture * 100, 1) %>% số ô mất rừng thực tế</td></tr></table>
+          <table class="tbl" style="margin-top:10px"><thead><tr><th>Cấp nguy cơ</th><th class="num">Tỷ lệ ô</th><th class="num">Tỷ lệ mất thực tế 2023–24</th></tr></thead><tbody>
+            <% fv.by_risk_class.forEach(r => { %><tr><td><span class="lv lv-<%= r.risk_class %>"><%= r.risk_class %></span> <%= ['Rất thấp','Thấp','Trung bình','Cao','Rất cao'][r.risk_class-1] %></td><td class="num"><%= fmt.num(r.cells / fv.test.cells * 100, 0) %>%</td><td class="num"><%= fmt.num(r.observed_loss_rate * 100, 1) %>%</td></tr><% }) %>
+          </tbody></table>
+          <p class="src">Phân cấp theo phân vị điểm số mô hình (50/75/90/97%). <%= fv.caveat === undefined ? '' : 'Tham chiếu là mất tán cây Hansen (mọi nguyên nhân), chưa phải hồ sơ mất rừng đã xác minh.' %></p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2><%- ic('bar-chart-fill') %> Mức đóng góp của yếu tố</h2></div>
+        <div class="card-b"><div class="chart-box short"><canvas id="ch-imp"></canvas></div></div>
+      </div>
+    </div>
+  </section>
+
+  <% if (lc) { const ks = Object.keys(lc.classes); %>
+  <section class="card" style="margin-top:16px">
+    <div class="card-h"><h2><%- ic('clock-history') %> Ma trận chuyển đổi lớp phủ (dữ liệu dự án, 15 m)</h2>
+      <div class="seg" style="margin-left:auto" id="tr-period"><% Object.keys(lc.transitions).forEach((p, i) => { %><button type="button" class="<%= p === '1991-2023' ? 'on' : '' %>" data-p="<%= p %>"><%= p.replace('-', '–') %></button><% }) %></div></div>
+    <div class="card-b table-wrap">
+      <% Object.entries(lc.transitions).forEach(([p, m]) => { %>
+      <table class="tbl compact tr-table" data-period="<%= p %>" <%= p === '1991-2023' ? '' : 'hidden' %>><thead><tr><th>Từ \ Đến (ha)</th><% ks.forEach(k => { %><th class="num"><span class="dot" style="background:<%= lc.classes[k].color %>"></span> <%= lc.classes[k].label %></th><% }) %></tr></thead><tbody>
+        <% ks.forEach(a => { %><tr><td><b><%= lc.classes[a].label %></b></td><% ks.forEach(b => { const v = (m[a] || {})[b] || 0; %><td class="num" style="<%= a === b ? 'background:#eef6f0;font-weight:700' : (a === '1' && v > 0 ? 'color:var(--red)' : (b === '1' && v > 0 ? 'color:var(--blue)' : '')) %>"><%= v ? fmt.num(v) : '·' %></td><% }) %></tr><% }) %>
+      </tbody></table>
+      <% }) %>
+      <p class="src">Hàng: lớp phủ năm đầu; cột: lớp phủ năm cuối; đường chéo: không đổi. Đỏ: rừng chuyển sang lớp khác; xanh: lớp khác chuyển thành rừng. Nguồn: <%= lc.source %>.</p>
+    </div>
+  </section>
+  <script>document.getElementById('tr-period').addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (!b) return; document.querySelectorAll('#tr-period button').forEach((x) => x.classList.toggle('on', x === b)); document.querySelectorAll('.tr-table').forEach((t) => { t.hidden = t.dataset.period !== b.dataset.p; }); });</script>
+  <% } %>
+  <section class="grid cols-2" style="margin-top:16px">
+    <div class="card">
+      <div class="card-h"><h2><%- ic('clock-history') %> Lịch sử mất tán cây 2001–2024</h2>
+        <select class="input" id="hist-commune" style="width:auto;margin-left:auto;padding:5px 8px"><option value="">Toàn vùng</option><% communes.slice().sort((a,b)=>a.fullName.localeCompare(b.fullName,'vi')).forEach(c => { %><option value="<%= c.code %>"><%= c.fullName %></option><% }) %></select></div>
+      <div class="card-b"><div class="chart-box"><canvas id="ch-hist"></canvas></div><p class="src" style="margin:4px 0 0"><%= fcg.history.source %> · <%= fcg.history.meaning %>.</p></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2><%- ic('hourglass-split') %> Dữ liệu cần bổ sung để nâng cấp cảnh báo</h2></div>
+      <div class="card-b">
+        <p style="margin-top:0">Mô hình hiện dùng dữ liệu vệ tinh công khai. Để chuyển từ “cảnh báo nghi vấn” thành “cảnh báo chính thức” cần cơ quan quản lý cung cấp:</p>
+        <ul style="margin:0;padding-left:18px;line-height:1.8">
+          <li>Bản đồ hiện trạng rừng/lô, khoảnh, tiểu khu, chủ rừng đã phê duyệt</li>
+          <li>Mẫu kiểm định biến động đã xác minh (cả trường hợp không mất rừng)</li>
+          <li>Ranh giới và chu kỳ khai thác rừng trồng để loại khai thác hợp pháp</li>
+          <li>Mẫu tham chiếu rừng khộp để tách rụng lá theo mùa</li>
+          <li>Ngưỡng và quy trình phê duyệt cảnh báo của đơn vị chủ quản</li>
+        </ul>
+        <p class="src">Trạng thái chuẩn bị: <%= readiness ? readiness.forest_change_forecast.status : '' %>. Xem thêm <a href="/huong-dan#bien-dong">hướng dẫn đọc kết quả</a>.</p>
+      </div>
+    </div>
+  </section>
+</main>
+<%- include('../partials/footer') %>
+<%- include('../partials/chartjs') %>
+<%- include('../partials/mapjs') %>
+<%- include('../partials/page-data', { pageData: {
+  overlays: ['forest-loss-risk','hansen-loss','s2-2025-wet-true','s2-2025-dry-true','ndvi-2025-wet','lc-forest-change-1991-2023'].map(id => ov[id]).filter(Boolean),
+  candidates, history: fcg.history.aoi_annual_loss_ha, importance: fv.feature_importance, selected,
+  statusBadge } }) %>
+<script src="/js/pages/change.js"></script>
+</body></html>

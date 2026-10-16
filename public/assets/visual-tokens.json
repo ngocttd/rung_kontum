@@ -1,0 +1,111 @@
+{
+  "ui": {
+    "forest": "#00664d",
+    "navy": "#092d49",
+    "surface": "#ffffff",
+    "border": "#dce8ef"
+  },
+  "legend": {
+    "risk-1": "#007b4b",
+    "risk-2": "#81cb1a",
+    "risk-3": "#ffd21f",
+    "risk-4": "#ff8a00",
+    "risk-5": "#f02d2d",
+    "forest-special-use": "#006b38",
+    "forest-protection": "#75bb25",
+    "forest-production": "#f8ce42",
+    "forest-evergreen": "#176c35",
+    "forest-semi-deciduous": "#4d9340",
+    "forest-dipterocarp": "#bd9851",
+    "forest-conifer": "#246853",
+    "forest-mixed": "#537e3e",
+    "forest-bamboo": "#96b93b",
+    "forest-planted": "#b567d7",
+    "land-perennial-crops": "#ddab68",
+    "land-shrub": "#becc8b",
+    "land-bare": "#c9b69c",
+    "land-water": "#329ed0",
+    "land-built": "#bd7272",
+    "status-new": "#e85d45",
+    "status-verifying": "#eaa12a",
+    "status-confirmed": "#bd2430",
+    "status-closed": "#208a63",
+    "status-rejected": "#7b8791"
+  },
+  "riskThresholds": null,
+  "riskThresholdNote": "Colors only; configure thresholds after model calibration.",
+  "markerSemantics": {
+    "hotspot-unverified": {
+      "icon": "fire",
+      "color": "#ed3a32"
+    },
+    "fire-confirmed": {
+      "icon": "fire",
+      "color": "#b81725"
+    },
+    "fire-investigating": {
+      "icon": "fire",
+      "color": "#f58b1f"
+    },
+    "fire-resolved": {
+      "icon": "check-circle-fill",
+      "color": "#128065"
+    },
+    "fire-rejected": {
+      "icon": "x-circle-fill",
+      "color": "#6b7280"
+    },
+    "forest": {
+      "icon": "tree-fill",
+      "color": "#179a57"
+    },
+    "protected-area": {
+      "icon": "shield-fill-check",
+      "color": "#006f48"
+    },
+    "forest-violation": {
+      "icon": "tree-fill",
+      "color": "#dc6438"
+    },
+    "land-encroachment": {
+      "icon": "exclamation-triangle-fill",
+      "color": "#f4a000"
+    },
+    "timber-transport": {
+      "icon": "truck",
+      "color": "#168be4"
+    },
+    "wildlife": {
+      "icon": "paw",
+      "color": "#a34ad5"
+    },
+    "report-other": {
+      "icon": "three-dots",
+      "color": "#718096"
+    },
+    "report-photo": {
+      "icon": "camera-fill",
+      "color": "#8955c7"
+    },
+    "ranger-station": {
+      "icon": "building-fill",
+      "color": "#155b72"
+    },
+    "settlement": {
+      "icon": "house-fill",
+      "color": "#78815a"
+    },
+    "water-station": {
+      "icon": "droplet-fill",
+      "color": "#229cd4"
+    },
+    "gps": {
+      "icon": "crosshair",
+      "color": "#168bf0"
+    },
+    "survey": {
+      "icon": "clipboard-check-fill",
+      "color": "#028e7e"
+    }
+  }
+}

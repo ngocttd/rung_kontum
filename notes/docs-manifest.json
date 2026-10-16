@@ -1,0 +1,92 @@
+﻿[
+    {
+        "path":  "docs\\README.txt",
+        "bytes":  426,
+        "sha256":  "3EFBB93C3A68D819DC7A94D6BB2B1F42EC5DDAEA42DF0B2528846EF939B890F4"
+    },
+    {
+        "path":  "docs\\01_Tai_lieu\\Dac_ta_WebGIS_MobileGIS_KonTum_v1.docx",
+        "bytes":  45131,
+        "sha256":  "732FC342EDCF766E69CB825FC4E34AD5C7DADEF235470479AAF56107416A54E7"
+    },
+    {
+        "path":  "docs\\01_Tai_lieu\\Danh muc chuc nang WebGIS_MobileGIS kontum.docx",
+        "bytes":  150183,
+        "sha256":  "8BA5A6542C61F7083D67429980BA86E71599E34394588DA9E45A77FB4D743A88"
+    },
+    {
+        "path":  "docs\\01_Tai_lieu\\Phu_luc_Kien_truc_Python_Rung_Khop_v1_1.docx",
+        "bytes":  41676,
+        "sha256":  "58403E5AA38F56728DEBCD002B8BF3B49C9AC5D6CD37FD19348A50E8C3947562"
+    },
+    {
+        "path":  "docs\\02_Sitemap\\Sitemap_Public_Admin.png",
+        "bytes":  1921074,
+        "sha256":  "6E30E42B13A57D374C4F67764951BC4C16F80E36C447BF5A0E28AF3FDDF176C8"
+    },
+    {
+        "path":  "docs\\02_Sitemap\\Sitemap_theo_vai_tro.png",
+        "bytes":  1810171,
+        "sha256":  "A2CC53940294FD4CB04618F7BB2B6CB94D4076DFD138B21B558E31977396B906"
+    },
+    {
+        "path":  "docs\\03_Prototype_Public\\P01_Trang_chu.png",
+        "bytes":  2401074,
+        "sha256":  "9DB9F614B84AB4064CBA38FF9EC8E41760BB3CC1A03D6F25893B95C656157941"
+    },
+    {
+        "path":  "docs\\03_Prototype_Public\\P02_Ban_do_WebGIS.png",
+        "bytes":  2549209,
+        "sha256":  "159EEC0CF9A71C6DED5C96976D74CD2E981171DEFDC22B2EF479DB581E4E6B7C"
+    },
+    {
+        "path":  "docs\\03_Prototype_Public\\P03_Tai_nguyen_rung.png",
+        "bytes":  2312683,
+        "sha256":  "C9635C95273686BFFBC2D634D30CC068E1193EF77F022813B654AAD28E5611F7"
+    },
+    {
+        "path":  "docs\\03_Prototype_Public\\P04_Canh_bao_chay_rung.png",
+        "bytes":  2242455,
+        "sha256":  "0434DF99B445D26F7C1DD1CBC416C835F9A771F9448F592FB03C735FC65D98F9"
+    },
+    {
+        "path":  "docs\\03_Prototype_Public\\P05_Tin_tuc.png",
+        "bytes":  2424148,
+        "sha256":  "4E1535899A642212C4A3303C3809931245E9A69620430DE1DD66475D3706D2F8"
+    },
+    {
+        "path":  "docs\\03_Prototype_Public\\P06_Phan_anh_hien_truong.png",
+        "bytes":  2232172,
+        "sha256":  "2E211C72B8955F9194F7B4C54C36B96D37A17CCC738DF3EA9FFFBBF6C42EFD3C"
+    },
+    {
+        "path":  "docs\\03_Prototype_Public\\P07_Tai_lieu_Ban_do_PDF.png",
+        "bytes":  2139042,
+        "sha256":  "4B4851AD5163D8C24606818C542276D80FA19F0B17B8D827B083D22DE296B03D"
+    },
+    {
+        "path":  "docs\\03_Prototype_Public\\P10_Thong_ke_Bao_cao.png",
+        "bytes":  2101255,
+        "sha256":  "85D6C76834982FC7721E22BE677CB8FEB50B10D55ADCF91A4B043037DC2996A7"
+    },
+    {
+        "path":  "docs\\04_Prototype_Admin\\Tong_hop_Admin.png",
+        "bytes":  2185557,
+        "sha256":  "8D8FAF2864542B0BAE2B4AFBA76364E6A1C4999F8E756AA341107891575E3496"
+    },
+    {
+        "path":  "docs\\05_Prototype_MobileGIS\\Tong_hop_14_man_hinh_MobileGIS.png",
+        "bytes":  2210125,
+        "sha256":  "4E17A60430AA46EB6067AF2368CA0891B15783D168287805B43EE80C0EE6D891"
+    },
+    {
+        "path":  "docs\\06_Cau_hinh_mau\\.env.example",
+        "bytes":  319,
+        "sha256":  "A95CCA7C64D6BE24C07B035F12661E2E21FB65AD17F6CAEC4074D521CA1BE7BB"
+    },
+    {
+        "path":  "docs\\06_Cau_hinh_mau\\README_BAO_MAT.txt",
+        "bytes":  323,
+        "sha256":  "4FCCA33437C911FFD91EEC17ADE249CE891A0E226BC89F2C2886710D8D65EF70"
+    }
+]

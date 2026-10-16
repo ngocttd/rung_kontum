@@ -1,0 +1,55 @@
+<header class="site-header<%= nav && nav !== 'home' ? ' bg' : '' %>">
+  <div class="container">
+    <a class="brand" href="/">
+      <img class="brand-mark" src="/img/brand/emblem-128.png" alt="Biểu trưng WebGIS Kon Tum">
+      <span>
+        <span class="brand-title">WebGIS KON TUM</span>
+        <span class="brand-sub">Hệ thống giám sát tài nguyên rừng và cảnh báo cháy rừng</span>
+      </span>
+    </a>
+    <button class="menu-toggle" type="button" aria-label="Mở menu" data-toggle-nav><%- ic('three-dots') %></button>
+    <nav class="main-nav" id="main-nav" aria-label="Điều hướng chính">
+      <div class="nav-item"><a href="/" class="<%= nav === 'home' ? 'active' : '' %>">Trang chủ</a></div>
+      <div class="nav-item"><a href="/ban-do" class="<%= nav === 'map' ? 'active' : '' %>">Bản đồ</a></div>
+      <div class="nav-item">
+        <a href="/tai-nguyen-rung" class="<%= nav === 'forest' ? 'active' : '' %>">Tài nguyên rừng <%- ic('chevron-down') %></a>
+        <div class="nav-drop">
+          <a href="/tai-nguyen-rung">Tổng quan tài nguyên rừng</a>
+          <a href="/tai-nguyen-rung?tab=hien-trang">Hiện trạng rừng 2025 theo xã</a>
+          <a href="/tai-nguyen-rung?tab=lop-phu">Lớp phủ đất và ảnh vệ tinh</a>
+          <a href="/bien-dong-rung">Biến động và dự báo mất rừng</a>
+        </div>
+      </div>
+      <div class="nav-item">
+        <a href="/canh-bao-chay" class="<%= nav === 'fire' || nav === 'weather' ? 'active' : '' %>">Cảnh báo cháy rừng <%- ic('chevron-down') %></a>
+        <div class="nav-drop">
+          <a href="/canh-bao-chay">Tổng quan cảnh báo cháy</a>
+          <a href="/canh-bao-chay?tab=du-bao">Dự báo nguy cơ cháy 7 ngày</a>
+          <a href="/canh-bao-chay?tab=diem-nong">Điểm nóng vệ tinh (FIRMS)</a>
+          <a href="/thoi-tiet">Thời tiết – Khí hậu</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="/tin-tuc" class="<%= nav === 'news' ? 'active' : '' %>">Tin tức</a></div>
+      <div class="nav-item"><a href="/thong-ke" class="<%= nav === 'stats' ? 'active' : '' %>">Thống kê</a></div>
+      <div class="nav-item"><a href="/tai-lieu" class="<%= nav === 'docs' ? 'active' : '' %>">Tài liệu</a></div>
+      <div class="nav-item"><a href="/phan-anh" class="<%= nav === 'reports' ? 'active' : '' %>">Phản ánh</a></div>
+      <div class="nav-item"><a href="/gioi-thieu" class="<%= nav === 'about' || nav === 'guide' ? 'active' : '' %>">Giới thiệu</a></div>
+    </nav>
+    <div class="header-tools">
+      <div class="search-box" data-search>
+        <%- ic('search') %>
+        <input type="search" placeholder="Tìm kiếm..." aria-label="Tìm kiếm toàn hệ thống" autocomplete="off">
+        <div class="search-results" role="listbox"></div>
+      </div>
+      <% if (user) { %>
+        <a class="btn btn-primary" href="/quan-tri"><%- ic('gear-fill') %> Quản trị</a>
+      <% } else { %>
+        <a class="btn btn-primary" href="/quan-tri/dang-nhap">Đăng nhập</a>
+      <% } %>
+      <div class="lang" role="group" aria-label="Ngôn ngữ">
+        <a class="on" href="<%= path %>" aria-current="true"><img src="/img/flag-vn.svg" alt="">VI</a>
+        <a href="https://translate.google.com/translate?sl=vi&tl=en&u=" data-translate title="Bản dịch máy tiếng Anh (Google Translate)" rel="noopener">EN</a>
+      </div>
+    </div>
+  </div>
+</header>

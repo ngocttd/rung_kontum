@@ -1,0 +1,221 @@
+<%- include('../partials/head', { needsMap: true }) %>
+<%- include('../partials/header') %>
+<%
+  const s = summary;
+  const withStats = communes.filter(c => c.official);
+  const maxForest = Math.max(...withStats.map(c => c.official.established_forest_ha));
+  const byCat = (k) => withStats.filter(c => c.official[k] > 0).sort((a, b) => b.official[k] - a.official[k]);
+  const wc = landcover;
+  const wcColors = {'10':'#006400','20':'#ffbb22','30':'#ffff4c','40':'#f096ff','50':'#fa0000','60':'#b4b4b4','80':'#0064c8','90':'#0096a0'};
+  const forestTypes = [
+    ['evergreen','forest-evergreen','Rừng lá rộng thường xanh','Kiểu rừng chiếm ưu thế ở vùng núi cao phía bắc và đông (Ngọc Linh, Kon Plông).'],
+    ['dipterocarp','forest-dipterocarp','Rừng khộp (rụng lá theo mùa)','Rụng lá mạnh mùa khô; NDVI giảm theo mùa không phải là mất rừng.'],
+    ['bamboo','forest-bamboo','Rừng tre nứa','Thường xen trong rừng thứ sinh, ven suối và nương rẫy cũ.'],
+    ['conifer','forest-conifer','Rừng lá kim','Thông và pơ mu ở đai cao; diện tích phân bố cần bản đồ kiểm kê được duyệt.'],
+    ['plantation','forest-planted','Rừng trồng','Rừng trồng sản xuất có chu kỳ khai thác; Hansen ghi nhận khai thác như mất tán cây.'],
+  ];
+  const fcgHist = fcg ? fcg.history.aoi_annual_loss_ha : null;
+  const ov = Object.fromEntries(overlays.map(o => [o.id, o]));
+  const tabs = [['tong-quan','grid-fill','Tổng quan'],['hien-trang','tree-fill','Hiện trạng rừng'],['phan-loai','bar-chart-fill','Phân loại rừng'],['lop-phu','clock-history','Lớp phủ 1991–2023'],['__/bien-dong-rung','graph-up-arrow','Biến động rừng'],
+    ['dac-dung','shield-fill-check','Khu bảo tồn và rừng đặc dụng'],['phong-ho','tree-fill','Rừng phòng hộ'],['san-xuat','bar-chart-fill','Rừng sản xuất'],['__/tai-lieu','file-earmark-text-fill','Dữ liệu và tài liệu']];
+  const catPanels = [['dac-dung','special_use_planning_ha','Rừng đặc dụng','special','#006b38'],['phong-ho','protection_planning_ha','Rừng phòng hộ','protection','#75bb25'],['san-xuat','production_planning_ha','Rừng sản xuất','production','#f8ce42']];
+  const filterTypes = [['special','Rừng đặc dụng','#006b38'],['protection','Rừng phòng hộ','#75bb25'],['production','Rừng sản xuất','#4caf50'],['natural','Rừng tự nhiên','#0f5f32'],['plantation','Rừng trồng','#f8b733']];
+%>
+<%- include('../partials/banner', { banner: 'p03-forest', heading: 'Tài nguyên rừng Kon Tum', crumb: 'Tài nguyên rừng',
+  lead: 'Thông tin hiện trạng, phân loại, biến động và phân bố tài nguyên rừng phục vụ quản lý, bảo vệ và phát triển rừng bền vững.',
+  kpis: [
+    { icon: 'tree-fill', value: fmt.num(s.established_forest_ha) + ' ha', label: 'Tổng diện tích rừng', tone: 'dark' },
+    { icon: 'tree-fill', value: fmt.num(s.cover_percent_computed, 1) + ' %', label: 'Độ che phủ rừng', tone: 'dark' },
+    { icon: 'tree-fill', value: fmt.num(s.natural_forest_ha) + ' ha', label: 'Rừng tự nhiên', tone: 'dark' },
+    { icon: 'flower1', value: fmt.num(s.plantation_ha) + ' ha', label: 'Rừng trồng', tone: 'dark' },
+    { icon: 'shield-fill-check', value: String(byCat('special_use_planning_ha').length), label: 'Xã có rừng đặc dụng', tone: 'dark' },
+  ] }) %>
+<main class="container page forest-page">
+  <div class="tabs tabs-tight" data-tabs="forest">
+    <% tabs.forEach(([id, icon, label]) => { if (id.startsWith('__')) { %><a class="tab" href="<%= id.slice(2) %>"><%- ic(icon) %> <%= label %></a><% } else { %><button class="tab <%= tab === id ? 'active' : '' %>" data-cls="active" data-tab="<%= id %>"><%- ic(icon) %> <%= label %></button><% } }) %>
+  </div>
+
+  <div class="layout-3 forest-layout">
+    <aside class="card col-left">
+      <div class="card-h"><h2><%- ic('funnel-fill') %> Bộ lọc dữ liệu</h2></div>
+      <div class="card-b">
+        <label class="field"><span>Năm bản đồ</span><select class="input" disabled><option>2025</option></select></label>
+        <div class="field"><span>Loại rừng</span>
+          <% filterTypes.forEach(([k, l, c]) => { %><label class="check"><input type="checkbox" name="ftype" value="<%= k %>"> <span class="sw" style="background:<%= c %>;width:14px;height:12px;border-radius:2px;display:inline-block"></span> <%= l %></label><% }) %>
+        </div>
+        <label class="field"><span>Đơn vị hành chính</span>
+          <select class="input" id="commune-select"><option value="">Toàn vùng Kon Tum</option>
+            <% communes.slice().sort((a,b)=>a.fullName.localeCompare(b.fullName,'vi')).forEach(c => { %><option value="<%= c.code %>"><%= c.fullName %></option><% }) %>
+          </select></label>
+        <div class="field"><span>Hiển thị thêm lớp</span>
+          <label class="check"><input type="checkbox" data-vec="communes" checked> Ranh giới xã</label>
+          <label class="check"><input type="checkbox" data-ov="worldcover-2021"> Lớp phủ đất 2021</label>
+          <label class="check"><input type="checkbox" data-ov="ndvi-2025-dry"> NDVI mùa khô 2025</label>
+          <label class="check"><input type="checkbox" data-ov="hansen-loss"> Mất tán cây 2001–2024</label>
+          <label class="check"><input type="checkbox" data-ov="dem-2024"> Địa hình</label>
+          <label class="check"><input type="checkbox" data-ov="s2-latest"> Ảnh vệ tinh nền</label>
+        </div>
+        <button class="btn btn-primary btn-block" type="button" id="apply"><%- ic('search') %> Áp dụng bộ lọc</button>
+        <button class="btn btn-outline btn-block" type="button" id="reset" style="margin-top:8px">Đặt lại</button>
+        <p class="src" style="margin-top:10px">Số liệu QĐ 1047/QĐ-UBND (31/12/2025) theo 40 xã hiện hành; bản đồ tô màu theo xã vì chưa có polygon lô/khoảnh được duyệt.</p>
+      </div>
+    </aside>
+
+    <section class="card fill">
+      <div class="card-h"><h2><%- ic('map-fill') %> Bản đồ hiện trạng tài nguyên rừng năm 2025</h2>
+        <div class="search-box" data-search="map" style="margin-left:auto"><%- ic('search') %><input type="search" placeholder="Tìm kiếm địa điểm, xã/phường..." autocomplete="off" style="width:230px"><div class="search-results"></div></div></div>
+      <div class="map-shell" style="border-radius:0 0 10px 10px">
+        <div id="map" class="map"></div>
+        <div class="map-tools"><button data-act="zoom-in" title="Phóng to"><%- ic('plus-lg') %></button><button data-act="zoom-out" title="Thu nhỏ"><%- ic('dash-lg') %></button><button data-act="home" title="Toàn vùng"><%- ic('house-fill') %></button><button data-act="locate" title="Vị trí"><%- ic('crosshair') %></button></div>
+        <div class="basemaps" style="flex-direction:column;background:#fff;padding:8px 10px;border-radius:8px;border:1px solid var(--line);gap:0;font-size:12.5px">
+          <label class="check"><input type="radio" name="bm" value="satellite" checked> Ảnh vệ tinh</label>
+          <label class="check"><input type="radio" name="bm" value="terrain"> Bản đồ địa hình</label>
+          <label class="check"><input type="radio" name="bm" value="streets"> Bản đồ đường phố</label>
+          <label class="check"><input type="radio" name="bm" value="s2"> Ảnh Sentinel-2</label>
+        </div>
+        <img class="minimap" src="/assets/maps/historical-province.png" alt="Vị trí vùng Kon Tum">
+        <div class="legend" id="legend" style="right:auto;left:12px"></div>
+      </div>
+    </section>
+
+    <aside class="grid">
+      <section class="card">
+        <div class="card-h"><h2><%- ic('bar-chart-fill') %> Thống kê tài nguyên rừng năm 2025</h2><span class="more muted" style="font-weight:400">Đơn vị: ha</span></div>
+        <div class="card-b">
+          <div class="donut-wrap keep" style="grid-template-columns:150px minmax(0,1fr)"><div class="chart-box" style="height:150px"><canvas id="ch-origin"></canvas></div>
+            <ul class="risk-list" style="font-size:12.3px">
+              <li><span class="dot" style="background:#006b38"></span>Rừng đặc dụng<span class="v"><%= fmt.num(s.special_use_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.special_use_ha / s.planning_ha * 100, 1) %>%</span></li>
+              <li><span class="dot" style="background:#75bb25"></span>Rừng phòng hộ<span class="v"><%= fmt.num(s.protection_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.protection_ha / s.planning_ha * 100, 1) %>%</span></li>
+              <li><span class="dot" style="background:#f8ce42"></span>Rừng sản xuất<span class="v"><%= fmt.num(s.production_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.production_ha / s.planning_ha * 100, 1) %>%</span></li>
+              <li><span class="dot" style="background:#176c35"></span>Rừng tự nhiên<span class="v"><%= fmt.num(s.natural_forest_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.natural_forest_ha / s.established_forest_ha * 100, 1) %>%</span></li>
+              <li><span class="dot" style="background:#b567d7"></span>Rừng trồng<span class="v"><%= fmt.num(s.plantation_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.plantation_ha / s.established_forest_ha * 100, 1) %>%</span></li>
+            </ul></div>
+          <p class="src" style="margin:4px 0 0">Vòng ngoài: quy hoạch 3 loại rừng; vòng trong: nguồn gốc rừng. <a href="<%= s.source_url %>" target="_blank" rel="noopener">Phụ lục QĐ 1047</a></p>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('graph-up-arrow') %> Biến động tán rừng 2015–2024</h2><div class="seg" style="margin-left:auto" id="loss-mode"><button class="on" data-m="loss">Mất tán cây</button><button data-m="ndvi">NDVI</button></div></div>
+        <div class="card-b"><div class="chart-box short"><canvas id="ch-loss"></canvas></div>
+          <p class="src" style="margin:4px 0 0" id="loss-note">Hansen/UMD GFC v1.12 – mất tán cây mọi nguyên nhân (gồm khai thác rừng trồng).</p></div>
+      </section>
+    </aside>
+
+    <!-- tab panels (span map + right column) -->
+    <div data-panel-group="forest" data-panel="tong-quan" <%= tab==='tong-quan'?'':'hidden' %> class="grid span-2 forest-bottom">
+      <section class="card">
+        <div class="card-h"><h2><%- ic('bar-chart-fill') %> Phân bố tài nguyên rừng theo xã</h2></div>
+        <div class="card-b"><table class="tbl compact"><thead><tr><th>Xã/phường</th><th>Diện tích rừng (ha)</th><th class="num">Tỷ lệ (%)</th></tr></thead><tbody>
+          <% withStats.slice(0,8).forEach(c => { %><tr data-code="<%= c.code %>"><td><%= c.name %></td><td><div class="bar-cell"><span class="bar" style="width:<%= Math.round(c.official.established_forest_ha / maxForest * 120) %>px"></span><%= fmt.num(c.official.established_forest_ha) %></div></td><td class="num"><%= fmt.num(c.official.established_forest_ha / s.established_forest_ha * 100, 1) %></td></tr><% }) %>
+        </tbody></table><a class="more" href="?tab=hien-trang" style="font-size:12.5px">Xem đủ 40 xã</a></div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('image-fill') %> Ảnh vệ tinh minh họa hiện trạng rừng</h2></div>
+        <div class="seg sat-tabs" id="sat-tabs" style="margin:10px 14px 0"><button class="on" data-img="s2-2025-dry-true">Sentinel-2 (màu tự nhiên)</button><button data-img="ndvi-2025-dry">Ảnh NDVI</button><button data-img="worldcover-2021">Ảnh phân loại lớp phủ</button></div>
+        <div class="card-b"><div class="sat-view"><img id="sat-img" src="<%= ov['s2-2025-dry-true'] ? ov['s2-2025-dry-true'].url : '' %>" alt=""><span class="sat-cap" id="sat-cap"><%= ov['s2-2025-dry-true'] ? ov['s2-2025-dry-true'].title : '' %></span></div></div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('shield-fill-check') %> Danh sách xã có rừng đặc dụng</h2><a class="more" href="?tab=dac-dung">Xem tất cả <%- ic('chevron-right') %></a></div>
+        <div class="card-b table-wrap"><table class="tbl compact"><thead><tr><th>STT</th><th>Xã/phường</th><th class="num">Đặc dụng (ha)</th><th class="num">Phòng hộ (ha)</th></tr></thead><tbody>
+          <% byCat('special_use_planning_ha').slice(0,6).forEach((c,i) => { %><tr data-code="<%= c.code %>"><td><%= i+1 %></td><td><%= c.name %></td><td class="num"><%= fmt.num(c.official.special_use_planning_ha) %></td><td class="num"><%= fmt.num(c.official.protection_planning_ha) %></td></tr><% }) %>
+        </tbody></table><p class="src">Ranh giới từng khu bảo tồn, vườn quốc gia cần lớp GIS do cơ quan quản lý bàn giao.</p></div>
+      </section>
+    </div>
+
+    <section data-panel-group="forest" data-panel="hien-trang" <%= tab==='hien-trang'?'':'hidden' %> class="card span-2">
+      <div class="card-h"><h2><%- ic('tree-fill') %> Hiện trạng rừng 31/12/2025 theo 40 xã/phường</h2><a class="more" href="/thong-ke/xuat.xlsx"><%- ic('file-earmark-excel-fill') %> Tải Excel</a></div>
+      <div class="card-b table-wrap">
+        <table class="tbl" data-page-size="10" data-sortable><thead><tr><th>Xã/phường</th><th class="num">DT tự nhiên</th><th class="num">Có rừng</th><th class="num">Rừng tự nhiên</th><th class="num">Rừng trồng</th><th class="num">Trồng chưa thành rừng</th><th class="num">Che phủ (%)</th><th>Dòng nguồn</th></tr></thead>
+        <tbody><% withStats.forEach(c => { const o = c.official; %><tr data-code="<%= c.code %>"><td><%= c.fullName %></td><td class="num"><%= fmt.num(o.natural_area_ha) %></td><td class="num"><%= fmt.num(o.established_forest_ha) %></td><td class="num"><%= fmt.num(o.natural_forest_ha) %></td><td class="num"><%= fmt.num(o.established_plantation_ha) %></td><td class="num"><%= fmt.num(o.immature_plantation_ha) %></td><td class="num"><%= fmt.num(o.official_forest_cover_percent, 2) %></td><td class="src"><%= o.source_sheet %>, dòng <%= o.source_row %></td></tr><% }) %></tbody>
+        <tfoot><tr><td>Tổng 40 xã</td><td class="num"><%= fmt.num(s.natural_area_ha) %></td><td class="num"><%= fmt.num(s.established_forest_ha) %></td><td class="num"><%= fmt.num(s.natural_forest_ha) %></td><td class="num"><%= fmt.num(s.plantation_ha) %></td><td class="num"><%= fmt.num(s.immature_plantation_ha) %></td><td class="num"><%= fmt.num(s.cover_percent_computed, 2) %>*</td><td></td></tr></tfoot></table>
+        <p class="src">Đơn vị: ha. Nguồn: phụ lục Excel QĐ 1047/QĐ-UBND ngày 31/3/2026; số liệu tính cho toàn xã hiện hành, ghép theo tên xã. *Tỷ lệ tổng tính từ tổng diện tích.</p>
+      </div>
+    </section>
+
+    <div data-panel-group="forest" data-panel="phan-loai" <%= tab==='phan-loai'?'':'hidden' %> class="grid span-2">
+      <div class="grid cols-2">
+        <section class="card">
+          <div class="card-h"><h2><%- ic('bar-chart-fill') %> Quy hoạch 3 loại rừng theo xã</h2></div>
+          <div class="card-b"><div class="chart-box" style="height:360px"><canvas id="ch-plan"></canvas></div></div>
+        </section>
+        <section class="card">
+          <div class="card-h"><h2><%- ic('layers-fill') %> Lớp phủ đất ESA WorldCover 2021</h2></div>
+          <div class="card-b"><div class="donut-wrap keep" style="grid-template-columns:200px minmax(0,1fr)"><div class="chart-box"><canvas id="ch-wc"></canvas></div>
+            <ul class="risk-list" style="font-size:12.5px"><% Object.entries(wc.aoi_worldcover_ha).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => { %><li><span class="dot" style="background:<%= wcColors[k] %>"></span><%= wc.classes[k] %><span class="v"><%= fmt.num(v) %> ha</span></li><% }) %></ul></div>
+            <p class="src" style="margin:6px 0 0">Lớp phủ tham khảo năm 2021; “cây gỗ” gồm rừng tự nhiên, rừng trồng và cây lâu năm, khác diện tích rừng pháp lý.</p></div>
+        </section>
+      </div>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('tree-fill') %> Các kiểu rừng cần phân biệt khi giám sát</h2><span class="badge b-gray" style="margin-left:auto">Ảnh minh họa</span></div>
+        <div class="card-b grid" style="grid-template-columns:repeat(5,minmax(0,1fr))">
+          <% forestTypes.forEach(([img, sym, t, d]) => { %>
+            <div><img src="/assets/items/<%= img %>-small.webp" alt="" style="width:100%;height:110px;object-fit:cover;border-radius:8px">
+              <h3 style="font-size:13.5px;margin:8px 0 4px;display:flex;gap:6px;align-items:center"><img src="/assets/symbols/<%= sym %>.svg" alt="" width="18"><%= t %></h3><p class="src" style="margin:0;font-size:12.3px"><%= d %></p></div>
+          <% }) %>
+        </div>
+      </section>
+    </div>
+
+    <% if (lc) { const fv = lc.field_validation; const ch = lc.forest_change_1991_2023; const rowsC = communes.map(c => ({ c, x: lc.by_commune[c.code] && lc.by_commune[c.code].forest_change_1991_2023 })).filter(r => r.x).sort((a, b) => (b.x.loss_ha - b.x.gain_ha) - (a.x.loss_ha - a.x.gain_ha)); %>
+    <div data-panel-group="forest" data-panel="lop-phu" <%= tab === 'lop-phu' ? '' : 'hidden' %> class="grid span-2">
+      <div class="note info">Dữ liệu thực tế do dự án cung cấp: bản đồ lớp phủ tỉnh Kon Tum từ ảnh vệ tinh các năm 1991, 2014, 2023 (UTM 48N, 15 m, 7 lớp) và 389 mẫu thực địa năm 2025. “Rừng” ở đây là lớp phủ giải đoán ảnh, khác diện tích rừng pháp lý của QĐ 1047.</div>
+      <div class="grid" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)">
+        <section class="card">
+          <div class="card-h"><h2><%- ic('bar-chart-fill') %> Diện tích các lớp phủ 1991 – 2014 – 2023</h2>
+            <select class="input" id="lc-commune" style="width:auto;margin-left:auto;padding:5px 8px"><option value="">Toàn vùng</option><% communes.slice().sort((a,b)=>a.fullName.localeCompare(b.fullName,'vi')).forEach(c => { %><option value="<%= c.code %>"><%= c.fullName %></option><% }) %></select></div>
+          <div class="card-b"><div class="chart-box tall"><canvas id="ch-lc"></canvas></div>
+            <table class="tbl compact" style="margin-top:10px" id="lc-table"><thead><tr><th>Lớp phủ</th><% lc.years.forEach(y => { %><th class="num"><%= y %> (ha)</th><% }) %><th class="num">Thay đổi 1991→2023</th></tr></thead><tbody></tbody></table></div>
+        </section>
+        <div class="grid">
+          <section class="card">
+            <div class="card-h"><h2><%- ic('graph-up-arrow') %> Biến động rừng 1991–2023</h2></div>
+            <div class="card-b grid cols-3" style="text-align:center">
+              <div><span class="muted">Rừng ổn định</span><br><strong style="font-size:20px;color:var(--forest)"><%= fmt.num(ch.stable_ha) %> ha</strong></div>
+              <div><span class="muted">Mất rừng</span><br><strong style="font-size:20px;color:var(--red)"><%= fmt.num(ch.loss_ha) %> ha</strong></div>
+              <div><span class="muted">Tăng rừng</span><br><strong style="font-size:20px;color:var(--blue)"><%= fmt.num(ch.gain_ha) %> ha</strong></div>
+            </div>
+            <div class="card-f">Xem bản đồ: lớp “Mất / tăng rừng 1991–2023” trên <a href="/ban-do?lop=lc-forest-change-1991-2023">Bản đồ WebGIS</a>.</div>
+          </section>
+          <section class="card">
+            <div class="card-h"><h2><%- ic('clipboard-check-fill') %> Kiểm chứng bằng mẫu thực địa 2025</h2></div>
+            <div class="card-b">
+              <table class="kv"><tr><td>Số mẫu</td><td><b><%= fv.samples %></b> điểm (<%= Object.entries(fv.by_label).map(([k, v]) => k + ' ' + v).join(', ') %>)</td></tr>
+                <tr><td>Khớp lớp phủ 2023</td><td><b><%= fmt.num(fv.landcover_2023.agreement * 100, 1) %>%</b> trên <%= fv.landcover_2023.compared %> mẫu so được</td></tr>
+                <tr><td>Khớp “cây gỗ” WorldCover 2021</td><td><b><%= fmt.num(fv.worldcover_2021_forest.agreement * 100, 1) %>%</b> trên <%= fv.worldcover_2021_forest.compared %> mẫu</td></tr></table>
+              <table class="tbl compact" style="margin-top:8px" data-page-size="6"><thead><tr><th>Nhãn mẫu → lớp phủ 2023</th><th class="num">Số mẫu</th></tr></thead><tbody>
+                <% Object.entries(fv.confusion).forEach(([k, n]) => { %><tr><td><%= k %></td><td class="num"><%= n %></td></tr><% }) %></tbody></table>
+              <p class="src"><%= fv.landcover_2023.note %>.</p>
+            </div>
+          </section>
+        </div>
+      </div>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('tree-fill') %> Mất và tăng rừng theo xã, 1991–2023</h2></div>
+        <div class="card-b table-wrap"><table class="tbl compact" data-sortable data-page-size="10"><thead><tr><th>Xã/phường</th><th class="num">Rừng 1991 (ha)</th><th class="num">Rừng 2014 (ha)</th><th class="num">Rừng 2023 (ha)</th><th class="num">Mất rừng (ha)</th><th class="num">Tăng rừng (ha)</th><th class="num">Thay đổi ròng (ha)</th></tr></thead><tbody>
+          <% rowsC.forEach(({ c, x }) => { const b = lc.by_commune[c.code]; %><tr data-code="<%= c.code %>"><td><%= c.fullName %></td><td class="num"><%= fmt.num(b['1991']['1']) %></td><td class="num"><%= fmt.num(b['2014']['1']) %></td><td class="num"><%= fmt.num(b['2023']['1']) %></td><td class="num" style="color:var(--red)"><%= fmt.num(x.loss_ha) %></td><td class="num" style="color:var(--blue)"><%= fmt.num(x.gain_ha) %></td><td class="num"><b><%= fmt.num(x.gain_ha - x.loss_ha) %></b></td></tr><% }) %>
+        </tbody></table><p class="src"><%= lc.scope %>. Nguồn: <%= lc.source %>.</p></div>
+      </section>
+    </div>
+    <% } %>
+    <% catPanels.forEach(([id, key, label, choro, color]) => { const rows = byCat(key); const tot = rows.reduce((a, c) => a + c.official[key], 0); %>
+    <section data-panel-group="forest" data-panel="<%= id %>" data-choro-panel="<%= choro %>" <%= tab === id ? '' : 'hidden' %> class="card span-2">
+      <div class="card-h"><h2><%- ic('tree-fill') %> <%= label %> theo xã/phường</h2><span class="more muted" style="font-weight:400"><%= rows.length %> xã · tổng <%= fmt.num(tot) %> ha</span></div>
+      <div class="card-b grid" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)">
+        <div class="table-wrap"><table class="tbl compact" data-page-size="10" data-sortable><thead><tr><th>STT</th><th>Xã/phường</th><th class="num"><%= label %> (ha)</th><th class="num">Tỷ lệ trong vùng</th><th class="num">Có rừng của xã (ha)</th><th class="num">Che phủ (%)</th></tr></thead><tbody>
+          <% rows.forEach((c, i) => { %><tr data-code="<%= c.code %>"><td><%= i + 1 %></td><td><%= c.fullName %></td><td class="num"><%= fmt.num(c.official[key]) %></td><td class="num"><%= fmt.num(c.official[key] / tot * 100, 1) %>%</td><td class="num"><%= fmt.num(c.official.established_forest_ha) %></td><td class="num"><%= fmt.num(c.official.official_forest_cover_percent, 1) %></td></tr><% }) %>
+        </tbody></table></div>
+        <div><div class="chart-box tall"><canvas data-cat-chart="<%= key %>" data-color="<%= color %>"></canvas></div>
+          <p class="src">Diện tích đất quy hoạch lâm nghiệp theo mục đích sử dụng (QĐ 1047/QĐ-UBND). Bản đồ bên trên được tô theo chỉ tiêu này khi mở tab.</p></div>
+      </div>
+    </section>
+    <% }) %>
+  </div>
+</main>
+<%- include('../partials/footer') %>
+<%- include('../partials/chartjs') %>
+<%- include('../partials/mapjs') %>
+<%- include('../partials/page-data', { pageData: {
+  overlays, summary: s, loss: fcgHist, wc, lc: lc ? { years: lc.years, classes: lc.classes, aoi: lc.aoi_by_year, by_commune: Object.fromEntries(Object.entries(lc.by_commune).map(([k, v]) => [k, Object.fromEntries(lc.years.map(y => [y, v[String(y)]]))])) } : null,
+  cats: Object.fromEntries(catPanels.map(([id, key]) => [key, byCat(key).slice(0, 15).map(c => ({ name: c.name, v: c.official[key] }))])),
+  plan: withStats.map(c => ({ name: c.name, sp: c.official.special_use_planning_ha, pr: c.official.protection_planning_ha, pd: c.official.production_planning_ha })).sort((a,b)=>(b.sp+b.pr+b.pd)-(a.sp+a.pr+a.pd)) } }) %>
+<script src="/js/pages/forest.js"></script>
+</body></html>

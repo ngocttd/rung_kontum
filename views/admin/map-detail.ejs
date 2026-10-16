@@ -1,0 +1,160 @@
+<%- include('_top', { needsMap: true }) %>
+<%
+  const t = d.tech || {}; const ref = d.ref || {}; const disp = d.display || {};
+  const isDocType = d.format === 'pdf' || d.format === 'raster_image';
+  const busy = d.status === 'processing' || (d.jobs[0] && ['queued', 'running'].includes(d.jobs[0].status));
+  const curFiles = d.files.filter(f => f.version_no === d.current_version);
+  const pages = curFiles.filter(f => f.file_role === 'page_preview').sort((a, b) => a.page_no - b.page_no);
+  const preview = curFiles.find(f => f.file_role === 'preview');
+  const original = curFiles.find(f => f.file_role === 'original');
+  const step = ['published', 'pending_review', 'ready'].includes(d.status) ? 4 : 3;
+  const labels = isDocType ? ['Chọn loại bản đồ', 'Tải tệp và thông tin', 'Gán toạ độ (nắn chỉnh)', 'Xem trước và xuất bản'] : undefined;
+  const fileHref = (f, dl) => `/ban-do-chuyen-de/tep/${f.id}${dl ? '?tai=1' : ''}`;
+  const roleLabel = { original: 'Tệp gốc', preview: 'Ảnh xem trước', page_preview: 'Xem trước trang', cog: 'Cloud Optimized GeoTIFF', overlay: 'Lớp hiển thị (EPSG:3857)', georef_raster: 'Raster định vị (EPSG:3857)', thumbnail: 'Ảnh thu nhỏ' };
+%>
+<%- include('_map-stepper', { current: step, labels }) %>
+<% if (busy) { %><div class="flash" style="background:#eaf4fd;border:1px solid #bcd9f3;color:#1d4d78" id="busy"><%- ic('hourglass-split') %> Đang xử lý nền (<%= d.jobs[0] ? d.jobs[0].job_type : '' %>)… trang sẽ tự cập nhật khi xong.</div><% } %>
+<% if (d.jobs[0] && d.jobs[0].status === 'failed') { %><div class="flash error">Xử lý lỗi (<%= d.jobs[0].error_code %>): <%= d.jobs[0].error_message %></div><% } %>
+
+<div class="grid" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
+  <!-- left: preview / georef -->
+  <div class="grid" style="align-content:start">
+    <% if (d.georeferenced && d.overlay_url) { %>
+    <section class="card">
+      <div class="card-h"><h2><%- ic('map-fill') %> <%= ref.georef_method && ref.georef_method.startsWith('gcp') ? 'Kết quả nắn chỉnh chồng trên bản đồ nền' : 'Xem trước trên bản đồ nền' %></h2>
+        <label class="check" style="margin-left:auto"><input type="checkbox" id="show-fp" checked> Hiển thị khung bản đồ</label></div>
+      <div class="map-shell" style="height:520px;border-radius:0 0 10px 10px"><div id="map" class="map"></div>
+        <div class="legend" style="left:12px;right:auto;bottom:26px"><h4>Độ trong suốt</h4><input type="range" id="op" min="0" max="1" step="0.05" value="<%= disp.opacity || 0.8 %>" style="width:180px;accent-color:var(--forest)"> <span id="op-v"><%= Math.round((disp.opacity || 0.8) * 100) %>%</span></div></div>
+    </section>
+    <% } %>
+
+    <% if (isDocType) { %>
+    <section class="card" id="nan-chinh">
+      <div class="card-h"><h2><%- ic('geo-alt-fill') %> Gán toạ độ (nắn chỉnh) bằng điểm khống chế</h2><span class="more muted" style="font-weight:400"><%= d.georeferenced ? 'Đã nắn chỉnh – có thể làm lại' : 'Chưa định vị: chỉ xem như tài liệu' %></span></div>
+      <div class="card-b">
+        <% if (pages.length > 1) { %><div class="page-thumbs" id="pages"><% pages.forEach((p, i) => { %><a href="#" data-page="<%= p.page_no %>" data-src="<%= fileHref(p) %>" class="<%= i === 0 ? 'on' : '' %>"><img src="<%= fileHref(p) %>" alt="Trang <%= p.page_no %>"></a><% }) %></div><% } %>
+        <p class="src">1) Nhấp vào vị trí dễ nhận biết trên bản đồ (giao lưới kinh vĩ độ, ngã ba sông, mốc ranh giới) để thêm điểm. 2) Nhập kinh/vĩ độ WGS84 hoặc nhấp vào bản đồ nền bên phải để lấy toạ độ cho điểm đang chọn. Tối thiểu 3 điểm (affine) hoặc 6 điểm (đa thức bậc 2), phân bố đều.</p>
+        <div class="grid" style="grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)">
+          <div class="gcp-wrap" id="gcp-wrap"><img id="gcp-img" src="<%= pages[0] ? fileHref(pages[0]) : (preview ? fileHref(preview) : '') %>" alt="Xem trước bản đồ"></div>
+          <div>
+            <div class="map-shell" style="height:300px"><div id="pick-map" class="map"></div></div>
+            <p class="src" style="margin:4px 0 8px">Nhấp vào bản đồ nền để gán toạ độ cho điểm đang chọn.</p>
+          </div>
+        </div>
+        <form method="post" action="/quan-tri/ban-do/<%= d.id %>/nan-chinh" id="gcp-form">
+          <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="gcps" id="gcps-json"><input type="hidden" name="page" id="page" value="<%= pages[0] ? pages[0].page_no : 1 %>">
+          <table class="tbl compact gcp-table" style="margin-top:10px"><thead><tr><th>STT</th><th>X (pixel)</th><th>Y (pixel)</th><th>Kinh độ (Lon)</th><th>Vĩ độ (Lat)</th><th>Sai số (m)</th><th></th></tr></thead><tbody id="gcp-rows"></tbody></table>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
+            <label>Phép biến đổi <select class="input" name="method" id="method" style="width:auto"><option value="affine">Affine (≥ 3 điểm)</option><option value="poly2">Đa thức bậc 2 (≥ 6 điểm)</option></select></label>
+            <span class="src">Hệ toạ độ đầu ra: EPSG:4326 – WGS84 (hiển thị EPSG:3857)</span>
+            <% if (can('maps.manage')) { %><button class="btn btn-primary" style="margin-left:auto" id="calc" <%= busy ? 'disabled' : '' %>><%- ic('rulers') %> Tính biến đổi</button><% } %>
+          </div>
+        </form>
+      </div>
+    </section>
+    <% } else if (!d.georeferenced && preview) { %>
+    <section class="card"><div class="card-h"><h2><%- ic('image-fill') %> Ảnh xem trước</h2></div><div class="card-b"><img src="<%= fileHref(preview) %>" alt="" style="max-width:100%;border-radius:6px"></div></section>
+    <% } %>
+    <% if (pages.length && !isDocType) { %><section class="card"><div class="card-b"><img src="<%= fileHref(pages[0]) %>" alt="" style="max-width:100%"></div></section><% } %>
+  </div>
+
+  <!-- right: tech info, config, review -->
+  <div class="grid" style="align-content:start">
+    <section class="card">
+      <div class="card-h"><h2><%- ic('info-circle-fill') %> Thông tin kỹ thuật</h2><span class="badge <%= M.STATUS[d.status][1] %>" style="margin-left:auto"><%= M.STATUS[d.status][0] %></span></div>
+      <div class="card-b"><table class="kv">
+        <tr><td>Loại dữ liệu</td><td><%= M.FORMATS[d.format] %></td></tr>
+        <% if (t.kind === 'pdf') { %><tr><td>Số trang</td><td><%= t.pages %> · khổ <%= (t.page_size_mm || []).join(' × ') %> mm</td></tr><% } %>
+        <% if (t.width) { %><tr><td>Kích thước</td><td><%= fmt.num(t.width) %> × <%= fmt.num(t.height) %> pixel</td></tr><tr><td>Số băng</td><td><%= t.bands %> (<%= t.dtype %>)</td></tr><tr><td>NoData</td><td><%= t.nodata ?? 'không khai báo' %></td></tr><% } %>
+        <tr><td>Hệ toạ độ</td><td><%= t.crs || (ref.georef_method && ref.georef_method.startsWith('gcp') ? 'EPSG:4326 (nắn chỉnh)' : 'Chưa có – cần nắn chỉnh') %></td></tr>
+        <% if (t.pixel_size) { %><tr><td>Độ phân giải</td><td><%= fmt.num(t.pixel_size[0], t.units === 'deg' ? 6 : 1) %> <%= t.units === 'deg' ? '°' : 'm' %></td></tr><% } %>
+        <% if (t.bounds4326 || ref.bbox_json) { const b = t.bounds4326 || ref.bbox_json; %><tr><td>Phạm vi (WGS84)</td><td><%= b.map(x => Number(x).toFixed(4)).join(', ') %></td></tr><% } %>
+        <% if (ref.georef_method) { %><tr><td>Phương pháp định vị</td><td><%= { embedded: 'Toạ độ nhúng trong tệp', gcp_affine: 'Điểm khống chế – affine', gcp_poly2: 'Điểm khống chế – đa thức bậc 2' }[ref.georef_method] %><%= ref.residual_error !== null && ref.residual_error !== undefined ? ' · RMSE ' + fmt.num(ref.residual_error, 2) + ' m' : '' %><%= ref.gcps ? ' · ' + ref.gcps.length + ' điểm' : '' %></td></tr><% } %>
+        <tr><td>Dung lượng</td><td><%= original ? fmt.bytes(original.size_bytes) : '—' %></td></tr>
+        <tr><td>SHA-256</td><td class="src" style="word-break:break-all"><%= original && original.sha256 ? original.sha256 : 'đang tính…' %></td></tr>
+        <tr><td>Phiên bản tệp</td><td>v<%= d.current_version %></td></tr>
+      </table></div>
+    </section>
+
+    <% if (d.format === 'geotiff' && d.georeferenced && can('maps.manage')) { %>
+    <form class="card" method="post" action="/quan-tri/ban-do/<%= d.id %>/cau-hinh">
+      <div class="card-h"><h2><%- ic('gear-fill') %> Cấu hình hiển thị</h2></div>
+      <div class="card-b"><input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div class="grid cols-2">
+          <label class="field"><span>Phương thức</span><select class="input" name="mode"><option value="rgb" <%= disp.mode !== 'single' ? 'selected' : '' %>>Màu tự nhiên / tổ hợp RGB</option><option value="single" <%= disp.mode === 'single' ? 'selected' : '' %>>Đơn kênh theo dải giá trị</option></select></label>
+          <label class="field"><span>Băng (đơn kênh)</span><input class="input" type="number" min="1" max="<%= t.bands || 1 %>" name="band" value="<%= disp.band || 1 %>"></label>
+          <label class="field"><span>Bảng màu</span><select class="input" name="palette"><% ['greens','heat','terrain','risk','gray'].forEach(p => { %><option <%= disp.palette === p ? 'selected' : '' %>><%= p %></option><% }) %></select></label>
+          <label class="field"><span>Độ trong suốt mặc định</span><input class="input" type="number" step="0.05" min="0" max="1" name="opacity" value="<%= disp.opacity || 0.8 %>"></label>
+          <label class="field"><span>Ngưỡng min</span><input class="input" type="number" step="any" name="min" value="<%= disp.min ?? '' %>" placeholder="<%= t.stats && t.stats[0] ? t.stats[0].min : '' %>"></label>
+          <label class="field"><span>Ngưỡng max</span><input class="input" type="number" step="any" name="max" value="<%= disp.max ?? '' %>" placeholder="<%= t.stats && t.stats[0] ? t.stats[0].max : '' %>"></label>
+          <label class="field"><span>Màu NoData RGB (nếu có)</span><input class="input" name="nodata_rgb" value="<%= (disp.nodata_rgb || []).join(',') %>" placeholder="255,255,255"></label>
+        </div>
+        <label class="check"><input type="checkbox" name="clip" <%= disp.clip !== false ? 'checked' : '' %>> Cắt theo ranh giới Kon Tum</label>
+        <button class="btn btn-primary btn-block" style="margin-top:10px" <%= busy ? 'disabled' : '' %>><%- ic('arrow-repeat') %> Lưu và xử lý</button>
+      </div>
+    </form>
+    <% } %>
+
+    <section class="card">
+      <div class="card-h"><h2><%- ic('clipboard-check-fill') %> Kiểm duyệt và xuất bản</h2></div>
+      <div class="card-b">
+        <% if (d.status === 'published') { %><div class="note ok">Đang xuất bản<%= d.georeferenced ? ' trên WebGIS (nhóm “Bản đồ chuyên đề”)' : ' như tài liệu (chưa chồng lên bản đồ)' %><%= d.access === 'internal' ? ' – chỉ cán bộ' : '' %>.</div><% } %>
+        <% if (isDocType && !d.georeferenced && d.status !== 'published') { %><div class="note">Chưa có tham chiếu địa lý: nếu xuất bản, bản đồ chỉ hiển thị trong mục Tài liệu – Bản đồ PDF, không chồng lên bản đồ (TC04).</div><% } %>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <% if (can('maps.manage') && ['ready','needs_georef','rejected','revoked'].includes(d.status)) { %><form method="post" action="/quan-tri/ban-do/<%= d.id %>/gui-duyet"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary"><%- ic('send-fill') %> Gửi duyệt</button></form><% } %>
+        </div>
+        <% if (can('maps.publish') && d.status === 'pending_review') { %>
+          <form method="post" style="margin-top:10px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <label class="field"><span>Ghi chú phát hành / lý do trả về</span><textarea class="input" name="note" rows="2"></textarea></label>
+            <div style="display:flex;gap:8px"><button class="btn btn-primary" formaction="/quan-tri/ban-do/<%= d.id %>/xuat-ban"><%- ic('check-lg') %> Duyệt và xuất bản</button><button class="btn btn-outline" formaction="/quan-tri/ban-do/<%= d.id %>/tra-ve"><%- ic('arrow-repeat') %> Trả về hiệu chỉnh</button></div></form>
+        <% } else if (d.status === 'pending_review') { %><p class="src">Đang chờ quản trị viên kiểm duyệt.</p><% } %>
+        <% if (can('maps.publish') && d.status === 'published') { %><form method="post" action="/quan-tri/ban-do/<%= d.id %>/thu-hoi" style="margin-top:8px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input class="input" name="note" placeholder="Lý do thu hồi" style="margin-bottom:6px"><button class="btn btn-outline"><%- ic('x-circle-fill') %> Thu hồi</button></form><% } %>
+        <p class="src" style="margin-top:8px">Quyền xuất bản được kiểm tra ở máy chủ. Bản đồ nắn chỉnh có RMSE vượt <%= process.env.MAP_MAX_RMSE_M || 50 %> m không được xuất bản.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-h"><h2><%- ic('download') %> Tệp gốc và sản phẩm</h2></div>
+      <div class="card-b table-wrap"><table class="tbl compact"><tbody>
+        <% d.files.filter(f => f.file_role !== 'page_preview').forEach(f => { %><tr><td>v<%= f.version_no %></td><td><%= roleLabel[f.file_role] %></td><td class="src"><%= f.original_filename %> · <%= fmt.bytes(f.size_bytes) %></td><td><a class="btn btn-outline btn-sm" href="<%= fileHref(f, true) %>"><%- ic('download') %></a></td></tr><% }) %>
+      </tbody></table>
+      <% if (can('maps.manage')) { %><form method="post" action="/quan-tri/ban-do/<%= d.id %>/phien-ban" enctype="multipart/form-data" style="margin-top:10px;display:flex;gap:8px;align-items:center"><input type="hidden" name="_csrf" value="<%= csrf %>"><input class="input" type="file" name="file" required><button class="btn btn-outline btn-sm" style="white-space:nowrap"><%- ic('upload') %> Phiên bản mới</button></form>
+      <p class="src">Thay thế phiên bản không xoá tệp gốc và lịch sử công bố (TC07).</p><% } %></div>
+    </section>
+  </div>
+</div>
+
+<div class="grid cols-2" style="margin-top:16px">
+  <form class="card" id="thong-tin" method="post" action="/quan-tri/ban-do/<%= d.id %>/thong-tin">
+    <div class="card-h"><h2><%- ic('pencil-fill') %> Thông tin bản đồ (metadata)</h2></div>
+    <div class="card-b grid cols-2"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label class="field" style="grid-column:1/-1"><span>Tên bản đồ *</span><input class="input" name="title" required value="<%= d.title %>"></label>
+      <label class="field" style="grid-column:1/-1"><span>Mô tả</span><textarea class="input" name="description" rows="2"><%= d.description || '' %></textarea></label>
+      <label class="field"><span>Nhóm dữ liệu</span><select class="input" name="category"><% Object.entries(M.CATEGORIES).forEach(([k, v]) => { %><option value="<%= k %>" <%= d.category === k ? 'selected' : '' %>><%= v %></option><% }) %></select></label>
+      <label class="field"><span>Năm bản đồ</span><input class="input" type="number" name="map_year" value="<%= d.map_year || '' %>"></label>
+      <label class="field"><span>Đơn vị cung cấp</span><input class="input" name="source_org" value="<%= d.source_org || '' %>"></label>
+      <label class="field"><span>Tỷ lệ</span><input class="input" name="map_scale" value="<%= d.map_scale || '' %>"></label>
+      <label class="field"><span>Thời gian thành lập</span><input class="input" type="date" name="acquisition_date" value="<%= d.acquisition_date || '' %>"></label>
+      <label class="field"><span>Giấy phép</span><input class="input" name="license" value="<%= d.license || '' %>"></label>
+      <label class="field"><span>Quyền truy cập</span><select class="input" name="access"><option value="public" <%= d.access === 'public' ? 'selected' : '' %>>Công khai</option><option value="internal" <%= d.access === 'internal' ? 'selected' : '' %>>Nội bộ</option></select></label>
+      <% if (can('maps.manage')) { %><div style="grid-column:1/-1"><button class="btn btn-primary">Lưu thông tin</button></div><% } %>
+    </div>
+  </form>
+  <section class="card">
+    <div class="card-h"><h2><%- ic('clock-history') %> Lịch sử xử lý, phiên bản và nhật ký</h2></div>
+    <div class="card-b">
+      <h3 style="font-size:13.5px;margin-bottom:6px">Phiên bản công bố</h3>
+      <% if (!d.versions.length) { %><p class="src">Chưa công bố.</p><% } %>
+      <ul class="timeline"><% d.versions.forEach(v => { %><li class="done"><b>Phiên bản <%= v.version_no %></b><time><%= fmt.dateTime(v.approved_at) %> · duyệt bởi <%= v.approved_by %><%= v.release_note ? ' · ' + v.release_note : '' %></time></li><% }) %></ul>
+      <h3 style="font-size:13.5px;margin:10px 0 6px">Công việc xử lý</h3>
+      <table class="tbl compact" data-page-size="5"><tbody><% d.jobs.forEach(j => { %><tr><td><%= j.job_type %></td><td><span class="badge <%= { succeeded: 'b-green', failed: 'b-red', running: 'b-blue', queued: 'b-gray' }[j.status] %>"><%= j.status %></span></td><td class="src"><%= fmt.dateTime(j.created_at) %> · <%= j.created_by %> · lần <%= j.attempts %></td><td class="src"><%= j.error_message ? j.error_message.slice(0, 80) : '' %></td></tr><% }) %></tbody></table>
+      <h3 style="font-size:13.5px;margin:10px 0 6px">Nhật ký</h3>
+      <table class="tbl compact" data-page-size="8" style="table-layout:fixed;width:100%"><tbody><% d.logs.forEach(l => { %><tr><td class="src"><%= fmt.dateTime(l.created_at) %></td><td><%= l.actor_id %></td><td><code><%= l.action %></code></td><td class="src" style="word-break:break-all;max-width:320px"><%= l.details ? JSON.stringify(l.details).slice(0, 90) : "" %></td></tr><% }) %></tbody></table>
+    </div>
+  </section>
+</div>
+<%- include('_bottom') %>
+<%- include('../partials/mapjs') %>
+<%- include('../partials/page-data', { pageData: { id: d.id, overlay: d.overlay_url, bounds: d.overlay_bounds, opacity: disp.opacity || 0.8, footprint: ref.footprint || null, gcps: (ref.gcps || []).map(g => ({ px: g.px, py: g.py, fx: g.fx, fy: g.fy, lon: g.lon, lat: g.lat, residual_m: g.residual_m })), busy, method: ref.georef_method === 'gcp_poly2' ? 'poly2' : 'affine' } }) %>
+<script src="/js/pages/map-detail.js"></script>
+</body></html>

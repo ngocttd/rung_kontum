@@ -1,0 +1,31 @@
+<section class="banner">
+  <img src="/assets/banners/<%= banner %>.webp" srcset="/assets/banners/<%= banner %>-small.webp 960w, /assets/banners/<%= banner %>.webp 2172w" sizes="100vw" alt="" fetchpriority="high">
+  <div class="container">
+    <div>
+      <h1><%= heading %></h1>
+      <% if (typeof lead !== 'undefined' && lead) { %><p><%= lead %></p><% } %>
+    </div>
+    <% if (typeof topics !== 'undefined' && topics) { %>
+      <div class="banner-kpis" style="align-self:center;flex-wrap:nowrap">
+        <% [['tai-nguyen','forest','Tài nguyên rừng'],['bien-dong','statistics','Biến động rừng'],['chay','fire','Cháy rừng'],['quy-hoach','protected','Quy hoạch 3 loại rừng'],['bao-cao','report','Báo cáo tổng hợp']].forEach(([k,i,l]) => { %>
+          <a class="topic-btn <%= (typeof topic !== 'undefined' && topic === k) ? 'on' : '' %>" href="<%= k === 'quy-hoach' ? '/tai-nguyen-rung?tab=muc-dich' : k === 'bao-cao' ? '#bang' : '/thong-ke?chu_de=' + k %>"><%- cicon(i) %> <%= l %></a>
+        <% }) %>
+      </div>
+    <% } %>
+    <% if (typeof kpis !== 'undefined' && kpis && kpis.length) { %>
+      <div class="banner-kpis">
+        <% kpis.forEach(function (k) { %>
+          <div class="bk <%= k.tone || '' %>" title="<%= k.title || '' %>">
+            <% if (k.icon) { %><%- ic(k.icon) %><% } %>
+            <strong><%= k.value %></strong>
+            <span><%= k.label %></span>
+            <% if (k.sub) { %><small><%= k.sub %></small><% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</section>
+<div class="container">
+  <div class="crumbs"><a href="/"><%- ic('house-fill') %></a> › <span><%= typeof crumb !== 'undefined' ? crumb : heading %></span></div>
+</div>

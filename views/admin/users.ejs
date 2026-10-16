@@ -1,0 +1,26 @@
+<%- include('_top') %>
+<% if (newPassword) { %><div class="flash ok">Mật khẩu tạm của <b><%= newPassword.username %></b>: <code style="font-size:15px"><%= newPassword.pass %></code> — chỉ hiển thị một lần, hãy chuyển cho người dùng qua kênh an toàn và yêu cầu đổi mật khẩu.</div><% } %>
+<section class="card">
+  <div class="card-h"><h2><%- ic('people-fill') %> Danh sách người dùng</h2></div>
+  <div class="card-b table-wrap"><table class="tbl" data-page-size="15"><thead><tr><th>STT</th><th>Họ tên</th><th>Tên đăng nhập</th><th>Vai trò / phạm vi</th><th>Đăng nhập gần nhất</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+    <% users.forEach((u, i) => { %><tr><td><%= i + 1 %></td><td><%= u.name || '—' %><div class="src"><%= u.email || '' %></div></td><td><%= u.username %></td>
+      <td><form method="post" action="/quan-tri/nguoi-dung/<%= u.id %>" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="role">
+        <select class="input" name="role"><% Object.entries(ROLES).forEach(([k, l]) => { %><option value="<%= k %>" <%= u.role === k ? 'selected' : '' %>><%= l %></option><% }) %></select>
+        <select class="input" name="scope"><option value="">Toàn vùng</option><% communes.forEach(c => { %><option value="<%= c.code %>" <%= u.scope === c.code ? 'selected' : '' %>><%= c.fullName %></option><% }) %></select><button class="btn btn-outline btn-sm">Lưu</button></form></td>
+      <td><%= u.last_login ? fmt.dateTime(u.last_login) : '—' %></td><td><span class="badge <%= u.active ? 'b-green' : 'b-red' %>"><%= u.active ? 'Hoạt động' : 'Đã khóa' %></span></td>
+      <td><form method="post" action="/quan-tri/nguoi-dung/<%= u.id %>" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" name="action" value="toggle"><%- ic(u.active ? 'lock-fill' : 'unlock-fill') %> <%= u.active ? 'Khóa' : 'Mở khóa' %></button><button class="btn btn-outline btn-sm" name="action" value="reset" onclick="return confirm('Cấp lại mật khẩu?')"><%- ic('key-fill') %> Cấp lại mật khẩu</button></form></td></tr><% }) %>
+  </tbody></table></div>
+</section>
+<form class="card" style="margin-top:16px" method="post" action="/quan-tri/nguoi-dung">
+  <div class="card-h"><h2><%- ic('plus-lg') %> Thêm tài khoản</h2></div>
+  <div class="card-b grid cols-4"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label class="field"><span>Tên đăng nhập *</span><input class="input" name="username" required pattern="[a-z0-9._\-]{3,40}"></label>
+    <label class="field"><span>Họ tên</span><input class="input" name="name"></label>
+    <label class="field"><span>Email</span><input class="input" type="email" name="email"></label>
+    <label class="field"><span>Vai trò *</span><select class="input" name="role"><% Object.entries(ROLES).forEach(([k, l]) => { %><option value="<%= k %>"><%= l %></option><% }) %></select></label>
+    <div><button class="btn btn-primary">Tạo tài khoản</button><span class="src" style="margin-left:10px">Mật khẩu tạm được sinh ngẫu nhiên.</span></div>
+  </div>
+</form>
+<div class="note info" style="margin-top:12px">Phân quyền: Quản trị hệ thống quản lý tài khoản, dữ liệu, nội dung; không phê duyệt nghiệp vụ. Lãnh đạo UBND xem điều hành, phê duyệt công bố cảnh báo. Cán bộ Sở NN&MT/Kiểm lâm xác minh cảnh báo, xử lý phản ánh, quản lý dữ liệu chuyên môn.</div>
+<%- include('_bottom') %>
+</body></html>

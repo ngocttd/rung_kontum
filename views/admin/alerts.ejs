@@ -1,0 +1,47 @@
+<%- include('_top') %>
+<% const hsB = { new: 'b-red', assigned: 'b-orange', verifying: 'b-orange', confirmed: 'b-purple', rejected: 'b-gray', handling: 'b-red', closed: 'b-green' };
+   const cB = { unverified: 'b-red', verifying: 'b-orange', confirmed: 'b-purple', rejected: 'b-gray', seasonal: 'b-yellow' };
+   const canVerify = can('alerts.verify'), canApprove = can('alerts.approve');
+   let cands = candidates; if (filter.st) cands = cands.filter(c => c.status === filter.st); %>
+<div class="adm-tabs">
+  <a href="?tab=diem-nong" class="<%= tab === 'diem-nong' ? 'on' : '' %>">Điểm nóng (FIRMS) · <%= hotspots.length %></a>
+  <a href="?tab=nguy-co" class="<%= tab === 'nguy-co' ? 'on' : '' %>">Nguy cơ cháy (P/FWI) · <%= dangerAlerts.length %></a>
+  <a href="?tab=bien-dong" class="<%= tab === 'bien-dong' ? 'on' : '' %>">Biến động rừng · <%= candidates.length %></a>
+</div>
+<% if (!canVerify && !canApprove) { %><div class="note info" style="margin-bottom:12px">Vai trò của bạn chỉ xem. Xác minh do cán bộ chuyên môn thực hiện; phê duyệt cảnh báo do cán bộ chuyên môn hoặc lãnh đạo được phân quyền.</div><% } %>
+
+<% if (tab === 'diem-nong') { %>
+<section class="card"><div class="card-h"><h2><%- ic('fire') %> Xác minh điểm nóng</h2><span class="more muted" style="font-weight:400">Mới phát hiện → Cần xác minh → Đang xác minh → Xác nhận/Không phải cháy rừng → Đang xử lý → Kết thúc</span></div>
+  <div class="card-b table-wrap"><% if (!hotspots.length) { %><div class="empty-state">Không có điểm nóng trong 7 ngày.</div><% } else { %>
+  <table class="tbl"><thead><tr><th>STT</th><th>Thời gian (VN)</th><th>Vị trí (xã)</th><th>Nguồn</th><th>Độ tin cậy</th><th>Lớp phủ</th><th>Trạng thái</th><th>Cập nhật</th></tr></thead><tbody>
+    <% const pgH = paginate(hotspots, query.trang, 15); pgH.items.forEach((h, i) => { %><tr><td><%= pgH.offset + i + 1 %></td><td><%= fmt.dateTime(h.utc) %></td><td><%= h.commune || 'Ngoài ranh' %><div class="src"><%= h.lat.toFixed(4) %>, <%= h.lon.toFixed(4) %></div></td><td><%= h.sensorLabel %></td><td><%= h.confidence %> · FRP <%= h.frp ?? '—' %></td>
+      <td><%= h.context ? (h.context.landcover || '—') + (h.context.in_forest ? ' (trong rừng)' : '') : '—' %></td>
+      <td><span class="badge <%= hsB[h.status] %>"><%= h.statusLabel %></span><% if (h.decision && h.decision.history) { %><div class="src"><%= h.decision.history.slice(-1)[0].by %> · <%= fmt.dateTime(h.decision.history.slice(-1)[0].at) %></div><% } %></td>
+      <td><% if (canVerify) { %><form method="post" action="/quan-tri/canh-bao/diem-nong" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="ref" value="<%= h.id %>">
+        <select class="input" name="status"><% ['assigned','verifying','confirmed','rejected','handling','closed'].forEach(s => { %><option value="<%= s %>" <%= h.status === s ? 'selected' : '' %>><%= HS[s] %></option><% }) %></select>
+        <select class="input" name="assignee"><option value="">Giao cho…</option><% users.filter(u => u.role === 'specialist').forEach(u => { %><option <%= h.decision && h.decision.assignee === u.username ? 'selected' : '' %>><%= u.username %></option><% }) %></select>
+        <input class="input" name="note" placeholder="Ghi chú / bằng chứng" value="<%= h.decision ? h.decision.note || '' : '' %>"><button class="btn btn-primary btn-sm">Lưu</button></form><% } else { %>—<% } %><% if (can('tasks.assign')) { %><a class="btn btn-outline btn-sm" style="margin-top:4px" href="/quan-tri/hien-truong?kind=hotspot&ref=<%= encodeURIComponent(h.id) %>#giao"><%- ic('geo-alt-fill') %> Giao xác minh (MobileGIS)</a><% } %></td></tr><% }) %>
+  </tbody></table><%- include('../partials/pager', { pg: pgH }) %><% } %></div></section>
+<% } %>
+
+<% if (tab === 'nguy-co') { %>
+<section class="card"><div class="card-h"><h2><%- ic('graph-up-arrow') %> Phê duyệt cảnh báo nguy cơ cháy (cấp III trở lên, 7 ngày tới)</h2></div>
+  <div class="card-b table-wrap"><% if (!dangerAlerts.length) { %><div class="empty-state"><%- ic('check-circle-fill') %>Không có xã nào được dự báo đạt cấp III trở lên.</div><% } else { %>
+  <table class="tbl" data-page-size="15"><thead><tr><th>Xã/phường</th><th>Cấp</th><th>Ngày</th><th>Chi tiết</th><th>Trạng thái</th><th>Quyết định</th></tr></thead><tbody>
+    <% dangerAlerts.forEach(a => { %><tr><td><%= a.commune %></td><td><span class="lv lv-<%= a.level %>"><%= a.levelLabel %></span></td><td><%= fmt.ymd(a.date) %></td><td><%= a.detail %></td><td><span class="badge <%= a.official ? 'b-green' : 'b-gray' %>"><%= a.statusLabel %></span></td>
+      <td><% if (canApprove) { %><form method="post" action="/quan-tri/canh-bao/nguy-co" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="ref" value="<%= a.id %>"><input class="input" name="note" placeholder="Nội dung khuyến cáo / lý do"><button class="btn btn-primary btn-sm" name="status" value="approved">Phê duyệt công bố</button><button class="btn btn-outline btn-sm" name="status" value="dismissed">Không công bố</button></form><% } else { %>—<% } %></td></tr><% }) %>
+  </tbody></table><% } %>
+  <p class="src">Cảnh báo được phê duyệt sẽ hiển thị nhãn “Đã phê duyệt công bố” trên trang công khai. Cấp nguy cơ tính tự động theo chỉ số P (Nesterov).</p></div></section>
+<% } %>
+
+<% if (tab === 'bien-dong') { %>
+<section class="card"><div class="card-h"><h2><%- ic('exclamation-triangle-fill') %> Xác minh biến động rừng nghi vấn</h2>
+  <form class="inline-form" style="margin-left:auto"><input type="hidden" name="tab" value="bien-dong"><select class="input" name="st" onchange="this.form.submit()"><option value="">Mọi trạng thái</option><% Object.entries(CS).forEach(([k, l]) => { %><option value="<%= k %>" <%= filter.st === k ? 'selected' : '' %>><%= l %></option><% }) %></select></form></div>
+  <div class="card-b table-wrap"><table class="tbl"><thead><tr><th>Mã</th><th>Xã</th><th class="num">DT (ha)</th><th>ΔNDVI / ΔNBR</th><th>Kỳ</th><th>Vị trí</th><th>Trạng thái</th><th>Kết quả xác minh</th></tr></thead><tbody>
+    <% const pgC = paginate(cands, query.trang, 20); pgC.items.forEach(c => { %><tr><td><%= c.id %></td><td><%= c.commune_name || '—' %></td><td class="num"><%= c.area_ha %></td><td><%= c.mean_dndvi %> / <%= c.mean_dnbr %></td><td class="src"><%= c.window.split(' ')[0] %><%= c.seasonal_leaf_fall_possible ? ' · mùa khô' : '' %></td>
+      <td><a href="/ban-do#<%= c.lon %>,<%= c.lat %>,13.5" target="_blank"><%= c.lat %>, <%= c.lon %></a></td><td><span class="badge <%= cB[c.status] %>"><%= c.statusLabel %></span></td>
+      <td><% if (canVerify) { %><form method="post" action="/quan-tri/canh-bao/bien-dong" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="ref" value="<%= c.id %>"><select class="input" name="status"><% Object.entries(CS).forEach(([k, l]) => { %><option value="<%= k %>" <%= c.status === k ? 'selected' : '' %>><%= l %></option><% }) %></select><input class="input" name="note" placeholder="Ghi chú"><button class="btn btn-primary btn-sm">Lưu</button></form><% } else { %>—<% } %><% if (can('tasks.assign')) { %><a class="btn btn-outline btn-sm" style="margin-top:4px" href="/quan-tri/hien-truong?kind=candidate&ref=<%= encodeURIComponent(c.id) %>#giao"><%- ic('geo-alt-fill') %> Giao xác minh</a><% } %></td></tr><% }) %>
+  </tbody></table><%- include('../partials/pager', { pg: pgC }) %></div></section>
+<% } %>
+<%- include('_bottom') %>
+</body></html>

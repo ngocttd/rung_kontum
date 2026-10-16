@@ -1,0 +1,15 @@
+<%- include('_top') %>
+<section class="card">
+  <div class="card-h"><h2><%- ic('clock-history') %> Nhật ký hoạt động</h2><span class="more muted" style="font-weight:400"><%= total %> bản ghi</span></div>
+  <div class="card-b">
+    <form class="filters"><label>Người dùng<select class="input" name="user"><option value="">Tất cả</option><% users.forEach(u => { %><option <%= filter.user === u ? 'selected' : '' %>><%= u %></option><% }) %></select></label>
+      <label>Hành động<select class="input" name="action"><option value="">Tất cả</option><% ['auth','report','hotspot','candidate','fire_danger','news','layer','doc','user','job'].forEach(a => { %><option <%= filter.action === a ? 'selected' : '' %>><%= a %></option><% }) %></select></label><button class="btn btn-outline btn-sm">Tìm kiếm</button></form>
+    <div class="table-wrap"><table class="tbl"><thead><tr><th>Thời gian</th><th>Người dùng</th><th>Vai trò</th><th>Hành động</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead><tbody>
+      <% const pg = paginate(rows, query.trang, 30); pg.items.forEach(a => { %><tr><td><%= fmt.dateTime(a.created_at) %></td><td><%= a.user %></td><td><%= a.role ? ROLES[a.role] : '—' %></td><td><code><%= a.action %></code></td><td><%= a.target %></td><td class="src"><%= a.detail ? JSON.stringify(a.detail).slice(0, 140) : '' %></td></tr><% }) %>
+    </tbody></table></div>
+    <%- include('../partials/pager', { pg: pg }) %>
+    <p class="src">Nhật ký chỉ ghi thêm, không có chức năng sửa/xóa trên giao diện.</p>
+  </div>
+</section>
+<%- include('_bottom') %>
+</body></html>

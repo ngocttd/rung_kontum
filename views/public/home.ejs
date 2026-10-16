@@ -1,0 +1,176 @@
+<%- include('../partials/head', { needsMap: true }) %>
+<%- include('../partials/header') %>
+<%
+  const ov = Object.fromEntries(overlays.map(o => [o.id, o]));
+  const peak3 = danger ? [3,4,5].reduce((a,k)=>a+danger.peak[k],0) : null;
+  const alertIcon = { hotspot: 'fire', fire_danger: 'temperature', forest_change: 'satellite' };
+  const alertBadge = { hotspot: ['b-red','ĐIỂM NÓNG VỆ TINH'], fire_danger: ['b-orange','DỰ BÁO NGUY CƠ CHÁY'], forest_change: ['b-purple','BIẾN ĐỘNG NGHI VẤN'] };
+%>
+<section class="hero home-hero">
+  <img src="/assets/banners/p01-home.webp" srcset="/assets/banners/p01-home-small.webp 960w, /assets/banners/p01-home.webp 2172w" sizes="100vw" alt="" fetchpriority="high">
+  <div class="container">
+    <div>
+      <h1>Vì những cánh rừng<br><em>xanh Kon Tum</em></h1>
+      <p class="lead">Giám sát tài nguyên rừng – Dự báo, cảnh báo mất rừng và cháy rừng – Quản lý bền vững vì một môi trường xanh và phát triển hài hòa</p>
+      <form class="hero-search" action="/ban-do" data-search onsubmit="return false">
+        <input type="search" placeholder="Tìm kiếm xã/phường, lớp bản đồ, tin tức, tài liệu..." aria-label="Tìm kiếm" autocomplete="off">
+        <button class="btn btn-primary" type="submit">Tìm kiếm</button>
+        <div class="search-results"></div>
+      </form>
+      <nav class="shortcuts" aria-label="Lối tắt">
+        <a href="/ban-do"><%- cicon('map') %>Bản đồ<br>trực tuyến</a>
+        <a href="/tai-nguyen-rung"><%- cicon('forest') %>Hiện trạng<br>rừng</a>
+        <a href="/canh-bao-chay"><%- cicon('fire') %>Cảnh báo<br>cháy rừng</a>
+        <a href="/thoi-tiet"><%- cicon('weather') %>Thời tiết<br>khu vực</a>
+        <a href="/thong-ke"><%- cicon('statistics') %>Số liệu<br>thống kê</a>
+        <a href="/phan-anh"><%- cicon('camera') %>Gửi phản ánh<br>hiện trường</a>
+      </nav>
+    </div>
+    <div class="overview-card">
+      <h3>Bản đồ tổng quan Kon Tum <a href="/ban-do">Mở bản đồ <%- ic('chevron-right') %></a></h3>
+      <div class="ov-body">
+        <div class="overview-map map-shell"><div id="overview-map" class="map"></div><a class="ov-full" href="/ban-do"><%- ic('fullscreen') %> Xem bản đồ đầy đủ</a></div>
+        <ul class="ov-legend">
+          <li><img src="/assets/markers/hotspot-unverified.png" alt=""> Điểm nóng (7 ngày)</li>
+          <li><span class="sw" style="background:var(--r4)"></span> Nguy cơ cháy cao (≥ cấp III)</li>
+          <li><span class="sw" style="border:2px solid #fff;background:transparent"></span> Ranh giới vùng</li>
+          <li><span class="sw" style="background:var(--r1)"></span> Nguy cơ thấp</li>
+          <li><span class="sw" style="background:var(--r2)"></span> Nguy cơ trung bình</li>
+          <li><span class="sw" style="background:#006b38;border:1px dashed #fff"></span> Ranh xã</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="kpi-strip home-kpi">
+  <div class="kpi" title="<%= summary.scope %>"><%- cicon('forest') %><div><strong><%= fmt.num(summary.established_forest_ha) %> <small>ha</small></strong><span>Diện tích có rừng</span><span class="sub">40 xã · số liệu 31/12/2025 (QĐ 1047)</span></div></div>
+  <div class="kpi"><%- cicon('plantation') %><div><strong><%= fmt.num(summary.cover_percent_computed, 1) %>%</strong><span>Tỷ lệ có rừng / diện tích tự nhiên</span><span class="sub">tính từ tổng 40 xã</span></div></div>
+  <div class="kpi"><%- cicon('fire') %><div><strong><%= hotspots.length %></strong><span>Điểm nóng vệ tinh (7 ngày)</span><span class="sub">chưa xác minh · cập nhật <%= fmt.dateTime(firms.collected_at) %></span></div></div>
+  <div class="kpi"><%- cicon('temperature') %><div><strong><%= fmt.num(weather.temp, 0) %>°C</strong><span>Nhiệt độ TB · độ ẩm <%= fmt.num(weather.humidity, 0) %>%</span><span class="sub"><%= weather.points %> điểm · <%= fmt.dateTime(weather.dt) %></span></div></div>
+  <div class="kpi"><%- cicon('report') %><div><strong><%= reportCounts.total %></strong><span>Phản ánh hiện trường</span><span class="sub"><%= reportCounts.open %> đang xử lý</span></div></div>
+</section>
+
+<main class="container page home-main" style="margin-top:20px">
+  <div class="layout-2r">
+    <div class="grid">
+      <section>
+        <div class="card-h" style="padding:0 0 10px;border:0"><h2><%- ic('tree-fill') %> Bản đồ và dữ liệu nổi bật</h2><a class="more" href="/ban-do">Xem thêm <%- ic('chevron-right') %></a></div>
+        <div class="map-cards">
+          <% [
+            ['worldcover-2021', 'Bản đồ hiện trạng rừng', 'Lớp phủ, loại rừng, biến động', '/tai-nguyen-rung'],
+            ['forest-loss-risk', 'Bản đồ nguy cơ mất rừng', 'Dự báo 2025–2026, lưới 100 m', '/bien-dong-rung'],
+            ['s2-latest', 'Ảnh vệ tinh mới nhất', 'Sentinel-2, phát hiện biến động', '/ban-do?lop=s2-latest'],
+            ['dem-2024', 'Bản đồ chuyên đề', 'Địa hình, thủy văn, hành chính', '/ban-do?lop=dem-2024'],
+          ].forEach(([id, t, d, href]) => { if (!ov[id]) return; %>
+            <a class="card map-card" href="<%= href %>">
+              <div class="mc-img"><img src="<%= ov[id].url %>" alt="<%= t %>" loading="lazy"></div>
+              <div class="mc-b"><div><h3><%= t %></h3><p><%= d %></p></div><span class="go"><%- ic('chevron-right') %></span></div>
+            </a>
+          <% }) %>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-h"><h2><%- ic('graph-up-arrow') %> Dự báo – cảnh báo tổng hợp</h2><span class="badge b-gray">Tính tự động, chưa phải cảnh báo chính thức</span></div>
+        <div class="card-b grid cols-3">
+          <div>
+            <h3 style="font-size:14px">Nguy cơ cháy 7 ngày tới</h3>
+            <% if (danger) { %>
+              <p style="margin:6px 0"><strong style="font-size:24px;color:var(--navy)"><%= peak3 %></strong> / 40 xã có ngày đạt cấp III trở lên</p>
+              <div style="display:flex;gap:4px;flex-wrap:wrap">
+                <% danger.daily.forEach(d => { %><span title="<%= fmt.ymd(d.date) %>: cấp cao nhất <%= d.max %>" class="lv lv-<%= d.max %>"><%= fmt.weekday(d.date) %></span><% }) %>
+              </div>
+              <p class="src">Chỉ số P (Nesterov) – Open-Meteo, cập nhật <%= fmt.dateTime(danger.inputs) %></p>
+            <% } else { %><p class="muted">Chưa có kết quả tính.</p><% } %>
+            <a href="/canh-bao-chay?tab=du-bao" class="btn btn-outline btn-sm">Xem dự báo cháy</a>
+          </div>
+          <div>
+            <h3 style="font-size:14px">Biến động rừng gần đây</h3>
+            <% if (change) { %>
+              <p style="margin:6px 0"><strong style="font-size:24px;color:var(--navy)"><%= change.candidates %></strong> vùng biến động nghi vấn 2026</p>
+              <p class="src" style="margin:0">Sentinel-2 so sánh cùng kỳ 2024–2025 · chờ xác minh hiện trường</p>
+            <% } %>
+            <a href="/bien-dong-rung" class="btn btn-outline btn-sm" style="margin-top:8px">Xem biến động</a>
+          </div>
+          <div>
+            <h3 style="font-size:14px">Dự báo nguy cơ mất rừng</h3>
+            <% if (change) { %>
+              <p style="margin:6px 0"><strong style="font-size:24px;color:var(--navy)"><%= fmt.num(change.loss2024) %> ha</strong> mất tán cây năm 2024</p>
+              <p class="src" style="margin:0">Mô hình 2025–2026 kiểm định AUC <%= fmt.num(change.auc, 2) %> trên giai đoạn 2023–2024</p>
+            <% } %>
+            <a href="/bien-dong-rung#du-bao" class="btn btn-outline btn-sm" style="margin-top:8px">Xem bản đồ nguy cơ</a>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="card-h" style="padding:0 0 10px;border:0"><h2><%- ic('newspaper') %> Tin tức nổi bật</h2><a class="more" href="/tin-tuc">Xem thêm <%- ic('chevron-right') %></a></div>
+        <div class="grid cols-4 home-news">
+          <% articles.forEach(a => { %>
+            <article class="hn">
+              <img src="<%= a.image %>" alt="" loading="lazy">
+              <div><span class="src"><%= fmt.date(a.published_at || a.created_at) %><% if (a.status !== 'published') { %> · <span class="badge b-draft" style="font-size:10px"><%= a.statusLabel %></span><% } %></span>
+                <h3><a href="/tin-tuc/<%= a.slug %>"><%= a.title %></a></h3><p><%= a.summary %></p></div>
+            </article>
+          <% }) %>
+        </div>
+      </section>
+    </div>
+
+    <aside class="grid">
+      <section class="card">
+        <div class="card-h"><h2><%- ic('bell-fill') %> Cảnh báo mới nhất</h2><a class="more" href="/canh-bao-chay">Xem tất cả <%- ic('chevron-right') %></a></div>
+        <div class="card-b" style="padding-top:2px;padding-bottom:2px">
+          <% if (!alertFeed.length) { %><div class="empty-state"><%- ic('check-circle-fill') %>Không có cảnh báo trong kỳ hiện tại.</div><% } %>
+          <% alertFeed.forEach(a => { %>
+            <a class="alert-item" href="<%= a.link %>" style="text-decoration:none;color:inherit">
+              <span class="ai-thumb"><img src="/assets/items/<%= { hotspot: 'wildfire', fire_danger: 'smoke-report', forest_change: 'logging-report' }[a.type] %>-small.webp" alt=""><i>minh họa</i></span>
+              <div class="ai-b">
+                <span class="badge <%= alertBadge[a.type][0] %>"><%= alertBadge[a.type][1] %></span>
+                <span class="ai-t"><%= a.title %></span>
+                <span class="ai-d"><%= a.detail %></span>
+                <div class="meta"><span><%- ic('info-circle-fill') %> <%= a.statusLabel %></span><% if (a.time) { %><span><%= fmt.ago(a.time) %></span><% } %></div>
+              </div>
+            </a>
+          <% }) %>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('folder-fill') %> Tài liệu – Bản đồ PDF</h2><a class="more" href="/tai-lieu">Xem thêm <%- ic('chevron-right') %></a></div>
+        <div class="card-b" style="padding-top:4px">
+          <% documents.forEach(d => { %>
+            <div class="news-row" style="align-items:center">
+              <img src="/assets/icons/colored/pdf.svg" alt="" style="width:34px;height:34px;object-fit:contain">
+              <div style="flex:1"><h4><a href="/tai-lieu?id=<%= d.id %>"><%= d.title %></a></h4><span class="src">PDF · <%= fmt.bytes(d.bytes) %> · <%= d.pages %> trang</span></div>
+              <a class="btn btn-outline btn-sm" href="<%= d.url %>?tai=1"><%- ic('download') %> Tải</a>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('cloud-sun-fill') %> Thời tiết khu vực</h2><a class="more" href="/thoi-tiet">Chi tiết <%- ic('chevron-right') %></a></div>
+        <div class="card-b">
+          <div class="wx">
+            <%- cicon('weather') %>
+            <div><div class="t"><%= fmt.num(weather.temp, 0) %>°C</div><span class="muted"><%= weather.description || '' %></span></div>
+            <div class="wx-grid"><div>Độ ẩm<strong><%= fmt.num(weather.humidity, 0) %>%</strong></div><div>Gió<strong><%= fmt.num(weather.wind_ms * 3.6, 0) %> km/h</strong></div><div>Điểm đo<strong><%= weather.points %></strong></div></div>
+          </div>
+          <p class="src" style="margin:8px 0 0">Trung bình <%= weather.points %> điểm đại diện xã · OpenWeather · <%= fmt.dateTime(weather.dt) %><%= weather.live ? '' : ' (bản lưu)' %></p>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>
+<%- include('../partials/footer') %>
+<%- include('../partials/mapjs') %>
+<script>
+(function () {
+  const v = KT.createMap('overview-map', { basemap: 'satellite', interactive: true, cooperative: true, choropleth: 'danger7', padding: 10 });
+  if (!v) return;
+  v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province()).define('hotspots', KT.layers.hotspots());
+  v.map.on('click', 'communes-fill', (e) => new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(KT.communeHtml(e.features[0].properties)).addTo(v.map));
+  v.map.on('click', 'hotspots', (e) => new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(KT.hotspotHtml(e.features[0].properties)).addTo(v.map));
+})();
+</script>
+</body></html>

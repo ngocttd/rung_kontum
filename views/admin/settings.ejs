@@ -1,0 +1,36 @@
+<%- include('_top') %>
+<div class="grid cols-2">
+  <section class="card"><div class="card-h"><h2><%- ic('gear-fill') %> Trạng thái tích hợp</h2></div>
+    <div class="card-b"><table class="kv">
+      <tr><td>Cơ sở dữ liệu</td><td><% if (db.ok) { %>PostgreSQL/PostGIS <%= db.postgis %> · <%= db.db %> (tài khoản <%= db.usr %>) · <%= db.size %><% } else { %>Không kết nối: <%= db.reason %><% } %>
+        · kho vận hành: <b><%= db.store.backend === 'pg' ? 'PostGIS' : 'JSON (dự phòng)' %></b><%= db.store.pending ? ' · đang chờ ghi ' + db.store.pending : '' %><%= db.store.lastError ? ' · lỗi: ' + db.store.lastError.message : '' %></td></tr>
+      <tr><td>Mapbox public token</td><td><%= env.mapbox ? 'Đã cấu hình' : 'Chưa cấu hình' %></td></tr>
+      <tr><td>OpenWeather (máy chủ)</td><td><%= env.openweather ? 'Đã cấu hình' : 'Chưa cấu hình' %> · làm mới <%= weather.enabled ? 'mỗi ' + weather.interval_minutes + ' phút' : 'tắt' %><%= weather.fetched_at ? ' · lần cuối ' + fmt.dateTime(weather.fetched_at) : '' %><%= weather.lastError ? ' · lỗi: ' + weather.lastError.message : '' %></td></tr>
+      <tr><td>Google Earth Engine</td><td><%= env.gee ? 'Có khóa service account (máy chủ)' : 'Chưa có khóa' %></td></tr>
+      <tr><td>Lịch cập nhật dự báo</td><td><%= env.dataJobs ? 'Bật – cấu hình chu kỳ ở mục Phân tích' : 'Tắt (ENABLE_DATA_JOBS=false)' %></td></tr>
+      <tr><td>Hiển thị bài nháp</td><td><%= env.drafts ? 'Có, kèm nhãn “Bản nháp”' : 'Không' %> (SHOW_DRAFT_CONTENT)</td></tr>
+      <tr><td>NASA FIRMS (Area API)</td><td><%= firms.enabled ? 'Đã cấu hình · mỗi ' + firms.interval_minutes + ' phút · ~10–15 giao dịch/lượt' : 'Chưa cấu hình FIRMS_MAP_KEY' %><%= firms.collected_at ? ' · lần cuối ' + fmt.dateTime(firms.collected_at) : '' %><%= firms.key ? ' · key đang dùng ' + firms.key.used + '/' + firms.key.limit + ' (' + firms.key.interval + ')' : '' %><%= firms.error ? ' · lỗi: ' + firms.error : '' %>
+        <% if (firms.enabled && can('jobs.run')) { %><form method="post" action="/quan-tri/firms/cap-nhat" style="margin-top:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm">Cập nhật ngay</button></form><% } %></td></tr>
+    </table><p class="src">Giá trị khóa không bao giờ hiển thị trên giao diện. Cấu hình trong tệp .env trên máy chủ.</p></div></section>
+  <section class="card"><div class="card-h"><h2><%- ic('bell-fill') %> Thông báo MobileGIS (không Firebase)</h2></div>
+    <div class="card-b"><% if (!push) { %><div class="note">Cần PostgreSQL/PostGIS.</div><% } else { %><table class="kv">
+      <tr><td>Socket.IO (ứng dụng đang mở)</td><td><b><%= realtime.connections %></b> kết nối · namespace <code>/mobile</code></td></tr>
+      <tr><td>Web Push / UnifiedPush (Android, trình duyệt)</td><td>Đã có khoá VAPID (tự sinh, lưu storage/.vapid.json hoặc biến VAPID_*)</td></tr>
+      <tr><td>APNs (iOS)</td><td><%= push.apns ? 'Đã cấu hình khoá .p8' : 'Chưa cấu hình – đặt APNS_KEY_FILE, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID' %></td></tr>
+      <tr><td>Thiết bị</td><td><%= push.devices.map(d => `${d.provider}: ${d.enabled}/${d.total}`).join(' · ') || '—' %></td></tr>
+      <tr><td>Thông báo</td><td><%= push.notifications.total %> (24 giờ qua: <%= push.notifications.today %>)</td></tr>
+      <tr><td>Giao 7 ngày</td><td><%= push.deliveries.map(d => `${d.channel} ${d.status}: ${d.n}`).join(' · ') || '—' %></td></tr>
+    </table><p class="src">Chỉ phát từ sự kiện đã chốt: cảnh báo cháy đã phê duyệt, cháy đã xác minh, hồ sơ phản ánh đổi trạng thái, nhiệm vụ mới/trả lại, kết quả duyệt xác minh. Đã giao qua Socket.IO thì không gửi push trùng.</p><% } %></div></section>
+  <section class="card"><div class="card-h"><h2><%- ic('database-fill') %> Độ mới dữ liệu</h2></div>
+    <div class="card-b"><table class="kv">
+      <tr><td>Thời tiết hiện tại</td><td><%= fmt.dateTime(freshness.weather) %></td></tr><tr><td>Khí tượng Open-Meteo</td><td><%= fmt.dateTime(freshness.openmeteo) %></td></tr>
+      <tr><td>Chỉ số nguy cơ cháy</td><td><%= fmt.dateTime(freshness.fireDanger) %></td></tr><tr><td>Điểm nóng FIRMS</td><td><%= fmt.dateTime(freshness.firms) %></td></tr><tr><td>Biến động/dự báo rừng</td><td><%= fmt.dateTime(freshness.forestChange) %></td></tr>
+    </table><a class="btn btn-outline btn-sm" href="/quan-tri/phan-tich" style="margin-top:10px">Chạy cập nhật</a></div></section>
+  <form class="card" method="post" action="/quan-tri/mat-khau"><div class="card-h"><h2><%- ic('key-fill') %> Đổi mật khẩu</h2></div>
+    <div class="card-b"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label class="field"><span>Mật khẩu hiện tại</span><input class="input" type="password" name="current" required autocomplete="current-password"></label>
+      <label class="field"><span>Mật khẩu mới (≥ 10 ký tự)</span><input class="input" type="password" name="password" minlength="10" required autocomplete="new-password"></label>
+      <button class="btn btn-primary">Đổi mật khẩu</button></div></form>
+</div>
+<%- include('_bottom') %>
+</body></html>

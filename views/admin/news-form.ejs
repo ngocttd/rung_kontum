@@ -1,0 +1,24 @@
+<%- include('_top') %>
+<form class="card" method="post" action="/quan-tri/tin-tuc/luu" enctype="multipart/form-data">
+  <div class="card-h"><h2><%- ic('pencil-fill') %> <%= a ? 'Sửa bài viết' : 'Thêm bài viết mới' %></h2><a class="more" href="/quan-tri/tin-tuc">Quay lại</a></div>
+  <div class="card-b">
+    <input type="hidden" name="_csrf" value="<%= csrf %>"><% if (a) { %><input type="hidden" name="id" value="<%= a.id %>"><input type="hidden" name="image_path" value="<%= a.image %>"><% } %>
+    <label class="field"><span>Tiêu đề *</span><input class="input" name="title" required maxlength="250" value="<%= a ? a.title : '' %>"></label>
+    <div class="grid cols-3">
+      <label class="field"><span>Danh mục</span><select class="input" name="category"><% Object.entries(categories).forEach(([k, c]) => { %><option value="<%= k %>" <%= a && a.category === k ? 'selected' : '' %>><%= c.label %></option><% }) %></select></label>
+      <label class="field"><span>Trạng thái</span><select class="input" name="status"><% Object.entries(statuses).forEach(([k, l]) => { if (k === 'published' && !can('news.publish')) return; %><option value="<%= k %>" <%= a && a.status === k ? 'selected' : '' %>><%= l %></option><% }) %></select></label>
+      <label class="field"><span>Tác giả / nguồn biên soạn</span><input class="input" name="author" value="<%= a ? a.author : (user.name || '') %>"></label>
+    </div>
+    <label class="field"><span>Tóm tắt</span><textarea class="input" name="summary" rows="2" maxlength="500"><%= a ? a.summary : '' %></textarea></label>
+    <label class="field"><span>Nội dung * (mỗi đoạn một dòng)</span><textarea class="input" name="body" rows="12" required><%= a ? a.body : '' %></textarea></label>
+    <div class="grid cols-2">
+      <label class="field"><span>Liên kết nguồn</span><input class="input" name="source_url" type="url" value="<%= a && a.source_url ? a.source_url : '' %>"></label>
+      <label class="field"><span>Ảnh đại diện (JPG/PNG/WebP ≤ 8 MB)</span><input class="input" type="file" name="image" accept="image/jpeg,image/png,image/webp"></label>
+    </div>
+    <% if (a && a.image) { %><p class="src">Ảnh hiện tại: <img src="<%= a.image %>" alt="" style="height:60px;vertical-align:middle;border-radius:4px"></p><% } %>
+    <div class="note" style="margin-bottom:12px">Chỉ dùng ảnh có quyền sử dụng; ghi rõ “ảnh minh họa” nếu không phải ảnh hiện trường. Không đăng thông tin vụ việc chưa được xác minh.</div>
+    <button class="btn btn-primary"><%- ic('check-lg') %> Lưu bài viết</button>
+  </div>
+</form>
+<%- include('_bottom') %>
+</body></html>

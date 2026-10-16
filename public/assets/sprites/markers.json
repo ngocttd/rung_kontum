@@ -1,0 +1,146 @@
+{
+  "fire-confirmed": {
+    "x": 0,
+    "y": 0,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "fire-investigating": {
+    "x": 64,
+    "y": 0,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "fire-rejected": {
+    "x": 128,
+    "y": 0,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "fire-resolved": {
+    "x": 192,
+    "y": 0,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "forest-violation": {
+    "x": 256,
+    "y": 0,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "forest": {
+    "x": 320,
+    "y": 0,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "gps": {
+    "x": 0,
+    "y": 64,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "hotspot-unverified": {
+    "x": 64,
+    "y": 64,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "land-encroachment": {
+    "x": 128,
+    "y": 64,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "protected-area": {
+    "x": 192,
+    "y": 64,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "ranger-station": {
+    "x": 256,
+    "y": 64,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "report-other": {
+    "x": 320,
+    "y": 64,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "report-photo": {
+    "x": 0,
+    "y": 128,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "settlement": {
+    "x": 64,
+    "y": 128,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "survey": {
+    "x": 128,
+    "y": 128,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "timber-transport": {
+    "x": 192,
+    "y": 128,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "water-station": {
+    "x": 256,
+    "y": 128,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  },
+  "wildlife": {
+    "x": 320,
+    "y": 128,
+    "width": 64,
+    "height": 64,
+    "pixelRatio": 1,
+    "sdf": false
+  }
+}

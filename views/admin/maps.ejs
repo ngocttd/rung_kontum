@@ -1,0 +1,41 @@
+<%- include('_top') %>
+<% const pg = paginate(list, query.trang, 15); const fmtBadge = { geotiff: 'b-green', pdf: 'b-red', raster_image: 'b-purple', package: 'b-gray' }; const fmtShort = { geotiff: 'GeoTIFF', pdf: 'PDF', raster_image: 'Ảnh bản đồ', package: 'Gói MPK' }; %>
+<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+  <% if (can('maps.manage')) { %><a class="btn btn-primary" href="/quan-tri/ban-do/moi"><%- ic('plus-lg') %> Thêm bản đồ</a><% } %>
+  <a class="btn btn-outline" href="<%= pageUrl(1) %>&xuat=csv"><%- ic('cloud-arrow-down-fill') %> Xuất dữ liệu</a>
+  <a class="btn btn-outline" href="/quan-tri/ban-do"><%- ic('arrow-repeat') %> Làm mới</a>
+  <form class="search-box" style="margin-left:auto" action="/quan-tri/ban-do"><%- ic('search') %><input name="q" value="<%= filter.q || '' %>" placeholder="Tìm kiếm bản đồ..." style="width:260px"><% if (filter.loai) { %><input type="hidden" name="loai" value="<%= filter.loai %>"><% } %></form>
+</div>
+<div class="adm-tabs">
+  <a class="<%= !filter.loai ? 'on' : '' %>" href="/quan-tri/ban-do">Tất cả (<%= counts.all %>)</a>
+  <a class="<%= filter.loai === 'geotiff' ? 'on' : '' %>" href="?loai=geotiff">GeoTIFF (Raster) (<%= counts.geotiff || 0 %>)</a>
+  <a class="<%= filter.loai === 'pdf' ? 'on' : '' %>" href="?loai=pdf">PDF bản đồ (<%= counts.pdf || 0 %>)</a>
+  <a class="<%= filter.loai === 'raster_image' ? 'on' : '' %>" href="?loai=raster_image">Ảnh bản đồ (<%= counts.raster_image || 0 %>)</a>
+  <a class="<%= filter.loai === 'package' ? 'on' : '' %>" href="?loai=package">Khác (<%= counts.package || 0 %>)</a>
+</div>
+<section class="card">
+  <div class="card-b">
+    <form class="filters"><% if (filter.loai) { %><input type="hidden" name="loai" value="<%= filter.loai %>"><% } %>
+      <label>Trạng thái<select class="input" name="trang_thai"><option value="">Tất cả</option><% Object.entries(M.STATUS).forEach(([k, v]) => { %><option value="<%= k %>" <%= filter.trang_thai === k ? 'selected' : '' %>><%= v[0] %></option><% }) %></select></label>
+      <label>Nhóm dữ liệu<select class="input" name="nhom"><option value="">Tất cả</option><% Object.entries(M.CATEGORIES).forEach(([k, v]) => { %><option value="<%= k %>" <%= filter.nhom === k ? 'selected' : '' %>><%= v %></option><% }) %></select></label>
+      <label>Năm<select class="input" name="nam"><option value="">Tất cả</option><% years.forEach(y => { %><option <%= String(filter.nam) === String(y) ? 'selected' : '' %>><%= y %></option><% }) %></select></label>
+      <button class="btn btn-outline btn-sm"><%- ic('funnel-fill') %> Lọc</button></form>
+    <div class="table-wrap"><% if (!list.length) { %><div class="empty-state"><%- ic('map-fill') %>Chưa có bản đồ phù hợp.</div><% } else { %>
+    <table class="tbl"><thead><tr><th>STT</th><th></th><th>Tên bản đồ</th><th>Loại</th><th>Nhóm</th><th>Năm</th><th>Vùng phủ</th><th>Ngày tải lên</th><th>Người phụ trách</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+      <% pg.items.forEach((d, i) => { const b = d.tech && d.tech.bounds4326; %><tr>
+        <td><%= pg.offset + i + 1 %></td>
+        <td><% if (d.preview_url) { %><img src="<%= d.preview_url %>" alt="" style="width:44px;height:56px;object-fit:cover;border:1px solid var(--line);border-radius:3px"><% } %></td>
+        <td><a href="/quan-tri/ban-do/<%= d.id %>"><b><%= d.title %></b></a><div class="src"><%= d.access === 'internal' ? 'Nội bộ' : 'Công khai' %> · <%= fmt.bytes(d.size_bytes) %></div></td>
+        <td><span class="badge <%= fmtBadge[d.format] %>"><%= fmtShort[d.format] %></span></td>
+        <td><%= M.CATEGORIES[d.category] || d.category %></td><td><%= d.map_year || '—' %></td>
+        <td class="src"><%= d.georeferenced ? (b ? 'Kon Tum (' + b[0].toFixed(2) + '–' + b[2].toFixed(2) + '°E)' : 'Đã định vị') : 'Chưa định vị' %></td>
+        <td><%= fmt.date(d.created_at) %></td><td><%= d.created_by %></td>
+        <td><span class="badge <%= M.STATUS[d.status][1] %>"><%= M.STATUS[d.status][0] %></span><% if (d.job_status === 'running' || d.job_status === 'queued') { %> <span class="src">…</span><% } %></td>
+        <td><div class="inline-form"><a class="btn btn-outline btn-sm" href="/quan-tri/ban-do/<%= d.id %>" title="Xem"><%- ic('eye-fill') %></a><% if (can('maps.manage')) { %><a class="btn btn-outline btn-sm" href="/quan-tri/ban-do/<%= d.id %>#thong-tin" title="Sửa"><%- ic('pencil-fill') %></a><% } %>
+          <% if (can('maps.publish') && d.status !== 'published') { %><form method="post" action="/quan-tri/ban-do/<%= d.id %>/xoa"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" title="Xoá" onclick="return confirm('Xoá bộ dữ liệu này? Tệp bàn giao gốc trong data/ không bị xoá.')"><%- ic('trash-fill') %></button></form><% } %></div></td>
+      </tr><% }) %>
+    </tbody></table><%- include('../partials/pager', { pg }) %><% } %></div>
+  </div>
+</section>
+<%- include('_bottom') %>
+</body></html>

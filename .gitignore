@@ -1,0 +1,22 @@
+.env
+.env.*
+!.env.example
+.secrets/
+node_modules/
+__pycache__/
+.tools/
+storage/
+public/uploads/
+# sinh lại được – không đưa vào mã nguồn
+*.log
+__pycache__/
+dist/
+mobile/build/
+mobile/.dart_tool/
+mobile/release/
+mobile/android/.gradle/
+*.iml
+.idea/
+
+# dữ liệu (raster, OSM, dữ liệu thực tế ~7 GB) không đưa lên git – đi kèm gói triển khai deploy/rung_kontum_var_data.tar
+data/

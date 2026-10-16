@@ -1,0 +1,43 @@
+<%- include('_top', { needsMap: true }) %>
+<% const icon = { hotspot: 'fire', fire_danger: 'temperature', forest_change: 'satellite' }; const tone = { info: 'b-blue', warn: 'b-orange', danger: 'b-red', ok: 'b-green', muted: 'b-gray' }; %>
+<div class="kpi-cards" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:16px">
+  <div class="card kc"><%- cicon('forest') %><div><span>Diện tích có rừng</span><strong><%= fmt.num(summary.established_forest_ha) %> ha</strong><span class="sub">31/12/2025</span></div></div>
+  <div class="card kc"><%- cicon('plantation') %><div><span>Tỷ lệ có rừng</span><strong><%= fmt.num(summary.cover_percent_computed, 1) %>%</strong><span class="sub">40 xã</span></div></div>
+  <div class="card kc"><%- cicon('fire') %><div><span>Điểm nóng (7 ngày)</span><strong><%= hotspots.length %></strong><span class="sub"><%= hotspots.filter(h => h.status === 'new').length %> chưa xử lý</span></div></div>
+  <div class="card kc"><%- cicon('violation') %><div><span>Biến động nghi vấn</span><strong><%= candidates %></strong><span class="sub">xã cấp cháy III+: <%= peak %></span></div></div>
+  <div class="card kc"><%- cicon('report') %><div><span>Phản ánh mới</span><strong><%= reportCounts.open %></strong><span class="sub">tổng <%= reportCounts.total %></span></div></div>
+</div>
+<div class="grid" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr)">
+  <section class="card"><div class="card-h"><h2><%- ic('map-fill') %> Bản đồ tổng quan</h2><a class="more" href="/ban-do" target="_blank">Mở WebGIS</a></div>
+    <div class="map-shell" style="height:400px;border-radius:0 0 10px 10px"><div id="map" class="map"></div></div></section>
+  <section class="card"><div class="card-h"><h2><%- ic('bell-fill') %> Cảnh báo cần xử lý</h2><a class="more" href="/quan-tri/canh-bao">Quản lý</a></div>
+    <div class="card-b" style="padding-top:0">
+      <% if (!feed.length) { %><div class="empty-state">Không có cảnh báo.</div><% } %>
+      <% feed.forEach(a => { %><div class="alert-item"><img class="ai-ic" src="/assets/icons/colored/<%= icon[a.type] %>.svg" alt=""><div class="ai-b"><span class="ai-t"><%= a.title %></span><span class="ai-d"><%= a.detail %></span></div><span class="badge <%= a.official ? 'b-green' : 'b-orange' %>"><%= a.statusLabel %></span></div><% }) %>
+    </div></section>
+  <section class="card"><div class="card-h"><h2><%- ic('bar-chart-fill') %> Điểm nóng theo tháng</h2></div><div class="card-b"><div class="chart-box tall"><canvas id="ch"></canvas></div></div></section>
+</div>
+<div class="grid cols-3" style="margin-top:16px">
+  <section class="card"><div class="card-h"><h2><%- ic('megaphone-fill') %> Phản ánh gần đây</h2><a class="more" href="/quan-tri/phan-anh">Tất cả</a></div>
+    <div class="card-b table-wrap"><% if (!recentReports.length) { %><div class="empty-state">Chưa có phản ánh.</div><% } else { %><table class="tbl"><tbody>
+      <% recentReports.forEach(x => { %><tr><td><a href="/quan-tri/phan-anh/<%= x.id %>"><%= x.code %></a></td><td><%= x.typeLabel %></td><td><span class="badge <%= tone[x.statusTone] %>"><%= x.statusLabel %></span></td><td class="src"><%= fmt.ago(x.created_at) %></td></tr><% }) %></tbody></table><% } %></div></section>
+  <section class="card"><div class="card-h"><h2><%- ic('database-fill') %> Độ mới dữ liệu</h2><a class="more" href="/quan-tri/phan-tich">Cập nhật</a></div>
+    <div class="card-b"><table class="kv">
+      <tr><td>Thời tiết hiện tại</td><td><%= fmt.dateTime(freshness.weather) %></td></tr><tr><td>Khí tượng Open-Meteo</td><td><%= fmt.dateTime(freshness.openmeteo) %></td></tr>
+      <tr><td>Chỉ số nguy cơ cháy</td><td><%= fmt.dateTime(freshness.fireDanger) %></td></tr><tr><td>Điểm nóng FIRMS</td><td><%= fmt.dateTime(freshness.firms) %></td></tr>
+      <tr><td>Biến động/dự báo rừng</td><td><%= fmt.dateTime(freshness.forestChange) %></td></tr></table>
+      <% if (fmt.ageHours(freshness.firms) > 24) { %><div class="note" style="margin-top:8px">Điểm nóng FIRMS đã cũ hơn 24 giờ – kiểm tra trạng thái FIRMS ở Cài đặt.</div><% } %></div></section>
+  <section class="card"><div class="card-h"><h2><%- ic('clock-history') %> Hoạt động gần đây</h2><% if (can('audit.view')) { %><a class="more" href="/quan-tri/nhat-ky">Nhật ký</a><% } %></div>
+    <div class="card-b table-wrap"><table class="tbl"><tbody><% audit.forEach(a => { %><tr><td class="src"><%= fmt.dateTime(a.created_at) %></td><td><%= a.user %></td><td><%= a.action %></td><td class="src"><%= String(a.target || '').slice(0, 30) %></td></tr><% }) %></tbody></table></div></section>
+</div>
+<%- include('_bottom') %>
+<%- include('../partials/chartjs') %>
+<%- include('../partials/mapjs') %>
+<script>
+(function () {
+  KT.hotspotChart('ch', <%- JSON.stringify(history || null) %>, { ticks: 8 });
+  const v = KT.createMap('map', { basemap: 'satellite', choropleth: 'danger7' });
+  if (v) v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province()).define('candidates', { ...KT.layers.candidates(), visible: true }).define('hotspots', KT.layers.hotspots());
+})();
+</script>
+</body></html>

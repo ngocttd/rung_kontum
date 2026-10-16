@@ -1,0 +1,45 @@
+<%- include('_top', { needsMap: true }) %>
+<% const tone = { info: 'b-blue', warn: 'b-orange', danger: 'b-red', ok: 'b-green', muted: 'b-gray' }; %>
+<div class="grid" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)">
+  <section class="card">
+    <div class="card-h"><h2><img src="/assets/markers/<%= x.marker %>.svg" width="22" alt=""> <%= x.code %> · <%= x.typeLabel %></h2><span class="badge <%= tone[x.statusTone] %>" style="margin-left:auto"><%= x.statusLabel %></span></div>
+    <div class="card-b">
+      <table class="kv"><tr><td>Thời gian gửi</td><td><%= fmt.dateTime(x.created_at) %></td></tr><tr><td>Thời điểm phát hiện</td><td><%= x.observed_at ? x.observed_at.replace('T', ' ') : '—' %></td></tr>
+        <tr><td>Địa bàn</td><td><%= x.commune_name || 'Ngoài ranh 40 xã' %></td></tr><tr><td>Tọa độ</td><td><%= x.lat %>, <%= x.lon %> <% if (x.lat) { %>· <a href="/ban-do#<%= x.lon %>,<%= x.lat %>,14" target="_blank">mở bản đồ</a><% } %></td></tr>
+        <tr><td>Mô tả địa điểm</td><td><%= x.location_text || '—' %></td></tr><tr><td>Nội dung</td><td><%= x.description %></td></tr>
+        <tr><td>Nguồn gửi</td><td><%= x.source === 'mobile' ? 'Ứng dụng MobileGIS' + (x.created_by ? ' (tài khoản người dân)' : ' (khách)') : 'Cổng thông tin web' %><% if (x.gps_accuracy) { %> · GPS ±<%= Math.round(x.gps_accuracy) %> m<% } %><% if (x.location_source && x.location_source !== 'gps') { %> · vị trí chọn trên bản đồ<% } %></td></tr>
+        <tr><td>Người gửi (bảo mật)</td><td><%= x.reporter.name || 'Ẩn danh' %> · <%= x.reporter.phone || '—' %> · <%= x.reporter.email || '—' %></td></tr></table>
+      <% if (x.photos.length) { %><div class="photo-strip" style="margin-top:12px"><% x.photos.forEach(p => { %><a href="/phan-anh/anh/<%= p %>" target="_blank"><img src="/phan-anh/anh/<%= p %>" alt=""></a><% }) %></div><% } %>
+      <% if (x.videos && x.videos.length) { %><div style="margin-top:10px"><% x.videos.forEach(v => { %><video src="/quan-tri/hien-truong/tep/<%= v %>" controls preload="metadata" style="max-width:100%;max-height:260px;border-radius:8px;margin-right:8px"></video><% }) %></div><% } %>
+      <div class="map-shell" style="height:280px;margin-top:12px"><div id="map" class="map"></div></div>
+    </div>
+  </section>
+  <div class="grid" style="align-content:start">
+    <% if (can('reports.manage')) { %>
+    <form class="card" method="post">
+      <div class="card-h"><h2><%- ic('clipboard-check-fill') %> Xử lý hồ sơ</h2></div>
+      <div class="card-b">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label class="field"><span>Trạng thái</span><select class="input" name="status"><% Object.entries(statuses).forEach(([k, s]) => { %><option value="<%= k %>" <%= x.status === k ? 'selected' : '' %>><%= s.label %></option><% }) %></select></label>
+        <label class="field"><span>Phân công cán bộ</span><select class="input" name="assigned_to"><option value="">—</option><% users.forEach(u => { %><option <%= x.assigned_to === u.username ? 'selected' : '' %>><%= u.username %></option><% }) %></select></label>
+        <label class="field"><span>Ghi chú xử lý</span><textarea class="input" name="note" rows="2"></textarea></label>
+        <label class="check"><input type="checkbox" name="note_public"> Hiển thị ghi chú này cho người gửi khi tra cứu</label>
+        <label class="field"><span>Phản hồi kết quả (công khai)</span><textarea class="input" name="response" rows="2"><%= x.response || '' %></textarea></label>
+        <label class="check"><input type="checkbox" name="public" <%= x.public ? 'checked' : '' %>> Công khai trong danh sách phản ánh (không kèm thông tin người gửi, vị trí làm tròn)</label>
+        <label class="check"><input type="checkbox" name="public_photos" <%= x.public_photos ? 'checked' : '' %>> Cho phép công khai ảnh</label>
+        <button class="btn btn-primary" style="margin-top:10px">Lưu cập nhật</button>
+      </div>
+    </form>
+    <% } %>
+    <section class="card"><div class="card-h"><h2><%- ic('clock-history') %> Lịch sử xử lý</h2></div>
+      <div class="card-b"><ul class="timeline"><% x.timeline.forEach(t => { %><li class="done"><b><%= statuses[t.status] ? statuses[t.status].label : t.status %></b><time><%= fmt.dateTime(t.at) %> · <%= t.by %><%= t.note ? ' · ' + t.note : '' %><%= t.public_note ? ' (công khai)' : '' %></time></li><% }) %></ul></div></section>
+  </div>
+</div>
+<%- include('_bottom') %>
+<%- include('../partials/mapjs') %>
+<script>
+(function () { const ll = <%- JSON.stringify(x.lat !== null ? [x.lon, x.lat] : null) %>; if (!ll) return;
+  const v = KT.createMap('map', { basemap: 'satellite', bounds: [[ll[0] - 0.03, ll[1] - 0.03], [ll[0] + 0.03, ll[1] + 0.03]] });
+  if (!v) return; v.define('communes', KT.layers.communes(v)); new mapboxgl.Marker({ color: '#e0322d' }).setLngLat(ll).addTo(v.map); })();
+</script>
+</body></html>

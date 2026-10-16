@@ -1,0 +1,106 @@
+<%- include('_top') %>
+<%- include('_map-stepper', { current: 1 }) %>
+<div class="card" id="wiz">
+  <!-- Bước 1: chọn loại bản đồ (PL.2) -->
+  <section data-step="1" class="card-b">
+    <h2 style="font-size:17px;margin-bottom:12px">Chọn loại bản đồ</h2>
+    <div class="grid cols-2">
+      <label class="type-card" data-type="geotiff">
+        <input type="radio" name="t" value="geotiff" <%= type !== 'pdf' ? 'checked' : '' %>>
+        <span class="tc-ic" style="background:#e3f4ec;color:#0c7a51"><%- ic('grid-fill', 'ic-lg') %></span>
+        <span><b>GeoTIFF (Raster)</b><br><span class="src">Tải lên các tệp GeoTIFF (.tif, .tiff) có thông tin tọa độ để hiển thị trên bản đồ</span>
+          <ul><li>Hiển thị đúng vị trí địa lý</li><li>Hỗ trợ nhiều hệ toạ độ (tự đọc CRS và geotransform)</li><li>Phù hợp ảnh vệ tinh, bản đồ nền, bản đồ chuyên đề</li><li>Tạo COG, overview và lớp hiển thị tối ưu</li></ul></span>
+      </label>
+      <label class="type-card" data-type="pdf">
+        <input type="radio" name="t" value="pdf" <%= type === 'pdf' ? 'checked' : '' %>>
+        <span class="tc-ic" style="background:#fde8e7;color:#c0261f"><%- ic('file-earmark-pdf-fill', 'ic-lg') %></span>
+        <span><b>PDF bản đồ / ảnh bản đồ</b><br><span class="src">Tải lên tệp PDF hoặc ảnh bản đồ đã biên tập, có thể gán toạ độ (nắn chỉnh) nếu chưa có</span>
+          <ul><li>Xem trước từng trang</li><li>Gán điểm khống chế, kiểm tra sai số RMSE</li><li>Chưa nắn chỉnh: chỉ lưu và xem như tài liệu, không chồng lên bản đồ</li></ul></span>
+      </label>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:16px"><a class="btn btn-outline" href="/quan-tri/ban-do">Huỷ</a><button type="button" class="btn btn-primary" data-next>Tiếp theo <%- ic('chevron-right') %></button></div>
+  </section>
+
+  <!-- Bước 2: tải tệp và thông tin (PL.3 / PL.5) -->
+  <form data-step="2" class="card-b" hidden id="upload-form" method="post" action="/quan-tri/ban-do/moi" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="expect" id="expect" value="geotiff">
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)">
+      <div>
+        <h3 style="font-size:15px;margin-bottom:8px" id="up-title">Tải tệp GeoTIFF</h3>
+        <label class="dropzone" id="drop">
+          <%- ic('cloud-arrow-up-fill', 'ic-lg') %>
+          <span>Kéo thả tệp vào đây hoặc</span>
+          <span class="btn btn-outline btn-sm">Chọn tệp</span>
+          <input type="file" name="file" id="file" required hidden>
+          <span class="src" id="file-info">Chưa chọn tệp</span>
+        </label>
+        <p class="src" id="limits">Hỗ trợ định dạng: .tif, .tiff (tối đa 2 GB). Máy chủ tự đọc CRS, geotransform, số băng, NoData và checksum; không chỉ dựa vào thông tin nhập tay.</p>
+        <div class="progress" hidden id="prog"><div id="prog-bar"></div><span id="prog-text">0%</span></div>
+      </div>
+      <div>
+        <h3 style="font-size:15px;margin-bottom:8px">Thông tin bản đồ</h3>
+        <label class="field"><span>Tên bản đồ *</span><input class="input" name="title" required maxlength="250" placeholder="VD: Bản đồ hiện trạng rừng 2025"></label>
+        <label class="field"><span>Mô tả</span><textarea class="input" name="description" rows="3" placeholder="Nội dung, nguồn ảnh, phương pháp thành lập..."></textarea></label>
+        <div class="grid cols-2">
+          <label class="field"><span>Nhóm dữ liệu</span><select class="input" name="category"><% Object.entries(M.CATEGORIES).forEach(([k, v]) => { %><option value="<%= k %>"><%= v %></option><% }) %></select></label>
+          <label class="field"><span>Năm bản đồ</span><input class="input" name="map_year" type="number" min="1900" max="2100" placeholder="2025"></label>
+          <label class="field" data-only="geotiff"><span>Hệ toạ độ dự kiến</span><select class="input" name="expected_srid"><option value="">Đọc từ tệp</option><option value="4326">EPSG:4326 – WGS84</option><option value="32648">EPSG:32648 – UTM 48N</option><option value="3405">EPSG:3405 – VN-2000 / UTM 48N</option><option value="9210">VN-2000 KTT 107°45′ (khai báo)</option></select></label>
+          <label class="field" data-only="pdf"><span>Tỷ lệ bản đồ</span><input class="input" name="map_scale" placeholder="1:25.000"></label>
+          <label class="field"><span>Đơn vị cung cấp</span><input class="input" name="source_org" placeholder="Sở NN&MT, Chi cục Kiểm lâm..."></label>
+          <label class="field"><span>Thời gian thành lập</span><input class="input" type="date" name="acquisition_date"></label>
+          <label class="field"><span>Giấy phép sử dụng</span><input class="input" name="license" placeholder="Nội bộ / CC BY 4.0 / ..."></label>
+          <label class="field"><span>Quyền truy cập</span><select class="input" name="access"><option value="public">Công khai sau khi xuất bản</option><option value="internal">Nội bộ (chỉ cán bộ)</option></select></label>
+        </div>
+        <div class="note info">Sau khi tải lên, hệ thống xử lý nền (đọc metadata, tạo ảnh xem trước, lớp hiển thị). Bản đồ chỉ hiển thị công khai sau khi được người có quyền duyệt và xuất bản.</div>
+      </div>
+    </div>
+    <div class="flash error" id="err" hidden style="margin-top:10px"></div>
+    <div style="display:flex;justify-content:space-between;margin-top:16px"><button type="button" class="btn btn-outline" data-back><%- ic('chevron-left') %> Quay lại</button><button class="btn btn-primary" id="submit">Tải lên và xử lý <%- ic('chevron-right') %></button></div>
+  </form>
+</div>
+<%- include('_bottom') %>
+<script>
+(function () {
+  const steps = document.querySelectorAll('[data-step]'); const stepper = document.querySelectorAll('.stepper .st');
+  const show = (n) => { steps.forEach((s) => { s.hidden = s.dataset.step !== String(n); }); stepper.forEach((s, i) => { s.classList.toggle('on', i === n - 1); s.classList.toggle('done', i < n - 1); }); };
+  const type = () => document.querySelector('input[name=t]:checked').value;
+  document.querySelectorAll('.type-card').forEach((c) => c.addEventListener('click', () => { document.querySelectorAll('.type-card').forEach((x) => x.classList.toggle('sel', x === c)); }));
+  document.querySelector(`.type-card[data-type="${type()}"]`).classList.add('sel');
+  document.querySelector('[data-next]').onclick = () => {
+    const t = type(); document.getElementById('expect').value = t;
+    const input = document.getElementById('file');
+    input.accept = t === 'pdf' ? '.pdf,.png,.jpg,.jpeg,.tif,.tiff' : '.tif,.tiff';
+    document.getElementById('up-title').textContent = t === 'pdf' ? 'Tải tệp PDF / ảnh bản đồ' : 'Tải tệp GeoTIFF';
+    document.getElementById('limits').textContent = t === 'pdf' ? 'Hỗ trợ định dạng: .pdf (tối đa 200 MB), ảnh .png/.jpg/.tif chưa định vị (tối đa 500 MB). PDF không có tham chiếu địa lý chỉ được lưu và xem như tài liệu cho tới khi nắn chỉnh.' : document.getElementById('limits').textContent;
+    document.querySelectorAll('[data-only]').forEach((el) => { el.hidden = el.dataset.only !== t; });
+    show(2);
+  };
+  document.querySelector('[data-back]').onclick = () => show(1);
+  const input = document.getElementById('file'); const drop = document.getElementById('drop');
+  const info = () => { const f = input.files[0]; document.getElementById('file-info').textContent = f ? `${f.name} · ${(f.size / 1048576).toFixed(1)} MB` : 'Chưa chọn tệp'; if (f && !document.querySelector('[name=title]').value) document.querySelector('[name=title]').value = f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '); };
+  input.addEventListener('change', info);
+  ['dragover', 'dragenter'].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((e) => drop.addEventListener(e, () => drop.classList.remove('over')));
+  drop.addEventListener('drop', (ev) => { ev.preventDefault(); if (ev.dataTransfer.files.length) { input.files = ev.dataTransfer.files; info(); } });
+  const form = document.getElementById('upload-form');
+  form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const err = document.getElementById('err'); err.hidden = true;
+    const f = input.files[0];
+    const limit = type() === 'pdf' ? (f && /\.pdf$/i.test(f.name) ? 200 : 500) : 2048;
+    if (!f) { err.textContent = 'Chưa chọn tệp'; err.hidden = false; return; }
+    if (f.size > limit * 1048576) { err.textContent = `Tệp vượt giới hạn ${limit} MB`; err.hidden = false; return; }
+    const xhr = new XMLHttpRequest(); const bar = document.getElementById('prog-bar'); const txt = document.getElementById('prog-text');
+    document.getElementById('prog').hidden = false; document.getElementById('submit').disabled = true;
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) { const p = Math.round((e.loaded / e.total) * 100); bar.style.width = `${p}%`; txt.textContent = p < 100 ? `${p}%` : 'Đang kiểm tra trên máy chủ…'; } };
+    xhr.onload = () => {
+      let j = {}; try { j = JSON.parse(xhr.responseText); } catch { /* html */ }
+      if (xhr.status === 200 && j.ok) { location.href = j.url; return; }
+      err.textContent = j.error || `Lỗi tải lên (HTTP ${xhr.status})`; err.hidden = false; document.getElementById('submit').disabled = false;
+    };
+    xhr.onerror = () => { err.textContent = 'Mất kết nối khi tải lên. Vui lòng thử lại.'; err.hidden = false; document.getElementById('submit').disabled = false; };
+    xhr.open('POST', form.action); xhr.setRequestHeader('x-requested-with', 'fetch'); xhr.send(new FormData(form));
+  });
+})();
+</script>
+</body></html>

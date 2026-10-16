@@ -1,0 +1,41 @@
+{
+  "name": "webgis-rung-kontum",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WebGIS giám sát tài nguyên rừng, dự báo và cảnh báo mất rừng, cháy rừng vùng Kon Tum",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch-path=src --watch-path=views --watch-path=server.js server.js",
+    "create-user": "node scripts/create_user.cjs",
+    "update-forecast": "python scripts/collect_openmeteo.py && cd scripts && python build_fire_danger.py",
+    "rebuild-web-data": "cd scripts && python build_forest_change.py && python build_web_data.py && node to_webp.cjs",
+    "check": "node scripts/smoke_test.cjs",
+    "db:setup": "node scripts/db_setup.cjs",
+    "db:import": "node scripts/db_import.cjs",
+    "post-restore": "node scripts/post_restore.cjs",
+    "test:mobile": "node scripts/test_mobile_api.cjs",
+    "test:push": "node scripts/test_push.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
+    "dotenv": "^18.0.8",
+    "ejs": "^7.0.1",
+    "exceljs": "^4.4.0",
+    "express": "^4.22.3",
+    "express-session": "^1.19.0",
+    "multer": "^1.4.4",
+    "pg": "^8.23.1",
+    "session-file-store": "^1.5.0",
+    "sharp": "^0.35.5",
+    "socket.io": "4.8.3",
+    "web-push": "3.6.7"
+  },
+  "devDependencies": {
+    "socket.io-client": "4.8.3"
+  }
+}

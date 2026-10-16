@@ -1,0 +1,4 @@
+<% const _steps = typeof labels !== 'undefined' ? labels : ['Chọn loại bản đồ', 'Tải tệp và thông tin', 'Xem trước và cấu hình', 'Hoàn thành']; %>
+<div class="stepper card card-b">
+  <% _steps.forEach((s, i) => { %><div class="st <%= i + 1 < current ? 'done' : '' %> <%= i + 1 === current ? 'on' : '' %>"><span class="n"><%= i + 1 < current ? '✓' : i + 1 %></span><span><%= s %></span></div><% }) %>
+</div>

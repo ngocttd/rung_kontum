@@ -1,0 +1,57 @@
+{
+  "files": 377,
+  "bytes": 1786252379,
+  "raster_files": 200,
+  "raster_errors": [],
+  "sentinel_30m_tiles": 32,
+  "weather_communes": 40,
+  "forecast_records": 1600,
+  "official_commune_records": 40,
+  "climate_daily_records": 29240,
+  "secret_leaks": [],
+  "browser_qa": false,
+  "limitations": [
+    "Raster QA samples pixels; not a scientific accuracy assessment.",
+    "Daily means not sufficient for calibrated local-noon FWI."
+  ],
+  "supplemental": {
+    "forecast_inputs": {
+      "noon_records": 40160,
+      "unique_noon_records": 40160,
+      "review_required": 7767,
+      "monthly_feature_records": 1320,
+      "monthly_count": 33,
+      "minimum_monthly_valid_fraction": 0.0,
+      "actual_forecasts_generated": false,
+      "alerts_generated": false,
+      "rh_formula": "Magnus approximation over water: 17.625, 243.04; retain QC instead of clipping",
+      "rain_window": "hourly values t-23h through t inclusive at t=05:00 UTC; first day may lack previous hours",
+      "limitations": [
+        "No station calibration or labelled event validation.",
+        "Monthly 100m commune means cannot validate parcel-level forest loss.",
+        "FWI state initialization, warm-up, local thresholds and forecast time alignment remain model prerequisites."
+      ]
+    },
+    "raster_quality": {
+      "records": 120,
+      "products": {
+        "dem-2024-1-30m": {
+          "min_valid_fraction": 1.0,
+          "max_valid_fraction": 1.0
+        },
+        "sentinel-2025-dry-30m": {
+          "min_valid_fraction": 0.9959184009687105,
+          "max_valid_fraction": 1.0
+        },
+        "sentinel-2025-wet-30m": {
+          "min_valid_fraction": 0.42922182883925925,
+          "max_valid_fraction": 1.0
+        }
+      },
+      "scientific_accuracy_validated": false
+    },
+    "osm": {
+      "status": "not_completed"
+    }
+  }
+}

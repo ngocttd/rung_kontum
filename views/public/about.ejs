@@ -1,0 +1,88 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<%
+  const sources = [
+    ['Hiện trạng rừng 2025 theo xã', 'UBND tỉnh Quảng Ngãi – QĐ 1047/QĐ-UBND ngày 31/3/2026 và phụ lục', 'Văn bản công bố công khai', 'Theo đợt công bố hằng năm', 'Số liệu diện tích, nguồn gốc, quy hoạch 3 loại rừng, tỷ lệ che phủ'],
+    ['Ranh giới Kon Tum trước 2025', 'Government of Viet Nam / HDX qua geoBoundaries (2020)', 'CC BY / theo nguồn', 'Cố định (lịch sử)', 'Phạm vi vùng nghiên cứu'],
+    ['Ranh giới 40 xã/phường hiện hành', 'vietnamese-provinces-database v5.2.0', 'Theo kho nguồn mở', 'Theo phiên bản dữ liệu', 'Đơn vị thống kê, bản đồ cấp xã'],
+    ['Mất tán cây 2001–2024', 'Hansen/UMD/Google/USGS/NASA – Global Forest Change v1.12', 'CC BY 4.0', 'Hằng năm', 'Lịch sử biến động, nhãn huấn luyện mô hình dự báo'],
+    ['Ảnh Sentinel-2', 'Copernicus (ESA) qua Google Earth Engine', 'Copernicus data policy', 'Chuỗi tháng 01/2024–09/2026; mùa 2024–2025', 'NDVI/NDMI/NBR, phát hiện biến động nghi vấn'],
+    ['Lớp phủ đất', 'ESA WorldCover 2021 v200', 'CC BY 4.0', 'Cố định (2021)', 'Đối chiếu lớp phủ, yếu tố mô hình'],
+    ['Địa hình', 'Copernicus DEM GLO-30 (2024_1) – DLR/Airbus, ESA', 'Copernicus DEM licence', 'Cố định', 'Độ cao, độ dốc'],
+    ['Khí tượng lịch sử', 'ERA5-Land (C3S/ECMWF), CHIRPS (UCSB)', 'Copernicus licence / CC', 'Độ trễ vài ngày', 'Chuỗi chỉ số nguy cơ cháy 2024–2026'],
+    ['Khí tượng gần đây và dự báo', 'Open-Meteo.com (mô hình best match)', 'CC BY 4.0', 'Mỗi 6 giờ khi bật lịch', 'Dự báo cấp nguy cơ cháy 7 ngày'],
+    ['Thời tiết hiện tại', 'OpenWeather (gọi từ máy chủ)', 'Theo gói dịch vụ', '30 phút', 'Thông tin thời tiết theo xã'],
+    ['Điểm nóng cháy', 'NASA FIRMS (LANCE NRT MODIS/VIIRS); lịch sử GEE FIRMS', 'NASA open data', '1–3 giờ (nguồn), bản lưu 7 ngày', 'Cảnh báo điểm nóng, kiểm định chỉ số nguy cơ'],
+    ['Vùng cháy', 'MODIS MCD64A1 (NASA)', 'NASA open data', 'Hằng tháng, có độ trễ', 'Thống kê diện tích cháy tham khảo'],
+    ['Ảnh tư liệu', 'Wikimedia Commons (từng ảnh có tác giả/giấy phép)', 'CC BY / CC BY-SA', '—', 'Minh họa nội dung'],
+  ];
+%>
+<%- include('../partials/banner', { banner: 'p08-about', heading: 'Giới thiệu hệ thống', crumb: 'Giới thiệu', lead: 'Nền tảng bản đồ số giám sát tài nguyên rừng, dự báo và cảnh báo mất rừng, cháy rừng phục vụ quản lý, bảo vệ rừng vùng Kon Tum.' }) %>
+<main class="container page">
+  <div class="layout-2r">
+    <div class="grid">
+      <section class="card card-b">
+        <h2 style="font-size:20px;margin-bottom:10px">Mục tiêu và phạm vi</h2>
+        <p>Hệ thống tích hợp dữ liệu rừng chính thức, ảnh vệ tinh, khí tượng và điểm nóng nhiệt để theo dõi hiện trạng, phát hiện biến động, dự báo nguy cơ cháy và nguy cơ mất rừng; đồng thời tiếp nhận phản ánh của người dân và hỗ trợ cán bộ chuyên môn xác minh, xử lý.</p>
+        <p><strong>Vùng nghiên cứu:</strong> phạm vi tỉnh Kon Tum trước sắp xếp hành chính năm 2025. Sau sắp xếp, vùng này thuộc tỉnh Quảng Ngãi; số liệu cấp xã được tổng hợp theo <strong><%= communes.length %> xã, phường hiện hành</strong> có phần lớn diện tích nằm trong vùng. Tên “Kon Tum” trong hệ thống là tên vùng nghiên cứu, không phải đơn vị hành chính hiện hành.</p>
+        <div class="grid cols-3" style="margin-top:10px">
+          <% [['historical-province','Ranh Kon Tum trước 2025'],['communes-detail','40 xã, phường hiện hành'],['administrative-overview','Vị trí trong khu vực']].forEach(([m,t]) => { %>
+            <figure style="margin:0"><img src="/assets/maps/<%= m %>.png" alt="<%= t %>" style="width:100%;height:190px;object-fit:contain;background:#f3f7f9;border-radius:8px;border:1px solid var(--line)"><figcaption class="src" style="text-align:center"><%= t %></figcaption></figure>
+          <% }) %>
+        </div>
+      </section>
+      <section class="card card-b">
+        <h2 style="font-size:20px;margin-bottom:12px">Chức năng chính</h2>
+        <div class="grid cols-3">
+          <% [['map','Bản đồ WebGIS','Lớp nền vệ tinh/địa hình/3D, ranh giới, lớp chuyên đề, đo đạc, xuất và chia sẻ bản đồ.','/ban-do'],
+              ['forest','Tài nguyên rừng','Số liệu hiện trạng 2025 theo xã, quy hoạch 3 loại rừng, lớp phủ và chỉ số thực vật.','/tai-nguyen-rung'],
+              ['violation','Dự báo và cảnh báo mất rừng','Biến động nghi vấn từ Sentinel-2, lịch sử mất tán cây, bản đồ nguy cơ 2025–2026 có kiểm định.','/bien-dong-rung'],
+              ['fire','Dự báo và cảnh báo cháy rừng','Cấp nguy cơ cháy 7 ngày theo chỉ số P và FWI, điểm nóng vệ tinh, quy trình xác minh.','/canh-bao-chay'],
+              ['weather','Thời tiết – khí hậu','Thời tiết hiện tại, dự báo 7 ngày và chuỗi khí hậu theo xã.','/thoi-tiet'],
+              ['camera','Phản ánh hiện trường','Người dân gửi phản ánh kèm vị trí, ảnh; tra cứu tiến độ xử lý bằng mã hồ sơ.','/phan-anh']].forEach(([i,t,d,h]) => { %>
+            <a class="card card-b" href="<%= h %>" style="display:flex;gap:12px;text-decoration:none;color:inherit"><%- cicon(i) %><div><h3 style="font-size:15px"><%= t %></h3><p class="src" style="margin:4px 0 0;font-size:12.8px"><%= d %></p></div></a>
+          <% }) %>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('database-fill') %> Nguồn dữ liệu và giấy phép</h2></div>
+        <div class="card-b table-wrap"><table class="tbl"><thead><tr><th>Dữ liệu</th><th>Đơn vị cung cấp</th><th>Giấy phép</th><th>Cập nhật</th><th>Sử dụng trong hệ thống</th></tr></thead><tbody>
+          <% sources.forEach(r => { %><tr><% r.forEach(c => { %><td><%= c %></td><% }) %></tr><% }) %>
+        </tbody></table></div>
+      </section>
+    </div>
+    <aside class="grid">
+      <section class="card card-b">
+        <h2 style="font-size:17px;margin-bottom:10px">Số liệu vùng nghiên cứu</h2>
+        <table class="kv">
+          <tr><td>Số xã, phường</td><td><%= communes.length %> (37 xã, 3 phường)</td></tr>
+          <tr><td>Diện tích tự nhiên</td><td><%= fmt.num(summary.natural_area_ha) %> ha</td></tr>
+          <tr><td>Diện tích có rừng</td><td><%= fmt.num(summary.established_forest_ha) %> ha</td></tr>
+          <tr><td>Rừng tự nhiên</td><td><%= fmt.num(summary.natural_forest_ha) %> ha</td></tr>
+          <tr><td>Cây gỗ (WorldCover 2021)</td><td><%= fmt.num(landcover.aoi_worldcover_ha['10']) %> ha</td></tr>
+          <tr><td>Số liệu tính đến</td><td><%= fmt.ymd(summary.as_of) %></td></tr>
+        </table>
+        <p class="src"><%= summary.scope %>.</p>
+      </section>
+      <section class="card card-b">
+        <h2 style="font-size:17px;margin-bottom:10px">Nguyên tắc sử dụng thông tin</h2>
+        <ul style="margin:0;padding-left:18px;line-height:1.7;font-size:13.5px">
+          <li>Ưu tiên số liệu chính thức; ảnh vệ tinh là nguồn quan sát bổ trợ.</li>
+          <li>Điểm nóng vệ tinh là phát hiện nhiệt, chưa phải vụ cháy rừng đã xác minh.</li>
+          <li>Biến động nghi vấn chỉ được kết luận mất rừng sau xác minh hiện trường.</li>
+          <li>Cấp dự báo cháy và nguy cơ mất rừng là kết quả tính tự động; cảnh báo chính thức do cơ quan có thẩm quyền phê duyệt.</li>
+          <li>Mọi số liệu ghi rõ nguồn, năm dữ liệu và phiên bản ranh giới.</li>
+        </ul>
+      </section>
+      <section class="card" style="overflow:hidden">
+        <img src="/assets/items/forest-patrol-small.webp" alt="" style="width:100%;height:160px;object-fit:cover">
+        <div class="card-b"><h2 style="font-size:17px;margin-bottom:6px">Đơn vị vận hành và liên hệ</h2>
+          <p style="margin:0" class="muted">Thông tin đơn vị chủ quản, địa chỉ và đầu mối liên hệ sẽ được cập nhật khi cơ quan quản lý xác nhận.</p>
+          <p style="margin:8px 0 0">Báo cháy rừng khẩn cấp: <strong>114</strong> · Gửi thông tin hiện trường: <a href="/phan-anh">trang Phản ánh</a></p></div>
+      </section>
+      <section class="card" style="overflow:hidden"><img src="/assets/items/biodiversity-small.webp" alt="" style="width:100%;height:150px;object-fit:cover"><div class="card-f">Ảnh minh họa.</div></section>
+    </aside>
+  </div>
+</main>
+<%- include('../partials/footer') %>
+</body></html>

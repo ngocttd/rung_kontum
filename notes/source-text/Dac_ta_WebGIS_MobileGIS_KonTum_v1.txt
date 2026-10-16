@@ -1,0 +1,253 @@
+﻿ĐẶC TẢ YÊU CẦU VÀ THIẾT KẾ HỆ THỐNG
+WEBGIS – MOBILEGIS GIÁM SÁT TÀI NGUYÊN RỪNG, BIẾN ĐỘNG RỪNG VÀ CẢNH BÁO CHÁY RỪNG KHU VỰC KON TUM
+Phiên bản 1.0 | Tháng 10/2026 | Tài liệu định hướng triển khai
+Cơ sở biên soạn: Danh mục chức năng WebGIS_MobileGIS kontum.docx (12 trang). Các nội dung kỹ thuật bổ sung là đề xuất thiết kế, cần xác nhận khi khảo sát yêu cầu.
+1. Mục tiêu, phạm vi và nguyên tắc
+Xây dựng nền tảng bản đồ số tích hợp quản lý lớp dữ liệu rừng, ảnh vệ tinh, giám sát thay đổi lớp phủ, phát hiện điểm nóng nhiệt, đánh giá nguy cơ cháy, xử lý phản ánh và điều hành theo cấp quản lý.
+Phạm vi không gian: khu vực Kon Tum theo ranh giới hành chính/dữ liệu lâm nghiệp được cơ quan chủ quản phê duyệt. Do thay đổi đơn vị hành chính năm 2025, hệ thống phải hỗ trợ phiên bản ranh giới theo thời gian, không cố định các trường tỉnh/huyện/xã theo mô hình cũ. Tên “Kon Tum” trong sản phẩm là tên vùng nghiên cứu, không mặc định là đơn vị hành chính hiện hành.
+Ưu tiên dữ liệu chính thức về rừng, tiểu khu, chủ rừng và hành chính; dữ liệu vệ tinh là nguồn quan sát bổ trợ.
+Phân biệt bản đồ nguy cơ cháy (dự báo) và điểm nóng nhiệt (quan sát); mọi cảnh báo nghiệp vụ phải có trạng thái xác minh.
+Hệ thống phải truy vết được nguồn, thời gian, phiên bản, người chỉnh sửa và kết quả xử lý.
+WebGIS và MobileGIS dùng chung API, danh tính, phân quyền và CSDL; hỗ trợ đồng bộ khi mất mạng.
+2. Tác nhân và phân quyền
+Tác nhân
+Phạm vi quyền
+Quản trị hệ thống
+Quản lý người dùng, vai trò, danh mục, dữ liệu, lớp bản đồ, API, tích hợp, cấu hình và nhật ký; không tự động thay thế phê duyệt chuyên môn.
+UBND tỉnh / lãnh đạo được phân quyền
+Dashboard điều hành, xem cảnh báo, thống kê, báo cáo và tiến độ xử lý theo phạm vi được giao.
+Sở NN&MT / đơn vị nghiệp vụ
+Quản lý dữ liệu chuyên môn, thực hiện phân tích vệ tinh, thẩm định biến động rừng, xác minh điểm cháy, xử lý phản ánh, lập báo cáo.
+Người dân
+Xem thông tin công khai, đăng ký/đăng nhập, gửi phản ánh kèm GPS/ảnh, theo dõi phản ánh của mình.
+Đề xuất mở rộng vai trò cấu hình: kiểm lâm/đơn vị hiện trường, người thẩm định, người phê duyệt nội dung. Các vai trò này cần được đơn vị chủ quản xác nhận trước khi triển khai.
+3. Sitemap WebGIS và mã trang
+Nhóm
+Trang / mã
+Chức năng chính
+Công khai
+PUB-01 → 07
+Trang chủ; bản đồ công khai; tin tức; văn bản; bản đồ PDF; cảnh báo cháy; gửi/tra cứu phản ánh
+Tài khoản
+AUTH-01 → 04
+Đăng nhập; đăng ký; quên mật khẩu; hồ sơ cá nhân
+Bản đồ
+MAP-01 → 06
+Bản đồ tổng hợp; danh mục lớp; tìm kiếm đối tượng; đo đạc/chỉ đường; 3D; chia sẻ/in bản đồ
+Ảnh vệ tinh
+SAT-01 → 07
+Danh mục ảnh; tìm kiếm; hiển thị tổ hợp màu; chỉ số; so sánh hai thời điểm; phân loại; xuất kết quả
+Giám sát rừng
+FOR-01 → 06
+Hiện trạng rừng; biến động; điểm nghi vấn; xác minh; diện tích/thống kê; lịch sử
+Cháy rừng
+FIRE-01 → 07
+Bản đồ nguy cơ; điểm nóng; chi tiết cảnh báo; kiểm chứng; điều phối xử lý; lịch sử; cấu hình mô hình
+Điều hành
+DASH-01 → 04
+Dashboard; báo cáo theo địa bàn; theo thời gian; xuất dữ liệu
+Nội dung
+CMS-01 → 04
+Tin tức; báo cáo/văn bản; bản đồ PDF; duyệt xuất bản
+Phản ánh
+REP-01 → 04
+Hộp tiếp nhận; phân công; xử lý; kết quả/phản hồi
+Quản trị dữ liệu
+DATA-01 → 06
+Bộ dữ liệu; import; metadata; phiên bản; chất lượng; chia sẻ
+Quản trị nền tảng
+SYS-01 → 07
+Người dùng; vai trò; lớp bản đồ; API; tích hợp; lịch tác vụ; nhật ký hệ thống
+4. Sitemap MobileGIS
+Mã
+Màn hình
+Yêu cầu
+MOB-01
+Đăng nhập/đăng ký
+Xác thực, hồ sơ, quyền theo vai trò
+MOB-02
+Bản đồ/GPS
+Định vị, tìm kiếm, lớp công khai/chuyên môn
+MOB-03
+Cảnh báo cháy
+Điểm nóng, vùng nguy cơ, cảnh báo theo khu vực quan tâm
+MOB-04
+Gửi phản ánh
+Ảnh, tọa độ, thời gian, nội dung, gửi offline
+MOB-05
+Khảo sát hiện trường
+Biểu mẫu, GPS, ảnh, cập nhật hiện trạng theo quyền
+MOB-06
+Danh sách nhiệm vụ
+Nhận việc, kiểm tra, xác minh, báo cáo kết quả
+MOB-07
+Tin tức/văn bản
+Tra cứu và tải tài liệu được cấp quyền
+MOB-08
+Đồng bộ
+Hàng đợi offline, xử lý xung đột, trạng thái tải lên
+5. Đặc tả chức năng theo phân hệ
+5.1. Bản đồ WebGIS
+Lớp nền đường phố/vệ tinh/địa hình; cây lớp dữ liệu; bật tắt và độ mờ; popup thuộc tính; lọc theo vùng và thời gian; tìm kiếm đối tượng; đo chiều dài/diện tích; tọa độ; in và chia sẻ bản đồ. Tất cả lớp cần metadata, quyền truy cập, nguồn và thời điểm cập nhật.
+5.2. Quản trị lớp dữ liệu và API
+Import GeoJSON, SHP ZIP, GeoPackage, CSV/XLSX có tọa độ; kiểm tra CRS, geometry, thuộc tính, trùng lặp; staging trước khi duyệt; xuất GeoJSON/CSV/GeoPackage theo quyền; công bố vector tile, GeoJSON và OGC khi cần; API key, quota, log, thu hồi khóa.
+5.3. Ảnh vệ tinh và GEE
+Chọn AOI, thời gian, cảm biến, tỷ lệ mây; lọc mây và bóng mây; tổ hợp RGB/false color; NDVI, NDMI, NDWI, NBR, dNBR; so sánh trước–sau; phân loại có mẫu huấn luyện và kiểm định; kết quả có thông số thuật toán, độ phân giải và độ tin cậy; chạy tác vụ nền, không để trình duyệt xử lý raster lớn.
+5.4. Giám sát biến động rừng
+Chọn mốc thời gian và lớp hiện trạng; phát hiện thay đổi quang phổ/lớp phủ; tạo polygon nghi vấn; chồng lớp ranh giới rừng/tiểu khu/chủ rừng; phân công xác minh; cập nhật kết luận; thống kê diện tích thay đổi và xuất báo cáo. Không coi biến động NDVI đơn lẻ là bằng chứng mất rừng.
+5.5. Dự báo nguy cơ cháy
+Tính chỉ số khí tượng cháy chuẩn như FWI khi đủ dữ liệu; kết hợp độ ẩm thực vật, LST, địa hình và thông tin rừng trong mô hình hiệu chỉnh địa phương. Phân cấp 5 mức chỉ sau khi hiệu chuẩn và kiểm định. Mỗi bản đồ lưu thời điểm hiệu lực, nguồn, mô hình, độ phân giải và mức bất định.
+5.6. Phát hiện điểm nóng và xác minh cháy
+Nhập NASA FIRMS VIIRS/MODIS, lọc ranh giới, loại trùng gần nhau theo không gian/thời gian, giao cắt vùng rừng; lưu confidence, FRP, satellite, acquisition time. Sinh sự kiện nghi vấn, kiểm tra ảnh/địa bàn, giao nhiệm vụ hiện trường; trạng thái mới → đã phân công → đang xác minh → xác nhận/không xác nhận → xử lý → đóng. Điểm nóng không đồng nghĩa cháy rừng đã được xác nhận.
+5.7. Thời tiết và cảnh báo
+Hiển thị nhiệt độ, mưa, gió, độ ẩm; có timestamp và nguồn. Quy tắc cảnh báo theo vùng, cấp, khoảng cách GPS và quyền; chống gửi lặp, ưu tiên cảnh báo xác minh; thông báo trong ứng dụng, email/push khi được cấu hình.
+5.8. Phản ánh hiện trường
+Người dân gửi loại phản ánh, mô tả, ảnh, tọa độ; hệ thống tạo mã hồ sơ, kiểm tra trùng; cán bộ tiếp nhận → phân loại → giao xử lý → xác minh → kết luận → phản hồi → đóng/mở lại. Bảo vệ thông tin cá nhân và vị trí nhạy cảm.
+5.9. Tin tức, báo cáo, bản đồ PDF
+Tạo nháp, biên tập, duyệt, xuất bản, lưu phiên bản; phân loại công khai/nội bộ; tìm kiếm, lọc, tải theo quyền; báo cáo số liệu phải ghi nguồn và kỳ thống kê.
+5.10. Quản trị và giám sát
+RBAC kết hợp phạm vi địa bàn; MFA cho quản trị; quản lý tài khoản, phiên, API keys, audit logs, backup, cấu hình lịch đồng bộ, cảnh báo lỗi job và chất lượng dữ liệu.
+6. Luồng nghiệp vụ trọng tâm
+Quy trình
+Các bước
+Đầu ra
+Giám sát rừng
+Lập lịch ảnh → tiền xử lý → chỉ số/phân loại → phát hiện thay đổi → tạo nghi vấn → thẩm định → kiểm tra hiện trường → duyệt kết luận
+Bản đồ biến động có trạng thái và bằng chứng
+Cảnh báo cháy
+Đồng bộ khí tượng/ảnh → tính nguy cơ → nhận FIRMS → đối chiếu vùng rừng → tạo sự kiện → giao xác minh → xử lý → đóng
+Cảnh báo và nhật ký xử lý có truy vết
+Phản ánh
+Người dân gửi → kiểm tra → tiếp nhận → giao đơn vị → xử lý → phản hồi → đóng
+Hồ sơ phản ánh và SLA
+Công bố lớp
+Upload → kiểm tra schema/CRS → staging → kiểm định → phê duyệt → xuất bản → quản lý phiên bản
+Lớp bản đồ và API có metadata
+7. Thiết kế dữ liệu và quan hệ chính
+Nhóm bảng
+Bảng đề xuất
+Ghi chú
+Nền tảng
+users, roles, permissions, user_role_scopes, audit_logs, jobs
+Khóa ngoại, soft-delete có kiểm soát
+Không gian
+admin_boundaries, forest_compartments, forest_stands, forest_owners, map_layers, datasets, dataset_versions
+geometry SRID 4326/CRS phân tích phù hợp; thời gian hiệu lực
+Ảnh vệ tinh
+satellite_scenes, raster_assets, processing_jobs, analysis_runs, classification_models
+URI raster object storage; lineage
+Biến động
+forest_change_events, change_evidence, field_verifications
+Polygon nghi vấn, quyết định và người xác minh
+Cháy rừng
+fire_hotspots, fire_risk_maps, fire_risk_zones, fire_incidents, incident_actions, notification_deliveries
+Tách quan sát – dự báo – sự kiện đã xác minh
+Nội dung
+news, documents, pdf_maps, citizen_reports, report_attachments, report_actions
+Workflow, phân quyền và lịch sử
+Thiết kế khóa chung: id UUID, created_at, updated_at, created_by, source_id, version; dữ liệu thời gian lưu UTC, hiển thị giờ Việt Nam. Dùng GIST index cho geometry, BTREE cho thời gian/trạng thái, ràng buộc duy nhất theo ID vệ tinh và thời điểm quan sát. Không lưu toàn bộ GeoTIFF dung lượng lớn trực tiếp trong PostGIS nếu object storage phù hợp hơn.
+8. Nguồn dữ liệu và tần suất
+Dữ liệu
+Nguồn đề xuất
+Cập nhật mục tiêu
+Ranh giới, hiện trạng rừng, tiểu khu, chủ rừng
+Cơ quan chuyên ngành cung cấp và xác nhận
+Theo đợt cập nhật chính thức
+Sentinel-2 SR
+Copernicus / GEE
+Kiểm tra ảnh mới hằng ngày; sản phẩm tùy mây
+Landsat 8/9
+USGS / GEE
+Theo cảnh chụp
+MODIS LST
+NASA / GEE
+Hằng ngày khi có dữ liệu hợp lệ
+ERA5-Land / CHIRPS
+ECMWF / UCSB
+Theo độ trễ công bố của bộ dữ liệu
+NASA FIRMS VIIRS/MODIS
+NASA FIRMS API
+Kiểm tra 1–3 giờ; phụ thuộc độ trễ nguồn
+DEM
+Copernicus DEM / SRTM
+Tĩnh; cập nhật khi có phiên bản mới
+Phản ánh và GPS
+MobileGIS
+Khi có kết nối; gần thời gian thực
+Các tần suất là mục tiêu hệ thống, không phải cam kết nguồn cung cấp dữ liệu. ERA5-Land là dữ liệu tái phân tích, không mặc định dùng như dự báo thời tiết thời gian thực. Nên bổ sung nguồn dự báo khí tượng hợp lệ nếu cần cảnh báo nhiều ngày tới.
+9. Phương pháp phân tích và kiểm định
+Tiền xử lý Sentinel-2: sử dụng S2 SR Harmonized, mask mây/bóng mây theo SCL hoặc cloud probability, mosaic theo thời gian, lưu số ảnh hợp lệ.
+Phân loại rừng: Random Forest với tập mẫu nhiều lớp, chia train/test theo không gian; báo cáo confusion matrix, overall accuracy, F1 từng lớp và diện tích ước lượng. Không áp dụng mô hình chỉ dựa trên mẫu một lớp.
+Biến động cháy: NBR trước/sau và dNBR để đánh giá tác động sau cháy; NBR đơn thời điểm không phải thước đo xác suất cháy đáng tin cậy.
+Nguy cơ cháy: ưu tiên FWI có kiểm định; mô hình trọng số LST/NDMI/gió/mưa/độ dốc trong tài liệu nguồn chỉ là thử nghiệm, không dùng trực tiếp để ban hành cảnh báo chính thức.
+Kiểm định: đối chiếu sự kiện cháy đã xác minh, đo precision/recall, false-alarm rate, thời gian phát hiện, độ trễ cảnh báo, kiểm định theo mùa khô và địa bàn.
+10. Kiến trúc công nghệ
+Giao diện: Node.js + Express + EJS, Mapbox GL JS hoặc MapLibre GL JS (tùy giấy phép và kinh phí); MobileGIS Flutter. API nghiệp vụ Node.js; PostgreSQL + PostGIS; Redis/queue cho job; MinIO/S3-compatible lưu ảnh và raster; GEE xử lý ảnh; GDAL/rasterio cho tác vụ địa không gian; dịch vụ push FCM; HTTPS và reverse proxy. Có thể triển khai worker riêng để tách xử lý nặng khỏi web server.
+Luồng: Nguồn dữ liệu → ETL/worker → staging/kiểm tra → PostGIS + object storage → REST API/tiles → WebGIS/MobileGIS. Dịch vụ lịch tác vụ ghi trạng thái, retry, dead-letter và thông báo lỗi; tích hợp GEE qua service account với quyền tối thiểu.
+11. Danh mục API mức thiết kế
+Nhóm
+Endpoint mẫu
+Quyền
+Lớp bản đồ
+GET /api/v1/layers; POST /api/v1/layers/import
+Public theo lớp / admin
+Ảnh vệ tinh
+GET /api/v1/scenes; POST /api/v1/analysis/jobs
+Chuyên môn
+Rừng
+GET /api/v1/forest/stands; GET /api/v1/forest/changes
+Theo địa bàn
+Cháy
+GET /api/v1/fire/hotspots; GET /api/v1/fire/risk; POST /api/v1/fire/incidents/{id}/verify
+Xem / xác minh theo vai trò
+Phản ánh
+POST /api/v1/reports; PATCH /api/v1/reports/{id}/status
+Công dân / xử lý
+Thống kê
+GET /api/v1/statistics/forest; GET /api/v1/statistics/fire
+Theo vai trò
+Quản trị
+GET /api/v1/audit-logs; POST /api/v1/api-keys
+Admin
+API cần phân trang, lọc bbox/thời gian, kiểm tra input, OpenAPI 3, mã lỗi thống nhất, giới hạn tải, quyền theo đối tượng và không để lộ token GEE/FIRMS phía client.
+12. Yêu cầu phi chức năng và nghiệm thu
+Nhóm
+Tiêu chí nghiệm thu đề xuất
+Hiệu năng
+95% yêu cầu API đọc đơn giản dưới 2 giây ở tải kiểm thử được thống nhất; bản đồ tile có cache; tác vụ raster bất đồng bộ.
+An toàn
+TLS, hash mật khẩu chuẩn, MFA quản trị, RBAC, audit không sửa, kiểm soát upload, OWASP Top 10.
+Độ tin cậy
+Backup tự động, kiểm thử khôi phục; job retry, cảnh báo khi đồng bộ lỗi.
+Dữ liệu
+Mỗi lớp có nguồn, thời gian, CRS, giấy phép, độ chính xác, phạm vi quyền; kiểm thử topology.
+Mobile
+Offline queue, GPS permission, upload ảnh nén, chống gửi lặp, theo dõi trạng thái đồng bộ.
+Nghiệp vụ
+Có test case cho cảnh báo giả, điểm nóng ngoài rừng, ảnh nhiều mây, trùng phản ánh, mất mạng và quyền địa bàn.
+13. Giai đoạn triển khai
+Giai đoạn
+Phạm vi
+Điều kiện hoàn thành
+1 – Nền tảng
+Đăng nhập, vai trò, bản đồ, quản trị dữ liệu, tin tức/văn bản, báo cáo
+Các luồng cơ bản và dữ liệu mẫu được nghiệm thu
+2 – Viễn thám
+Ảnh, chỉ số, phân loại, biến động, thống kê
+Có báo cáo kiểm định và dữ liệu tham chiếu
+3 – Cháy rừng
+FIRMS, khí tượng, nguy cơ, sự kiện, xác minh, cảnh báo
+Chạy thử mùa khô, đánh giá báo động giả
+4 – MobileGIS
+GPS, phản ánh, hiện trường, offline, push
+Kiểm thử trên thiết bị và vùng mạng yếu
+5 – Vận hành
+Giám sát, backup, tài liệu, đào tạo, chuyển giao
+Biên bản nghiệm thu và quy trình vận hành
+14. Các vấn đề cần xác nhận với chủ đầu tư
+Ranh giới vùng Kon Tum sau sắp xếp hành chính và đơn vị quản lý/phê duyệt dữ liệu hiện hành.
+Có hay không quyền sử dụng dữ liệu chính thức về hiện trạng rừng, tiểu khu, chủ rừng và các điểm cháy đã xác minh.
+Mức công khai tọa độ cháy, rừng và thông tin cá nhân; quy trình phát hành cảnh báo chính thức.
+Danh mục biểu mẫu nghiệp vụ, cấp phê duyệt, thời hạn xử lý phản ánh và kênh thông báo.
+Hạn mức tài nguyên GEE, giấy phép bản đồ nền, chi phí hạ tầng, số người dùng đồng thời và SLA.
+Phụ lục: Tài liệu nguồn có 4 vai trò, các nhóm chức năng WebGIS/MobileGIS, nguồn Sentinel-2/MODIS/ERA5-Land/FIRMS/DEM, chỉ số NDVI/NDMI/NBR và ví dụ GEE/SQL/Mapbox. Các nội dung đó đã được chuẩn hóa lại theo kiến trúc và nghiệp vụ trong đặc tả này.

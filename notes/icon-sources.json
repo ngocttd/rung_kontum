@@ -1,0 +1,481 @@
+{
+  "version": "1.13.1",
+  "license": "MIT",
+  "icons": [
+    {
+      "name": "house-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/house-fill.svg",
+      "sha256": "f2c3aea5cc3f8edcd88edc1ac55c36895388fc1cfd5d14104877bd8839cafc18"
+    },
+    {
+      "name": "map-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/map-fill.svg",
+      "sha256": "3522d0cae83d642533451fdd973593c49fc1457140addc846abc28594a2a1af9"
+    },
+    {
+      "name": "tree-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/tree-fill.svg",
+      "sha256": "81576c0134aa11631104f9aa8bf7098e2de2fdc7ad82fede3a4c35cbdbb78f2c"
+    },
+    {
+      "name": "fire",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/fire.svg",
+      "sha256": "bfb082dff284c724ffe4e65858061e4ea8fbfb757d0670ea99c3eb6bc1c98d1b"
+    },
+    {
+      "name": "cloud-sun-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/cloud-sun-fill.svg",
+      "sha256": "1b57856ffaae850a02271598787d071479a48a7cd5cede60fc0f1e6df0140682"
+    },
+    {
+      "name": "bar-chart-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/bar-chart-fill.svg",
+      "sha256": "353c4e55e77659f5f24f6df8827138eb0724165c0e955e1e319b7f7ca4e41b2e"
+    },
+    {
+      "name": "camera-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/camera-fill.svg",
+      "sha256": "fc27f12bbd5d5e398000d70348b2a253bc4d47cee07da80b1c9d198c902f1ea4"
+    },
+    {
+      "name": "newspaper",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/newspaper.svg",
+      "sha256": "334148bd30f2bfd7d0ad77982504c36c1c941c738399201a2bc52745a895b5cf"
+    },
+    {
+      "name": "file-earmark-pdf-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/file-earmark-pdf-fill.svg",
+      "sha256": "c511b89dd78df5daf07daeacbb695f56bce8470147332cb27d3ff8631bdb5672"
+    },
+    {
+      "name": "info-circle-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/info-circle-fill.svg",
+      "sha256": "896923ba1bb200ce52e7c62ea08495eaa8a79a423399d80c5a8abd9dded6b009"
+    },
+    {
+      "name": "question-circle-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/question-circle-fill.svg",
+      "sha256": "22a3d660233ab01acef28b9f7bda6be3b2bc3c88d299a6cabc64f3d9aa9164b2"
+    },
+    {
+      "name": "search",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/search.svg",
+      "sha256": "dd6f471f48724227dfde72d6253a98023d4b734d06b90a3d932cf698e3aaa1c9"
+    },
+    {
+      "name": "layers-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/layers-fill.svg",
+      "sha256": "85ed21412fa30543447e05acab08de97010d1c7ed3bda34fe7ff84c730080140"
+    },
+    {
+      "name": "geo-alt-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/geo-alt-fill.svg",
+      "sha256": "bca85e28d15d759fe99841074572caa1a30cdc3b053135986627179ab50b88f9"
+    },
+    {
+      "name": "crosshair",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/crosshair.svg",
+      "sha256": "f0ff14f25d63284034874268450c3e90a8a7e27da65b8c1ebf99fba418a77a90"
+    },
+    {
+      "name": "compass-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/compass-fill.svg",
+      "sha256": "db3eb84470427ddfc2151defab7b7485673b7fc821e5e14c1d11aff7a971458b"
+    },
+    {
+      "name": "rulers",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/rulers.svg",
+      "sha256": "8b830b372f0a04884ef5f80dba19099156d97e0c865939002882e631737ead02"
+    },
+    {
+      "name": "bounding-box",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/bounding-box.svg",
+      "sha256": "a653b133fc00b7d503307dee60fbeea2fc38429046204eb610d9be4b59bc4d1d"
+    },
+    {
+      "name": "share-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/share-fill.svg",
+      "sha256": "c71b58446277787f82a30ae44058ef91aec8982d14f956b3390364a614625a62"
+    },
+    {
+      "name": "download",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/download.svg",
+      "sha256": "ef82782835351c43f0e41025888b00459268a767113d33524d4f8fbfe8008c16"
+    },
+    {
+      "name": "upload",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/upload.svg",
+      "sha256": "7f04ead066f567749d3d67a2f69dbcc8aef6051dae86c38659e6a74f1ca9fdba"
+    },
+    {
+      "name": "zoom-in",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/zoom-in.svg",
+      "sha256": "08bc5e3a9b3e03f6a2885a5e371f3c91549d0fa1884495bf3b439da160320e55"
+    },
+    {
+      "name": "zoom-out",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/zoom-out.svg",
+      "sha256": "bfeacc48b97f7c5dd4ed284d3d9b07c118643c56f03f23859a99147c09d522f4"
+    },
+    {
+      "name": "fullscreen",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/fullscreen.svg",
+      "sha256": "c3ffb75a66bfaec3c6a00e332ef941ad984f11bcf3991208f2c22202dabdf501"
+    },
+    {
+      "name": "fullscreen-exit",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/fullscreen-exit.svg",
+      "sha256": "1cfa1e3106ffd5204ebbb4d20d269292798a83182acf92eded69388b38fff538"
+    },
+    {
+      "name": "plus-lg",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/plus-lg.svg",
+      "sha256": "8c2ae396e9510c8ec02dcd0d3fae301e6ea93eddf87d7576bf77c1b9825b8340"
+    },
+    {
+      "name": "dash-lg",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/dash-lg.svg",
+      "sha256": "61cac2d4d424f359c87b106ef3eb6e1ba70693142a62150a25e293d599d4499c"
+    },
+    {
+      "name": "x-lg",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/x-lg.svg",
+      "sha256": "5ac6965c9989afaad195dc0fe739bd7443a7e94e52f8530b9b7d664d20c5d9e5"
+    },
+    {
+      "name": "chevron-left",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/chevron-left.svg",
+      "sha256": "c32f6f19abe408161e3765109ff63c7a3d88e22c0dbcc28ad1917482aae13df2"
+    },
+    {
+      "name": "chevron-right",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/chevron-right.svg",
+      "sha256": "51b9c4168b12b378acde3131234ffe2b2fa5ed3c80a944a7dc864bb515b469cf"
+    },
+    {
+      "name": "chevron-down",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/chevron-down.svg",
+      "sha256": "6c98af73d9cd64d0f4ae890c40566a436a1cc904af93c283e52111af2d4ba44c"
+    },
+    {
+      "name": "check-lg",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/check-lg.svg",
+      "sha256": "7da7a7d45bfd97e9069b1713283e0cb049ccdbf3affa0dee08abc8dfcd6b5c72"
+    },
+    {
+      "name": "funnel-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/funnel-fill.svg",
+      "sha256": "95ced3f97cf614b145ec9d8dee053680c46539b79dd9e240101cc300d237650e"
+    },
+    {
+      "name": "calendar3",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/calendar3.svg",
+      "sha256": "2c75e525ebf6ab088b305e8ad832808c6949f94bc8039b41418611d5c46dea96"
+    },
+    {
+      "name": "clock-history",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/clock-history.svg",
+      "sha256": "4e379874f5bc65478455eea51815638c24a0041b087149ffbc7d243535d4d829"
+    },
+    {
+      "name": "eye-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/eye-fill.svg",
+      "sha256": "4ce0ff71142c111029a541130bbdbbe88d3a1be22e4602eac7ab07bf99f0d74f"
+    },
+    {
+      "name": "eye-slash-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/eye-slash-fill.svg",
+      "sha256": "bc0b1159bf4c38d0f767114b48da1f8ad4f2a98b41f9e12077418957d26cffdf"
+    },
+    {
+      "name": "bell-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/bell-fill.svg",
+      "sha256": "e4693a0a6ca205edfb7702c90ba2db37d9ad33e06abc9aa4603d476e80b3edce"
+    },
+    {
+      "name": "person-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/person-fill.svg",
+      "sha256": "122750d67a387d5cc089761d2ac40c2617de6aaaefab25b2bd0e8ded23790391"
+    },
+    {
+      "name": "people-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/people-fill.svg",
+      "sha256": "90c3fea13f40501e0ef903cf871a2226029cbd7c8ddebd921f6b127cc0ef339c"
+    },
+    {
+      "name": "shield-fill-check",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/shield-fill-check.svg",
+      "sha256": "3fcfa69a86eedb37b06219f861190aa710b089b0d50b0e6f207138bf4c94d1a1"
+    },
+    {
+      "name": "lock-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/lock-fill.svg",
+      "sha256": "8fbd40ff61e9fc42df44f139d0b409b501b42d1cbde9f43f5cd5ea25cf07b304"
+    },
+    {
+      "name": "unlock-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/unlock-fill.svg",
+      "sha256": "e975d3c520ce51921303dff7fc28544fe944187ee76ff30286688a100c5f8beb"
+    },
+    {
+      "name": "key-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/key-fill.svg",
+      "sha256": "3e8da2a5dcaa06f90afa859c539e1af1c98c93f92f779ac5a832dd2a920e655d"
+    },
+    {
+      "name": "gear-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/gear-fill.svg",
+      "sha256": "dca7ce68ef3e4ff59217393da7c8946ac8be1925d3e4d6adea1d2638fab85db8"
+    },
+    {
+      "name": "database-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/database-fill.svg",
+      "sha256": "17e103dc87f3577ac69092d8701d854c93f9eee75e3236987ee06bc9745640e6"
+    },
+    {
+      "name": "cloud-arrow-up-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/cloud-arrow-up-fill.svg",
+      "sha256": "1166652962d770363c8604c4a9681559315d678df8d7bd687a494abfbf640ede"
+    },
+    {
+      "name": "cloud-arrow-down-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/cloud-arrow-down-fill.svg",
+      "sha256": "46e8b146be32a6ca1d7b1bdcd9ff767bf2520d77dc75f4ab3ca5e9be2d07bf24"
+    },
+    {
+      "name": "arrow-repeat",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/arrow-repeat.svg",
+      "sha256": "2705f6572d27f2330329a5f87e6d861065d221ee56d60870f60486d2ab747c85"
+    },
+    {
+      "name": "wifi-off",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/wifi-off.svg",
+      "sha256": "1c3990b804510c490194e0666d232596bcdbb1d18bdbceb03173adfae24cf406"
+    },
+    {
+      "name": "trash-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/trash-fill.svg",
+      "sha256": "f0e8594892a8ebf974cccb387e962e606f3ff4608fec1655de1d8a47c64ada44"
+    },
+    {
+      "name": "pencil-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/pencil-fill.svg",
+      "sha256": "69a4745241ad43dac194be592314ff3d63e3cbb1b39de0bd62cd0c5e3deb579b"
+    },
+    {
+      "name": "three-dots",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/three-dots.svg",
+      "sha256": "0c3f46817554f31f9cf386f68834d1a9d8fea2041676599a0f7a3e9c980adb7d"
+    },
+    {
+      "name": "folder-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/folder-fill.svg",
+      "sha256": "2004fd9a5116e2b5ac3652a6b345d3ff7a7979edab0c5e79403b8003cb9c021d"
+    },
+    {
+      "name": "file-earmark-excel-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/file-earmark-excel-fill.svg",
+      "sha256": "54e979091ec955de55b20ec022fbd428e02ad26664ec4b44b84939ea0c344b7d"
+    },
+    {
+      "name": "filetype-csv",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/filetype-csv.svg",
+      "sha256": "a58164b5eb8835e2dc1beda1d201e0fee591641a0b56a80dfe9323cfdcc25a05"
+    },
+    {
+      "name": "file-earmark-text-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/file-earmark-text-fill.svg",
+      "sha256": "f466069f07bbff0f60df0fff2b8ee011d0e269c2ddcccf53c636d55ffdb63cf0"
+    },
+    {
+      "name": "clipboard-check-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/clipboard-check-fill.svg",
+      "sha256": "ef8221321b35491aa9df551c282d4bae0ba41c5d8961c8fdd633b6007245f1ba"
+    },
+    {
+      "name": "exclamation-triangle-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/exclamation-triangle-fill.svg",
+      "sha256": "3677ae9c1f8e2fc3d95f71384bf417d9dc3af79007e363f3e0ccef2218fff290"
+    },
+    {
+      "name": "megaphone-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/megaphone-fill.svg",
+      "sha256": "bf7d9b206e8c3557ce7b716ec8dca6112363b5ca70c4bf34bac3d9f78c6f1e3a"
+    },
+    {
+      "name": "truck",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/truck.svg",
+      "sha256": "c9150097ea5d4da3117b955742a5ba8678723c05dd73a9da719c259a406aec76"
+    },
+    {
+      "name": "droplet-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/droplet-fill.svg",
+      "sha256": "070e2f8c51bd1997c77b7d6b558632abe9e5d4b1a7a201875d137a41d1cbb44e"
+    },
+    {
+      "name": "wind",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/wind.svg",
+      "sha256": "2f0ae3fe46542406eade9aaa50a3a4a182dcb5f83d548c19ded095cc938b7824"
+    },
+    {
+      "name": "thermometer-half",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/thermometer-half.svg",
+      "sha256": "32429854a94562c7c38f3bce95a894345ba3ffe8b39623291034d23f507cd232"
+    },
+    {
+      "name": "sun-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/sun-fill.svg",
+      "sha256": "048900d310f7c788a7b9536ed6cbc1dad996bd25284dde7a6a1ca22624b5c77e"
+    },
+    {
+      "name": "cloud-rain-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/cloud-rain-fill.svg",
+      "sha256": "406b57507b134a0c4d5cf9ef1e2357299704a3e4826db1d2be2325e487508fb5"
+    },
+    {
+      "name": "cloud-lightning-rain-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/cloud-lightning-rain-fill.svg",
+      "sha256": "9d3c7a9a6a1ad1cd8e585ec8b04203c5291803cd04bf8d5c939034be768a780c"
+    },
+    {
+      "name": "moon-stars-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/moon-stars-fill.svg",
+      "sha256": "b24be8a3e291b79b1eac5519b1cac43eeb465b8e61cf9fa6bafc006c8b9ff1d4"
+    },
+    {
+      "name": "globe2",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/globe2.svg",
+      "sha256": "4365f2044bae83b1fc81cae38169777f62131103782ed74236b8e289822cad58"
+    },
+    {
+      "name": "translate",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/translate.svg",
+      "sha256": "9a86eae6065e3db9e0bfea91803d4258e0ddc50fcb69797f13fb3cf856967097"
+    },
+    {
+      "name": "box-arrow-right",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/box-arrow-right.svg",
+      "sha256": "a1ec3378190a414029563bd1326d8de6d3c587326cd506b78d30c5c059cb9107"
+    },
+    {
+      "name": "phone-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/phone-fill.svg",
+      "sha256": "13d7caada8a377050176442355cd9a7701dcd5c4d81f96cbac25bf24bb8571fa"
+    },
+    {
+      "name": "envelope-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/envelope-fill.svg",
+      "sha256": "fd95ca77535ac259ebea82fc857056960e8bce9b99bb8a1c0fe43e483b7f30f5"
+    },
+    {
+      "name": "telephone-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/telephone-fill.svg",
+      "sha256": "3e558dc602d4d3fa92ac99f70072ba27943665deeeabf7380440c2f9a741ee42"
+    },
+    {
+      "name": "send-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/send-fill.svg",
+      "sha256": "2d03a6f694699f7076dc1320f0ffc526bfd3baba114b934aa619b07559763791"
+    },
+    {
+      "name": "pin-map-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/pin-map-fill.svg",
+      "sha256": "e65dc657d4dac70e1c0abd745e60d4a5600c9eceabfb32f445aa10dfe21e312a"
+    },
+    {
+      "name": "signpost-split-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/signpost-split-fill.svg",
+      "sha256": "921a39fbcb3d3abd1a6f0f4a34002c846bbe6a5bff0b7b88b3ade7679fbdac9c"
+    },
+    {
+      "name": "building-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/building-fill.svg",
+      "sha256": "d6d05bd358357c84da04be696fd94c9344b14395eccc5adfd260d972199e052e"
+    },
+    {
+      "name": "grid-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/grid-fill.svg",
+      "sha256": "85dafda206a49e82b2a2e14e0a87f2e6e99c3fae2f2b2e79c6fc6dcb68ee864f"
+    },
+    {
+      "name": "graph-up-arrow",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/graph-up-arrow.svg",
+      "sha256": "c7fb59b113c4a4d06e2d94be2fcca6322a46c66e6e93b4522fd5fc7785bd403e"
+    },
+    {
+      "name": "lightning-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/lightning-fill.svg",
+      "sha256": "ef9851be1e4aac8ea232f17e3a254eff6ab1b48cd308596622781c9b1a723f07"
+    },
+    {
+      "name": "cursor-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/cursor-fill.svg",
+      "sha256": "c1e20d5948b09dcefaebbf0f5d14a1225959b264772af3dfa57c55a221c12739"
+    },
+    {
+      "name": "vector-pen",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/vector-pen.svg",
+      "sha256": "2a5e9f056939bdfc5de613440459f273cbe7d18b054d76488ed0035c2b6dcc84"
+    },
+    {
+      "name": "circle-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/circle-fill.svg",
+      "sha256": "9bbcac649cf1000289a5afaff4917b9ea9eb7b063c0142d589776fa9656580e2"
+    },
+    {
+      "name": "square-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/square-fill.svg",
+      "sha256": "a416c6c2fca4e8ff5549cc514f431dcff163886f30a7a8dcbb326f3947c15d16"
+    },
+    {
+      "name": "check-circle-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/check-circle-fill.svg",
+      "sha256": "f6f5d971091787219c4226c5bf68a6ebd4d976c91bd90fc52ba3b422589b2dc8"
+    },
+    {
+      "name": "x-circle-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/x-circle-fill.svg",
+      "sha256": "d3dc741f18531d0973ec7346a855e36989d3f908c938bfb04f4cf0d212be1e72"
+    },
+    {
+      "name": "hourglass-split",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/hourglass-split.svg",
+      "sha256": "7c2c5e404704cc4689cef2f69bb353bc48d55ca2901a34616e908e1a378c5fcf"
+    },
+    {
+      "name": "archive-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/archive-fill.svg",
+      "sha256": "643c548300525e8bfd23c111dedc6497297315f487cae1444a42b5c14ff88610"
+    },
+    {
+      "name": "image-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/image-fill.svg",
+      "sha256": "2c4bd78b05c0e210b653da72e02cab645a92f4650a485da6cb7f5bd7f71029b1"
+    },
+    {
+      "name": "collection-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/collection-fill.svg",
+      "sha256": "17231d55dd1d0c7ed530b1accd77f47ec3acd93c7bd520dfa5783a7d19a5a212"
+    },
+    {
+      "name": "geo-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/geo-fill.svg",
+      "sha256": "c2a81e2601abc469ee363ed23f4e4dcd3b5b8f05385cc68c7f767fa86fb9d85b"
+    },
+    {
+      "name": "snow2",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/snow2.svg",
+      "sha256": "408fbc0c0f5865d7da6225ba080ceb78b92500961c8672a038c4192b9c231fbe"
+    },
+    {
+      "name": "bug-fill",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/bug-fill.svg",
+      "sha256": "e794bf8a2a8bf189961b4a3b55c9cd9f3bb0d89fb51a571dbebac0fb63b73a8b"
+    },
+    {
+      "name": "flower1",
+      "url": "https://raw.githubusercontent.com/twbs/icons/v1.13.1/icons/flower1.svg",
+      "sha256": "945ae70b3e57ad27dfc6eb088f9bc86745d917d3168406101992b7817ae66f5d"
+    }
+  ]
+}

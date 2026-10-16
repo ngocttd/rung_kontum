@@ -1,0 +1,4 @@
+<%- include('_top') %>
+<div class="card"><div class="empty-state"><%- ic('lock-fill') %><h2>Không có quyền truy cập</h2><p>Vai trò <b><%= ROLES[user.role] %></b> không được thực hiện chức năng này (<code><%= perm %></code>).</p><a class="btn btn-primary" href="/quan-tri">Về Dashboard</a></div></div>
+<%- include('_bottom') %>
+</body></html>

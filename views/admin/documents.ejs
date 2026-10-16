@@ -1,0 +1,28 @@
+<%- include('_top') %>
+<section class="card">
+  <div class="card-h"><h2><%- ic('file-earmark-pdf-fill') %> Tài liệu và bản đồ PDF</h2></div>
+  <div class="card-b table-wrap"><table class="tbl"><thead><tr><th></th><th>Tên tài liệu</th><th>Loại</th><th>Số hiệu</th><th>Ngày ban hành</th><th>Cơ quan</th><th>Dung lượng</th><th>Nguồn</th><th></th></tr></thead><tbody>
+    <% const pg = paginate(docs, query.trang, 15); pg.items.forEach(d => { %><tr><td><% if (d.thumbnail) { %><img src="<%= d.thumbnail %>" alt="" style="width:40px;height:52px;object-fit:cover;border:1px solid var(--line)"><% } else { %><img src="/assets/icons/colored/<%= d.type === 'xlsx' ? 'excel' : 'pdf' %>.svg" width="32" alt=""><% } %></td>
+      <td><a href="/tai-lieu?id=<%= d.id %>" target="_blank"><%= d.title %></a></td><td><%= d.categoryLabel %></td><td><%= d.number || '—' %></td><td><%= d.issued ? fmt.ymd(d.issued) : '—' %></td><td><%= d.issuer || '—' %></td><td><%= fmt.bytes(d.bytes) %></td>
+      <td class="src"><%= d.origin === 'upload' ? 'Tải lên bởi ' + d.uploaded_by : 'Thu thập từ cổng công khai' %></td>
+      <td><% if (d.origin === 'upload' && can('docs.manage')) { %><form method="post" action="/quan-tri/tai-lieu/<%= d.id %>/xoa"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" onclick="return confirm('Gỡ tài liệu?')"><%- ic('trash-fill') %></button></form><% } %></td></tr><% }) %>
+  </tbody></table><%- include('../partials/pager', { pg: pg }) %></div>
+</section>
+<% if (can('docs.manage')) { %>
+<form class="card" style="margin-top:16px" method="post" action="/quan-tri/tai-lieu/tai-len" enctype="multipart/form-data">
+  <div class="card-h"><h2><%- ic('upload') %> Thêm tài liệu / bản đồ PDF</h2></div>
+  <div class="card-b grid cols-3">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label class="field"><span>Tiêu đề *</span><input class="input" name="title" required></label>
+    <label class="field"><span>Loại tài liệu</span><select class="input" name="category"><% Object.entries(categories).forEach(([k, l]) => { %><option value="<%= k %>"><%= l %></option><% }) %></select></label>
+    <label class="field"><span>Tệp PDF * (≤ 40 MB)</span><input class="input" type="file" name="file" accept="application/pdf" required></label>
+    <label class="field"><span>Số hiệu</span><input class="input" name="number"></label>
+    <label class="field"><span>Ngày ban hành</span><input class="input" type="date" name="issued"></label>
+    <label class="field"><span>Cơ quan ban hành</span><input class="input" name="issuer"></label>
+    <label class="field" style="grid-column:1/-1"><span>Mô tả</span><textarea class="input" name="description" rows="2"></textarea></label>
+    <div><button class="btn btn-primary"><%- ic('upload') %> Tải lên</button></div>
+  </div>
+</form>
+<% } %>
+<%- include('_bottom') %>
+</body></html>

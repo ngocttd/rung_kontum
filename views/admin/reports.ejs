@@ -1,0 +1,16 @@
+<%- include('_top') %>
+<% const tone = { info: 'b-blue', warn: 'b-orange', danger: 'b-red', ok: 'b-green', muted: 'b-gray' }; %>
+<div class="adm-tabs"><a class="on" href="/quan-tri/phan-anh">Danh sách phản ánh</a><a href="/ban-do?lop=" target="_blank">Bản đồ phản ánh</a><a href="/phan-anh" target="_blank">Trang công khai</a></div>
+<section class="card">
+  <div class="card-h"><h2><%- ic('megaphone-fill') %> Phản ánh hiện trường</h2></div>
+  <div class="card-b">
+    <form class="filters"><label>Trạng thái<select class="input" name="trang_thai"><option value="">Tất cả</option><% Object.entries(statuses).forEach(([k, s]) => { %><option value="<%= k %>" <%= filter.trang_thai === k ? 'selected' : '' %>><%= s.label %></option><% }) %></select></label>
+      <label>Loại phản ánh<select class="input" name="loai"><option value="">Tất cả</option><% Object.entries(types).forEach(([k, t]) => { %><option value="<%= k %>" <%= filter.loai === k ? 'selected' : '' %>><%= t.label %></option><% }) %></select></label><button class="btn btn-outline btn-sm"><%- ic('search') %> Tìm kiếm</button></form>
+    <div class="table-wrap"><% if (!list.length) { %><div class="empty-state"><%- ic('clipboard-check-fill') %>Chưa có phản ánh nào.</div><% } else { %>
+    <table class="tbl"><thead><tr><th>Mã</th><th>Thời gian</th><th>Loại phản ánh</th><th>Vị trí</th><th>Người gửi</th><th>Phân công</th><th>Công khai</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+      <% const pg = paginate(list, query.trang, 15); pg.items.forEach(x => { %><tr><td><%= x.code %></td><td><%= fmt.dateTime(x.created_at) %></td><td><img src="/assets/markers/<%= x.marker %>.svg" width="16" alt=""> <%= x.typeLabel %></td><td><%= x.commune_name || '—' %></td><td><%= x.reporter.name || 'Ẩn danh' %></td><td><%= x.assigned_to || '—' %></td><td><%= x.public ? 'Có' : 'Không' %></td><td><span class="badge <%= tone[x.statusTone] %>"><%= x.statusLabel %></span></td><td><a class="btn btn-outline btn-sm" href="/quan-tri/phan-anh/<%= x.id %>">Xem</a></td></tr><% }) %>
+    </tbody></table><%- include('../partials/pager', { pg: pg }) %><% } %></div>
+  </div>
+</section>
+<%- include('_bottom') %>
+</body></html>

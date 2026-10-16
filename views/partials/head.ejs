@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= title %> · Giám sát rừng Kon Tum</title>
+<meta name="description" content="Hệ thống WebGIS giám sát tài nguyên rừng, dự báo và cảnh báo mất rừng, cháy rừng vùng Kon Tum">
+<link rel="icon" href="/img/favicon-32.png" sizes="32x32" type="image/png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png"><meta name="theme-color" content="#0b6b3a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<% if (typeof needsMap !== 'undefined' && needsMap) { %>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.9.4/mapbox-gl.css" rel="stylesheet">
+<% } %>
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body>

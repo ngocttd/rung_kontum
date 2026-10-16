@@ -1,0 +1,166 @@
+<%- include('../partials/head', { needsMap: true }) %>
+<%- include('../partials/header') %>
+<%
+  const steps = ['received', 'verifying', 'processing', 'resolved'];
+  const stepLabel = { received: 'Đã tiếp nhận phản ánh', verifying: 'Đang kiểm tra, xác minh', processing: 'Đang xử lý', resolved: 'Hoàn thành' };
+  const tone = { info: 'b-blue', warn: 'b-orange', danger: 'b-red', ok: 'b-green', muted: 'b-gray' };
+%>
+<section class="banner">
+  <img src="/assets/banners/p06-reports.webp" srcset="/assets/banners/p06-reports-small.webp 960w, /assets/banners/p06-reports.webp 2172w" sizes="100vw" alt="">
+  <div class="container">
+    <div><h1>Phản ánh hiện trạng</h1><p style="font-size:22px;margin-top:4px">Chung tay bảo vệ rừng Kon Tum</p><p>Gửi phản ánh về hành vi phá rừng, khai thác lâm sản trái phép, cháy rừng, xâm lấn đất rừng và các hiện tượng bất thường khác.</p></div>
+    <div class="banner-kpis">
+      <% [['report','Gửi phản ánh','Nhanh chóng, dễ dàng'],['security','Bảo mật thông tin','Không công khai danh tính'],['notifications','Theo dõi xử lý','Tra cứu bằng mã hồ sơ'],['community','Vì rừng Kon Tum','Chung tay bảo vệ']].forEach(([i,t,s]) => { %>
+        <div class="bk" style="min-width:150px"><img src="/assets/icons/colored/<%= i %>.svg" alt="" width="40"><strong style="font-size:15px"><%= t %></strong><span><%= s %></span></div>
+      <% }) %>
+    </div>
+  </div>
+</section>
+<div class="container"><div class="crumbs"><a href="/"><%- ic('house-fill') %></a> › <span>Phản ánh hiện trường</span></div></div>
+<main class="container page">
+  <% if (flash) { %><div class="note" style="margin-bottom:12px"><%= flash.text %></div><% } %>
+  <% if (submitted) { %><div class="note ok" style="margin-bottom:12px"><strong>Đã gửi phản ánh thành công.</strong> Mã hồ sơ của bạn là <strong><%= submitted %></strong>. Hãy lưu mã này để tra cứu tiến độ xử lý.</div><% } %>
+  <div class="layout-3" style="grid-template-columns:270px minmax(0,1fr) 400px">
+    <aside class="grid">
+      <button type="button" class="btn btn-primary btn-block" style="padding:14px;font-size:16px" data-open-form><%- ic('plus-lg') %> Gửi phản ánh mới</button>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('collection-fill') %> Danh mục phản ánh</h2></div>
+        <ul class="side-menu">
+          <li><a href="/phan-anh" class="<%= !filter.loai ? 'active' : '' %>"><%- cicon('report') %> Tất cả phản ánh <span class="count"><%= counts.public %></span></a></li>
+          <% Object.entries(types).forEach(([k, t]) => { %><li><a href="/phan-anh?loai=<%= k %>" class="<%= filter.loai === k ? 'active' : '' %>"><img src="/assets/markers/<%= t.marker %>.svg" alt=""> <%= t.label %> <span class="count"><%= counts.byType[k] %></span></a></li><% }) %>
+        </ul>
+      </section>
+      <form class="card card-b" action="/phan-anh">
+        <h3 style="font-size:15px;margin-bottom:10px;display:flex;gap:8px;align-items:center"><%- ic('funnel-fill') %> Bộ lọc tìm kiếm</h3>
+        <label class="field"><span>Loại phản ánh</span><select class="input" name="loai"><option value="">Tất cả</option><% Object.entries(types).forEach(([k, t]) => { %><option value="<%= k %>" <%= filter.loai === k ? 'selected' : '' %>><%= t.label %></option><% }) %></select></label>
+        <label class="field"><span>Trạng thái xử lý</span><select class="input" name="trang_thai"><option value="">Tất cả</option><% Object.entries(statuses).forEach(([k, s]) => { %><option value="<%= k %>" <%= filter.trang_thai === k ? 'selected' : '' %>><%= s.label %></option><% }) %></select></label>
+        <label class="field"><span>Mã hồ sơ</span><input class="input" name="ma" value="<%= lookupCode %>" placeholder="VD: PA-2026-0001"></label>
+        <button class="btn btn-primary btn-block"><%- ic('search') %> Tìm kiếm</button>
+        <a class="btn btn-outline btn-block" style="margin-top:8px" href="/phan-anh">Đặt lại bộ lọc</a>
+      </form>
+    </aside>
+
+    <section class="grid" style="align-content:start">
+      <div class="card">
+        <div class="map-shell" style="height:420px">
+          <div id="map" class="map"></div>
+          <div class="seg" style="position:absolute;top:12px;left:12px;z-index:3;box-shadow:var(--shadow)" id="bm"><button type="button" class="on" data-b="satellite">Vệ tinh</button><button type="button" data-b="streets">Đường phố</button><button type="button" data-b="terrain">Địa hình</button></div>
+          <div class="legend" style="top:12px;bottom:auto">
+            <h4>Loại phản ánh</h4>
+            <% Object.entries(types).forEach(([k, t]) => { %><div class="row"><img src="/assets/markers/<%= t.marker %>.svg" width="16" alt=""><%= t.label %></div><% }) %>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2 id="ds"><%- ic('collection-fill') %> Danh sách phản ánh gần đây</h2></div>
+        <div class="card-b table-wrap">
+          <% if (!list.length) { %>
+            <div class="empty-state"><%- ic('clipboard-check-fill') %>Chưa có phản ánh nào được công khai.<br><span class="src">Phản ánh chỉ hiển thị ở đây sau khi cán bộ tiếp nhận kiểm tra và cho phép công khai; thông tin người gửi luôn được bảo mật.</span></div>
+          <% } else { %>
+          <table class="tbl"><thead><tr><th>Mã</th><th>Thời gian</th><th>Loại phản ánh</th><th>Nội dung</th><th>Địa bàn</th><th>Trạng thái</th></tr></thead><tbody>
+            <% const pgR = paginate(list, query.trang, 10); pgR.items.forEach(r => { %><tr><td><a href="/phan-anh?ma=<%= r.code %>"><%= r.code %></a></td><td><%= fmt.dateTime(r.created_at) %></td><td><img src="/assets/markers/<%= r.marker %>.svg" width="16" alt=""> <%= r.typeLabel %></td><td><%= r.description.slice(0, 70) %><%= r.description.length > 70 ? '…' : '' %></td><td><%= r.commune_name || '—' %></td><td><span class="badge <%= tone[r.statusTone] %>"><%= r.statusLabel %></span></td></tr><% }) %>
+          </tbody></table><%- include('../partials/pager', { pg: pgR, anchor: '#ds' }) %><% } %>
+        </div>
+      </div>
+
+    </section>
+
+    <aside class="grid" style="align-content:start">
+      <section class="card">
+        <div class="card-h"><h2><%- ic('person-fill') %> Thông tin phản ánh</h2></div>
+        <div class="card-b">
+          <% if (lookupCode && !lookup) { %><div class="note">Không tìm thấy hồ sơ có mã <strong><%= lookupCode %></strong>.</div><% } %>
+          <% if (!lookup) { %>
+            <form action="/phan-anh"><label class="field"><span>Tra cứu tiến độ bằng mã hồ sơ</span><input class="input" name="ma" placeholder="PA-2026-0001" value="<%= lookupCode %>"></label><button class="btn btn-primary btn-block"><%- ic('search') %> Tra cứu</button></form>
+            <div style="margin-top:14px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+              <% ['logging-report','smoke-report','timber-truck','biodiversity'].forEach(i => { %><img src="/assets/items/<%= i %>-small.webp" alt="Ảnh minh họa" style="width:100%;height:90px;object-fit:cover;border-radius:6px"><% }) %>
+            </div>
+            <p class="src">Ảnh minh họa các loại phản ánh thường gặp.</p>
+          <% } else { %>
+            <span class="badge <%= tone[lookup.statusTone] %>"><%= lookup.statusLabel %></span>
+            <h3 style="font-size:17px;margin:8px 0"><%= lookup.typeLabel %><%= lookup.commune_name ? ' tại ' + lookup.commune_name : '' %></h3>
+            <div class="meta"><span>Mã phản ánh: <b><%= lookup.code %></b></span><span><%- ic('clock-history') %> <%= fmt.dateTime(lookup.created_at) %></span></div>
+            <table class="kv" style="margin-top:10px"><tr><td>Loại phản ánh</td><td><%= lookup.typeLabel %></td></tr><tr><td>Địa bàn</td><td><%= lookup.commune_name || '—' %></td></tr>
+              <tr><td>Vị trí (làm tròn)</td><td><%= lookup.lat !== null ? lookup.lat + ', ' + lookup.lon : '—' %></td></tr><tr><td>Nội dung</td><td><%= lookup.description %></td></tr>
+              <% if (lookup.response) { %><tr><td>Phản hồi</td><td><%= lookup.response %></td></tr><% } %></table>
+            <% if (lookup.photos.length) { %><div class="photo-strip" style="margin-top:10px"><% lookup.photos.forEach(p => { %><img src="<%= p %>" alt=""><% }) %></div><% } %>
+            <h3 style="font-size:14.5px;margin:14px 0 8px"><%- ic('clipboard-check-fill') %> Quy trình xử lý</h3>
+            <ul class="timeline">
+              <% const reached = lookup.timeline.map(t => t.status); steps.forEach(s => { const t = lookup.timeline.find(x => x.status === s); %>
+                <li class="<%= t ? 'done' : 'todo' %>"><b><%= stepLabel[s] %></b><% if (t) { %><time><%= fmt.dateTime(t.at) %><%= t.note ? ' · ' + t.note : '' %></time><% } %></li>
+              <% }) %>
+              <% lookup.timeline.filter(t => !steps.includes(t.status)).forEach(t => { %><li class="done"><b><%= t.label %></b><time><%= fmt.dateTime(t.at) %></time></li><% }) %>
+            </ul>
+          <% } %>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>
+<dialog id="form-dialog" class="form-dialog">
+      <form class="card" id="gui" style="margin:0;max-height:90vh;overflow:auto" method="post" action="/phan-anh" enctype="multipart/form-data">
+        <div class="card-h"><h2><%- ic('megaphone-fill') %> Gửi phản ánh hiện trường</h2><button type="button" class="btn btn-outline btn-sm" style="margin-left:auto" data-close-form><%- ic('x-lg') %></button></div>
+        <div class="card-b">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <div style="position:absolute;left:-9999px" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
+          <div class="grid cols-2">
+            <label class="field"><span>Loại phản ánh *</span><select class="input" name="type" required><% Object.entries(types).forEach(([k, t]) => { %><option value="<%= k %>"><%= t.label %></option><% }) %></select></label>
+            <label class="field"><span>Thời điểm phát hiện</span><input class="input" type="datetime-local" name="observed_at"></label>
+          </div>
+          <label class="field"><span>Mô tả hiện trạng *</span><textarea class="input" name="description" rows="4" required minlength="10" maxlength="3000" placeholder="Mô tả ngắn gọn sự việc, quy mô, hướng lan (nếu cháy), phương tiện..."></textarea></label>
+          <div class="field"><span>Vị trí (nhấp vào bản đồ hoặc dùng định vị) *</span>
+            <div class="map-shell" style="height:260px"><div id="pick-map" class="map"></div></div>
+            <div class="grid cols-3" style="margin-top:8px;align-items:end">
+              <label><span class="src">Vĩ độ</span><input class="input" name="lat" id="lat" inputmode="decimal" value="<%= query.lat || '' %>" required></label>
+              <label><span class="src">Kinh độ</span><input class="input" name="lon" id="lon" inputmode="decimal" value="<%= query.lon || '' %>" required></label>
+              <button type="button" class="btn btn-outline" id="gps"><%- ic('crosshair') %> Lấy vị trí GPS</button>
+            </div>
+            <input class="input" style="margin-top:8px" name="location_text" placeholder="Mô tả địa điểm (thôn, tiểu khu, đường vào...)" maxlength="300">
+          </div>
+          <label class="field"><span>Hình ảnh (tối đa 5 ảnh, mỗi ảnh ≤ 8 MB)</span><input class="input" type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/heic" multiple></label>
+          <p class="src" style="margin-top:-6px">Ảnh được nén và xóa dữ liệu ẩn (EXIF, vị trí GPS) trước khi lưu.</p>
+          <div class="grid cols-3">
+            <label class="field"><span>Họ tên (không bắt buộc)</span><input class="input" name="name" maxlength="120"></label>
+            <label class="field"><span>Số điện thoại</span><input class="input" name="phone" maxlength="30" inputmode="tel"></label>
+            <label class="field"><span>Email</span><input class="input" name="email" type="email" maxlength="120"></label>
+          </div>
+          <label class="check"><input type="checkbox" required> Tôi xác nhận thông tin phản ánh là trung thực. Thông tin liên hệ chỉ cán bộ xử lý được xem.</label>
+          <div class="note" style="margin:10px 0">Nếu đang có cháy rừng lan rộng, hãy gọi ngay <strong>114</strong> và báo chính quyền địa phương, sau đó gửi phản ánh.</div>
+          <button class="btn btn-primary"><%- ic('send-fill') %> Gửi phản ánh</button>
+        </div>
+      </form>
+</dialog>
+<%- include('../partials/footer') %>
+<%- include('../partials/mapjs') %>
+<script>
+(function () {
+  const dlg = document.getElementById('form-dialog');
+  let pickReady = false;
+  const openForm = () => { dlg.showModal(); if (pick && !pickReady) { pickReady = true; setTimeout(() => pick.map.resize(), 50); } };
+  document.querySelectorAll('[data-open-form]').forEach((b) => b.addEventListener('click', openForm));
+  dlg.querySelector('[data-close-form]').addEventListener('click', () => dlg.close());
+  if (location.hash === '#gui' || new URLSearchParams(location.search).get('lat')) setTimeout(openForm, 300);
+  const v = KT.createMap('map', { basemap: 'satellite' });
+  if (v) {
+    document.getElementById('bm').addEventListener('click', (e) => { const b = e.target.closest('[data-b]'); if (!b) return; document.querySelectorAll('#bm button').forEach((x) => x.classList.toggle('on', x === b)); v.setBasemap(b.dataset.b); });
+    v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province()).define('reports', KT.layers.reports());
+    v.map.on('click', 'reports', (e) => { const p = e.features[0].properties; new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<div class="pop"><h4>${KT.esc(p.code)}</h4><p>${KT.esc(p.typeLabel)} · ${KT.esc(p.statusLabel)}</p><a href="/phan-anh?ma=${p.code}">Xem hồ sơ</a></div>`).addTo(v.map); });
+  }
+  var pick = KT.createMap('pick-map', { basemap: 'satellite', cooperative: true });
+  const lat = document.getElementById('lat'); const lon = document.getElementById('lon');
+  if (!pick) return;
+  pick.define('province', KT.layers.province()).define('communes', KT.layers.communes(pick));
+  let marker = null;
+  const place = (lng, la, fly) => {
+    lat.value = la.toFixed(6); lon.value = lng.toFixed(6);
+    if (!marker) marker = new mapboxgl.Marker({ color: '#e0322d', draggable: true }).setLngLat([lng, la]).addTo(pick.map).on('dragend', () => { const p = marker.getLngLat(); place(p.lng, p.lat); });
+    else marker.setLngLat([lng, la]);
+    if (fly) pick.map.flyTo({ center: [lng, la], zoom: 12 });
+  };
+  pick.map.on('click', (e) => place(e.lngLat.lng, e.lngLat.lat));
+  [lat, lon].forEach((i) => i.addEventListener('change', () => { const a = Number(lat.value); const b = Number(lon.value); if (a && b) place(b, a, true); }));
+  if (lat.value && lon.value) pick.map.once('load', () => place(Number(lon.value), Number(lat.value), true));
+  document.getElementById('gps').addEventListener('click', () => navigator.geolocation && navigator.geolocation.getCurrentPosition((p) => place(p.coords.longitude, p.coords.latitude, true), () => alert('Không lấy được vị trí. Vui lòng chọn trên bản đồ.'), { enableHighAccuracy: true, timeout: 15000 }));
+})();
+</script>
+</body></html>

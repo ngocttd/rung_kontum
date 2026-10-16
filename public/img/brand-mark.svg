@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Biểu trưng Hệ thống giám sát tài nguyên rừng và cảnh báo cháy rừng Kon Tum">
+  <title>WebGIS Kon Tum – giám sát rừng và cảnh báo cháy rừng</title>
+  <defs>
+    <linearGradient id="kt-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f7a45"/>
+      <stop offset="1" stop-color="#054024"/>
+    </linearGradient>
+    <linearGradient id="kt-far" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9fd36a"/>
+      <stop offset="1" stop-color="#4f9c3a"/>
+    </linearGradient>
+    <linearGradient id="kt-near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f8f4e"/>
+      <stop offset="1" stop-color="#0b5a31"/>
+    </linearGradient>
+    <linearGradient id="kt-flame" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#e53935"/>
+      <stop offset=".55" stop-color="#f57c00"/>
+      <stop offset="1" stop-color="#ffc83d"/>
+    </linearGradient>
+    <clipPath id="kt-in"><circle cx="64" cy="64" r="51"/></clipPath>
+  </defs>
+
+  <!-- vành huy hiệu -->
+  <circle cx="64" cy="64" r="62" fill="#ffffff"/>
+  <circle cx="64" cy="64" r="59" fill="url(#kt-sky)"/>
+  <circle cx="64" cy="64" r="53.5" fill="none" stroke="#f8ce42" stroke-width="2.4"/>
+
+  <g clip-path="url(#kt-in)">
+    <!-- lưới kinh vĩ (GIS) -->
+    <g fill="none" stroke="#ffffff" stroke-opacity=".13" stroke-width="1">
+      <path d="M13 40h102M13 56h102M40 13v70M64 13v70M88 13v70"/>
+    </g>
+    <!-- quỹ đạo vệ tinh giám sát -->
+    <path d="M22 52C34 28 76 18 98 36" fill="none" stroke="#ffffff" stroke-opacity=".85" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 5.2"/>
+    <g transform="translate(90 33) rotate(28) scale(.85)">
+      <rect x="-3.2" y="-3.2" width="6.4" height="6.4" rx="1.2" fill="#ffffff"/>
+      <rect x="-12" y="-2" width="7" height="4" rx=".8" fill="#9fd3ff"/>
+      <rect x="5" y="-2" width="7" height="4" rx=".8" fill="#9fd3ff"/>
+    </g>
+    <!-- dãy núi Ngọc Linh – Kon Tum -->
+    <path d="M6 92 34 58l12 12 20-26 22 24 10-9 26 33z" fill="url(#kt-far)"/>
+    <!-- tán rừng phía trước -->
+    <path d="M6 118V90c8-6 15-6 22-2 7-7 16-8 24-2 8-8 19-8 27 0 8-6 18-6 26 1 6-3 12-3 17 0v31z" fill="url(#kt-near)"/>
+    <g fill="#e8f6dc">
+      <path d="M33 99 42 79l9 20z"/>
+      <path d="M47 101 58 74l11 27z"/>
+      <path d="M64 102 72 85l8 17z"/>
+    </g>
+    <g fill="#e8f6dc">
+      <rect x="41" y="98" width="2.2" height="5"/>
+      <rect x="57" y="100" width="2.4" height="5"/>
+      <rect x="71" y="101" width="2" height="4"/>
+    </g>
+    <!-- ngọn lửa cảnh báo (nhấn nhỏ) -->
+    <path d="M92 88c-6-5-5-11 0-17 0 4 3 5 4 3 1-3 0-6-1-8 6 3 9 9 7 15-1 4-4 6-10 7z" transform="translate(30 30) scale(.72) translate(-30 -30) translate(8 14)" fill="url(#kt-flame)" stroke="#ffffff" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+
+</svg>

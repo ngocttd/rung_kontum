@@ -1,0 +1,39 @@
+<%# Tài liệu hướng dẫn: g = { title, lead, roles?, sections[], faq? } (src/content/guide.js); other = { href, label } %>
+<div class="guide">
+  <aside class="guide-toc no-print">
+    <div class="guide-toc-h"><%- ic('info-circle-fill') %> Mục lục</div>
+    <% if (g.roles) { %><a href="#vai-tro">Vai trò và quyền</a><% } %>
+    <% g.sections.forEach(s => { %><a href="#<%= s.id %>"><%= s.title %></a><% }) %>
+    <% if (g.faq) { %><a href="#hoi-dap">Hỏi đáp</a><% } %>
+    <div class="guide-toc-act">
+      <button type="button" class="btn btn-outline btn-sm btn-block" onclick="window.print()"><%- ic('download') %> In / lưu PDF</button>
+      <% if (typeof other !== 'undefined' && other) { %><a class="btn btn-outline btn-sm btn-block" href="<%= other.href %>"><%- ic('question-circle-fill') %> <%= other.label %></a><% } %>
+    </div>
+  </aside>
+  <article class="guide-doc">
+    <header class="guide-head"><h1><%= g.title %></h1><p><%= g.lead %></p><p class="src">Ảnh minh hoạ chụp từ hệ thống đang vận hành; số liệu trên ảnh có thể khác thời điểm bạn xem.</p></header>
+    <% if (g.roles) { %>
+      <section class="guide-sec" id="vai-tro"><h2><%- ic('people-fill') %> Vai trò và quyền</h2>
+        <table class="tbl"><thead><tr><th style="width:28%">Vai trò</th><th>Được phép</th></tr></thead><tbody>
+          <% g.roles.forEach(([r, d]) => { %><tr><td><b><%= r %></b></td><td><%= d %></td></tr><% }) %>
+        </tbody></table>
+      </section>
+    <% } %>
+    <% g.sections.forEach(s => { %>
+      <section class="guide-sec" id="<%= s.id %>">
+        <h2><%- ic(s.icon) %> <%= s.title %></h2>
+        <p><%= s.intro %></p>
+        <% if (s.img) { %><figure class="guide-fig<%= s.narrow ? ' narrow' : '' %>"><a href="/guide/<%= s.img %>.webp" target="_blank" rel="noopener"><img src="/guide/<%= s.img %>.webp" alt="<%= s.caption %>" loading="lazy"></a><figcaption><%= s.caption %></figcaption></figure><% } %>
+        <% if (s.phones) { %><div class="guide-phones"><% s.phones.forEach(([img, cap]) => { %><figure><a href="/guide/<%= img %>.webp" target="_blank" rel="noopener"><img src="/guide/<%= img %>.webp" alt="<%= cap %>" loading="lazy"></a><figcaption><%= cap %></figcaption></figure><% }) %></div><% } %>
+        <% if (s.steps && s.steps.length) { %><ol class="guide-steps"><% s.steps.forEach(t => { %><li><%= t %></li><% }) %></ol><% } %>
+        <% (s.notes || []).forEach(n => { %><div class="note <%= n.type === 'warn' ? 'warn' : 'info' %>"><b><%= n.type === 'warn' ? 'Lưu ý' : 'Mẹo' %>:</b> <%= n.text %></div><% }) %>
+        <% if (s.extra) { %><div class="guide-extra"><% s.extra.forEach(([img, cap]) => { %><figure class="guide-fig"><a href="/guide/<%= img %>.webp" target="_blank" rel="noopener"><img src="/guide/<%= img %>.webp" alt="<%= cap %>" loading="lazy"></a><figcaption><%= cap %></figcaption></figure><% }) %></div><% } %>
+      </section>
+    <% }) %>
+    <% if (g.faq) { %>
+      <section class="guide-sec" id="hoi-dap"><h2><%- ic('question-circle-fill') %> Hỏi đáp</h2>
+        <% g.faq.forEach(([q, a]) => { %><details class="faq" open><summary><%= q %></summary><p><%= a %></p></details><% }) %>
+      </section>
+    <% } %>
+  </article>
+</div>

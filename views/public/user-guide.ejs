@@ -1,0 +1,8 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<%- include('../partials/banner', { banner: 'p11-guide', heading: 'Tài liệu hướng dẫn sử dụng', crumb: 'Hướng dẫn sử dụng', lead: 'Hướng dẫn chi tiết từng chức năng của cổng thông tin, kèm ảnh minh hoạ.' }) %>
+<main class="container page">
+  <%- include('../partials/guide-body', { g: guide, other: typeof other !== 'undefined' && other ? other : { href: '/huong-dan/mobile', label: 'Hướng dẫn ứng dụng di động' } }) %>
+</main>
+<%- include('../partials/footer') %>
+</body></html>

@@ -1,0 +1,98 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<%
+  const wmo = (c) => c === 0 ? ['sun', 'Trời quang'] : c <= 3 ? ['weather', 'Có mây'] : c <= 48 ? ['weather', 'Sương mù'] : c <= 67 ? ['rain', 'Mưa'] : c <= 82 ? ['rain', 'Mưa rào'] : ['storm', 'Dông'];
+  const cur = selected && selected.current;
+  const dayCode = (d) => { if (!forecast) return 1; const hs = forecast.hours.filter(h => h.t.startsWith(d.date)); return hs.length ? Math.max(...hs.map(h => h.code)) : (d.rain > 1 ? 61 : 2); };
+  const fdBy = fd ? Object.fromEntries([fd.current, ...fd.forecast].filter(Boolean).map(x => [x.date, x])) : {};
+%>
+<%- include('../partials/banner', { banner: 'p09-weather', heading: 'Thời tiết – Khí hậu', lead: 'Thời tiết hiện tại, dự báo 7 ngày và chuỗi khí hậu tại điểm đại diện của 40 xã, phường – đầu vào cho dự báo nguy cơ cháy rừng.',
+  kpis: [
+    { icon: 'thermometer-half', value: fmt.num(summary.temp, 1) + '°C', label: 'Nhiệt độ trung bình', tone: 'blue' },
+    { icon: 'droplet-fill', value: fmt.num(summary.humidity, 0) + '%', label: 'Độ ẩm trung bình', tone: 'blue' },
+    { icon: 'wind', value: fmt.num(summary.wind_ms * 3.6, 0) + ' km/h', label: 'Gió trung bình', tone: 'blue' },
+  ] }) %>
+<main class="container page">
+  <form class="card card-b" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px" action="/thoi-tiet">
+    <%- ic('geo-alt-fill') %><strong>Chọn xã/phường:</strong>
+    <select class="input" name="xa" style="max-width:320px" onchange="this.form.submit()">
+      <% list.slice().sort((a,b)=>a.fullName.localeCompare(b.fullName,'vi')).forEach(w => { %><option value="<%= w.code %>" <%= w.code === code ? 'selected' : '' %>><%= w.fullName %></option><% }) %>
+    </select>
+    <span class="src" style="margin-left:auto">Điểm đại diện: <%= selected.lat.toFixed(4) %>, <%= selected.lon.toFixed(4) %> · không phải giá trị trung bình toàn xã</span>
+  </form>
+  <div class="layout-2r">
+    <div class="grid">
+      <section class="card">
+        <div class="card-h"><h2><%- ic('cloud-sun-fill') %> Thời tiết hiện tại – <%= selected.fullName %></h2><span class="more muted" style="font-weight:400"><%= cur ? fmt.dateTime(cur.dt) : '' %></span></div>
+        <div class="card-b">
+          <% if (cur) { %>
+          <div class="wx" style="gap:22px">
+            <img src="/assets/icons/colored/<%= cur.icon && cur.icon.startsWith('01') ? 'sun' : (cur.icon && /09|10/.test(cur.icon) ? 'rain' : (cur.icon && cur.icon.startsWith('11') ? 'storm' : 'weather')) %>.svg" alt="" style="width:84px;height:84px">
+            <div><div class="t" style="font-size:46px"><%= fmt.num(cur.temp, 0) %>°C</div><span class="muted" style="font-size:15px"><%= cur.description %></span></div>
+            <div class="wx-grid" style="grid-template-columns:repeat(4,1fr);gap:18px">
+              <div><img src="/assets/icons/colored/water.svg" width="26" alt=""> Độ ẩm<strong><%= cur.humidity %>%</strong></div>
+              <div><img src="/assets/icons/colored/wind.svg" width="26" alt=""> Gió<strong><%= fmt.num(cur.wind_ms * 3.6, 0) %> km/h</strong></div>
+              <div><img src="/assets/icons/colored/rain.svg" width="26" alt=""> Mưa 1 giờ<strong><%= cur.rain1h ?? 0 %> mm</strong></div>
+              <div><img src="/assets/icons/colored/weather.svg" width="26" alt=""> Mây<strong><%= cur.clouds ?? '—' %>%</strong></div>
+            </div>
+          </div>
+          <p class="src" style="margin:10px 0 0">OpenWeather Current Weather · <%= cur.live ? 'cập nhật tự động từ máy chủ' : 'bản lưu lúc thu thập dữ liệu' %>.</p>
+          <% } %>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('calendar3') %> Dự báo 7 ngày</h2><span class="more muted" style="font-weight:400"><%= forecast ? 'Open-Meteo · ' + fmt.dateTime(forecast.collected_at) : '' %></span></div>
+        <div class="card-b">
+          <% if (forecast) { %>
+          <div class="grid" style="grid-template-columns:repeat(7,minmax(0,1fr));gap:8px">
+            <% forecast.days.forEach((d, i) => { const [ico, lab] = wmo(dayCode(d)); const f = fdBy[d.date]; %>
+              <div class="card" style="text-align:center;padding:10px 6px">
+                <strong style="color:var(--navy)"><%= i === 0 ? 'Hôm nay' : fmt.weekday(d.date) %></strong><div class="src"><%= fmt.ymd(d.date).slice(0, 5) %></div>
+                <img src="/assets/icons/colored/<%= ico %>.svg" alt="<%= lab %>" width="42" style="margin:6px auto;display:block">
+                <div style="font-weight:700;color:var(--navy)"><%= Math.round(d.tmax) %>° <span class="muted" style="font-weight:400"><%= Math.round(d.tmin) %>°</span></div>
+                <div class="src"><%- ic('droplet-fill') %> <%= fmt.num(d.rain, 1) %> mm</div><div class="src"><%- ic('wind') %> <%= Math.round(d.wind_max) %> km/h</div>
+                <% if (f) { %><div style="margin-top:6px" title="Cấp nguy cơ cháy (chỉ số P = <%= fmt.num(f.p) %>)"><span class="lv lv-<%= f.cls %>">Cấp <%= ['','I','II','III','IV','V'][f.cls] %></span></div><% } %>
+              </div>
+            <% }) %>
+          </div>
+          <div class="chart-box" style="margin-top:14px"><canvas id="ch-hourly"></canvas></div>
+          <p class="src" style="margin:4px 0 0">72 giờ tới theo giờ: nhiệt độ, độ ẩm, lượng mưa. <%= forecast.attribution %> (CC BY 4.0). Ô “Cấp” là cấp nguy cơ cháy dự báo của xã (<a href="/canh-bao-chay?tab=du-bao&xa=<%= code %>">chi tiết</a>).</p>
+          <% } else { %><div class="empty-state">Chưa có dữ liệu dự báo.</div><% } %>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('clock-history') %> Khí hậu 2024–2025 (trung bình 40 điểm)</h2></div>
+        <div class="card-b"><div class="chart-box tall"><canvas id="ch-climate"></canvas></div>
+          <p class="src" style="margin:4px 0 0">Nhiệt độ 2 m trung bình tháng: ERA5-Land (tái phân tích). Lượng mưa tháng: CHIRPS (ước tính vệ tinh) và ERA5-Land. Không phải số liệu trạm khí tượng.</p></div>
+      </section>
+    </div>
+    <aside class="card" style="align-self:start">
+      <div class="card-h"><h2><%- ic('thermometer-half') %> Thời tiết các xã</h2></div>
+      <div class="card-b table-wrap">
+        <table class="tbl" data-page-size="15"><thead><tr><th>Xã/phường</th><th class="num">Nhiệt độ</th><th class="num">Độ ẩm</th><th class="num">Gió</th></tr></thead><tbody>
+          <% list.slice().sort((a,b)=>a.fullName.localeCompare(b.fullName,'vi')).forEach(w => { %><tr class="<%= w.code === code ? 'sel' : '' %>"><td><a href="/thoi-tiet?xa=<%= w.code %>"><%= w.fullName %></a></td><td class="num"><%= w.current ? fmt.num(w.current.temp, 1) + '°' : '—' %></td><td class="num"><%= w.current ? w.current.humidity + '%' : '—' %></td><td class="num"><%= w.current ? fmt.num(w.current.wind_ms * 3.6, 0) : '—' %></td></tr><% }) %>
+        </tbody></table>
+        <p class="src">Làm mới tự động: <%= weatherStatus.enabled ? 'mỗi ' + weatherStatus.interval_minutes + ' phút' : 'tắt' %><%= weatherStatus.fetched_at ? ' · lần gần nhất ' + fmt.dateTime(weatherStatus.fetched_at) : '' %>.</p>
+      </div>
+    </aside>
+  </div>
+</main>
+<%- include('../partials/footer') %>
+<%- include('../partials/chartjs') %>
+<%- include('../partials/page-data', { pageData: { hours: forecast ? forecast.hours : [], climate } }) %>
+<script>
+(function () {
+  const P = window.PAGE;
+  if (P.hours.length) KT.chart('ch-hourly', { data: { labels: P.hours.map((h) => `${h.t.slice(8, 10)}/${h.t.slice(5, 7)} ${h.t.slice(11, 13)}h`), datasets: [
+    { type: 'line', label: 'Nhiệt độ (°C)', data: P.hours.map((h) => h.temp), borderColor: '#e0322d', tension: 0.3, pointRadius: 0, yAxisID: 'y' },
+    { type: 'line', label: 'Độ ẩm (%)', data: P.hours.map((h) => h.rh), borderColor: '#1677d2', tension: 0.3, pointRadius: 0, yAxisID: 'y2' },
+    { type: 'bar', label: 'Mưa (mm)', data: P.hours.map((h) => h.rain), backgroundColor: 'rgba(22,119,210,.45)', yAxisID: 'y3' }] },
+    options: { interaction: { mode: 'index', intersect: false }, scales: { x: { ticks: { maxTicksLimit: 12, maxRotation: 0 } }, y: { title: { display: true, text: '°C' } }, y2: { position: 'right', min: 0, max: 100, grid: { display: false } }, y3: { display: false, beginAtZero: true } } } });
+  KT.chart('ch-climate', { data: { labels: P.climate.map((m) => `${m.month.slice(5)}/${m.month.slice(2, 4)}`), datasets: [
+    { type: 'bar', label: 'Mưa CHIRPS (mm)', data: P.climate.map((m) => m.rain_chirps_mm), backgroundColor: 'rgba(22,119,210,.55)', yAxisID: 'y' },
+    { type: 'bar', label: 'Mưa ERA5-Land (mm)', data: P.climate.map((m) => m.rain_era5_mm), backgroundColor: 'rgba(0,150,160,.4)', yAxisID: 'y' },
+    { type: 'line', label: 'Nhiệt độ TB (°C)', data: P.climate.map((m) => m.temp_mean), borderColor: '#e0322d', tension: 0.3, yAxisID: 'y2' }] },
+    options: { scales: { y: { beginAtZero: true, title: { display: true, text: 'mm' } }, y2: { position: 'right', grid: { display: false }, title: { display: true, text: '°C' } } } } });
+})();
+</script>
+</body></html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= title %> · Rừng Kon Tum</title><meta name="robots" content="noindex">
+<link rel="icon" href="/img/favicon-32.png" sizes="32x32" type="image/png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png"><meta name="theme-color" content="#0b6b3a">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css"><link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-art"><img src="/assets/banners/mobile-splash.webp" alt="" style="object-position:center 30%"><div><h1>WebGIS Kon Tum</h1><p style="font-size:16px;max-width:520px">Giám sát tài nguyên rừng, dự báo và cảnh báo mất rừng, cháy rừng – phân hệ dành cho cán bộ quản lý và chuyên môn.</p></div></div>
+  <div class="login-box">
+    <form method="post" action="/quan-tri/dang-nhap">
+      <div style="text-align:center;margin-bottom:18px"><img src="/img/brand/logo-full.webp" alt="WebGIS Kon Tum" style="width:220px;max-width:80%"><h2 style="margin-top:8px">Đăng nhập quản trị</h2><p class="muted" style="margin:4px 0 0">Tài khoản do quản trị hệ thống cấp</p></div>
+      <% if (error) { %><div class="flash error"><%= error %></div><% } %>
+      <% if (noUsers) { %><div class="note info" style="margin-bottom:12px">Chưa có tài khoản. Tạo tài khoản quản trị đầu tiên bằng lệnh <code>npm run create-user -- &lt;tên&gt; admin "Họ tên"</code> trên máy chủ.</div><% } %>
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="next" value="<%= next %>">
+      <label class="field"><span>Tên đăng nhập</span><input class="input" name="username" autocomplete="username" required autofocus></label>
+      <label class="field"><span>Mật khẩu</span><input class="input" name="password" type="password" autocomplete="current-password" required></label>
+      <button class="btn btn-primary btn-block" style="padding:12px">Đăng nhập</button>
+      <p style="text-align:center;margin-top:14px"><a href="/"><%- ic('chevron-left') %> Về trang công khai</a></p>
+    </form>
+  </div>
+</div>
+</body></html>

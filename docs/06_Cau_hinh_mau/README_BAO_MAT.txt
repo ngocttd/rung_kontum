@@ -1,0 +1,1 @@
+Không lưu mật khẩu, API key hoặc GEE service-account JSON trong gói này. Đổi mật khẩu DB và thu hồi/tạo lại API key nếu chúng đã bị chia sẻ ngoài môi trường an toàn. Không commit .env hoặc .secrets vào Git. Cấu hình GEE chỉ lấy ảnh; xử lý nghiệp vụ bằng Python.

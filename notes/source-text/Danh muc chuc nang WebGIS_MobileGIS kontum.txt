@@ -1,0 +1,278 @@
+﻿Phân vai trò ngắn gọn
+Tác nhân
+Vai trò chính
+Quản trị hệ thống
+Quản trị nền tảng, người dùng, dữ liệu, API, cấu hình hệ thống
+Ủy ban nhân dân tỉnh
+Giám sát điều hành cấp tỉnh, theo dõi báo cáo, cảnh báo, thống kê
+Sở Nông nghiệp và Môi trường tỉnh
+Đơn vị nghiệp vụ chính: cập nhật dữ liệu, phân tích ảnh vệ tinh, giám sát rừng, dự báo cháy
+Người dân
+Tra cứu thông tin, xem bản đồ công khai, gửi phản ánh, cập nhật hiện trạng qua MobileGIS
+
+Danh sách chức năng chi tiết theo quyền
+Nhóm chức năng
+Quản trị hệ thống
+UBND tỉnh
+Sở NN&MT tỉnh
+Người dân
+Đăng nhập / Đăng ký
+Đăng nhập
+Đăng nhập
+Đăng nhập
+Đăng nhập, Đăng ký
+Quản trị người dùng
+Thêm/xóa tài khoản, phân quyền, khóa tài khoản, cấp lại mật khẩu
+Xem người dùng (nếu được phân quyền)
+Quản lý tài khoản chuyên môn cấp sở
+Quản lý hồ sơ cá nhân
+Quản trị ảnh vệ tinh
+Thêm, xóa, phân loại, quản lý ảnh vệ tinh
+Xem ảnh vệ tinh
+Tìm kiếm, khai thác ảnh vệ tinh phục vụ giám sát
+Xem ảnh được chia sẻ công khai
+Quản trị lớp dữ liệu bản đồ
+Thêm/sửa/xóa lớp dữ liệu, phân quyền, import shapefile/excel
+Xem lớp dữ liệu tổng hợp
+Quản lý dữ liệu lớp phủ rừng, chuyên đề môi trường
+Xem lớp dữ liệu công khai
+API dữ liệu bản đồ
+Tạo API, chia sẻ API, phân quyền API
+Sử dụng API báo cáo điều hành
+Khai thác API tích hợp hệ thống chuyên ngành
+Không
+Quản trị tin tức
+Thêm/sửa/xóa tin tức
+Đọc tin tức
+Đăng tin chuyên ngành
+Đọc, tìm kiếm, bình luận
+Quản trị báo cáo – văn bản
+Thêm/xóa báo cáo, văn bản
+Xem báo cáo quản lý
+Quản lý báo cáo nghiệp vụ
+Xem tài liệu công khai
+Quản trị bản đồ PDF
+Thêm/sửa/xóa bản đồ PDF
+Xem, tải bản đồ PDF
+Quản lý bản đồ chuyên đề PDF
+Xem, tải bản đồ PDF
+Thông tin cập nhật từ MobileGIS
+Theo dõi cập nhật, xác thực thông tin
+Xem tổng hợp phản ánh
+Xem thay đổi hiện trạng, xác minh thực địa
+Gửi dữ liệu hiện trạng
+Tương tác bản đồ WebGIS
+Toàn quyền thao tác
+Xem bản đồ, tra cứu đối tượng, 3D, lớp nền
+Khai thác bản đồ chuyên sâu, lớp chuyên ngành
+Tra cứu bản đồ công khai
+Tương tác dữ liệu thời tiết
+Quản trị nguồn dữ liệu
+Theo dõi nhiệt độ, mưa
+Theo dõi thời tiết phục vụ cảnh báo
+Xem thông tin thời tiết
+Tương tác ảnh vệ tinh
+Quản trị toàn bộ chức năng
+Xem, so sánh hiện trạng
+Phân loại đối tượng, tính diện tích, xuất vector
+Xem dữ liệu công khai
+Thống kê
+Quản trị cấu hình thống kê
+Xem báo cáo, biểu đồ điều hành
+Thống kê diện tích lớp phủ, theo huyện, theo thời gian
+Xem thống kê công khai
+Phân tích không gian
+Quản trị mô hình phân tích
+Xem cảnh báo thay đổi rừng
+Phân tích thay đổi rừng, khoảng cách dân cư–rừng
+Không
+Dự báo cháy rừng
+Quản trị thuật toán, cấu hình
+Xem cảnh báo cháy cấp tỉnh
+Theo dõi chỉ số nhiệt, độ ẩm, hướng gió, nguy cơ cháy
+Xem cảnh báo công khai
+Tin tức
+Quản lý nội dung
+Đọc tin
+Đọc, đăng tin chuyên môn
+Đọc, tìm kiếm, bình luận
+Báo cáo
+Quản lý báo cáo
+Xem báo cáo điều hành
+Xem báo cáo chuyên ngành
+Xem báo cáo công khai
+Gửi phản ánh
+Tiếp nhận và quản lý phản ánh
+Theo dõi phản ánh toàn tỉnh
+Xử lý phản ánh lĩnh vực rừng
+Gửi phản ánh kèm ảnh vi phạm
+MobileGIS – tương tác bản đồ
+Quản trị ứng dụng
+Theo dõi dữ liệu hiện trường
+Sử dụng GPS, đo đạc, cập nhật đối tượng
+Xem bản đồ, GPS, tìm đường
+MobileGIS – giám sát hiện trạng
+Theo dõi dữ liệu gửi lên
+Xem báo cáo hiện trường
+Chụp ảnh, cập nhật hiện trạng rừng
+Chụp ảnh, gửi hiện trạng
+MobileGIS – tin tức / văn bản
+Quản trị nội dung
+Đọc
+Đọc, tra cứu
+Đọc, tra cứu
+ Xử lý phần cháy rừng
+1. Nguồn dữ liệu sử dụng
+Nhóm dữ liệu
+Nguồn đề xuất
+Vai trò
+Ảnh Sentinel-2
+Google Earth Engine
+Tính NDVI, NDMI, NBR, phát hiện khô hạn thực vật
+MODIS LST
+Google Earth Engine
+Tính nhiệt độ bề mặt đất hằng ngày
+ERA5-Land
+Google Earth Engine
+Nhiệt độ không khí, gió, độ ẩm, lượng mưa
+NASA FIRMS
+NASA
+Điểm cháy đang hoạt động từ MODIS/VIIRS
+DEM
+SRTM / Copernicus DEM
+Độ cao, độ dốc, hướng sườn
+Ranh giới rừng
+Sở NN&MT / Kiểm lâm
+Khoanh vùng rừng, tiểu khu, chủ rừng
+Sentinel-2 có độ phân giải cao và chu kỳ lặp khoảng 5 ngày, phù hợp giám sát thực vật và lớp phủ rừng. MODIS LST cung cấp nhiệt độ bề mặt đất hằng ngày ở độ phân giải khoảng 1 km. NASA FIRMS cung cấp điểm cháy/cháy bất thường từ MODIS và VIIRS gần thời gian thực. 
+2. Các chỉ số cần tính trên GEE
+Chỉ số
+Công thức
+Ý nghĩa
+NDVI
+(NIR - RED) / (NIR + RED)
+Sức khỏe thảm thực vật
+NDMI
+(NIR - SWIR1) / (NIR + SWIR1)
+Độ ẩm thực vật
+NBR
+(NIR - SWIR2) / (NIR + SWIR2)
+Nguy cơ cháy / vùng cháy
+LST
+MODIS LST
+Nhiệt độ bề mặt đất
+Rainfall
+ERA5-Land / CHIRPS
+Lượng mưa gần đây
+Wind
+ERA5-Land / OpenWeather
+Hướng và tốc độ gió
+3. Phân cấp nguy cơ cháy rừng
+Có thể xây dựng chỉ số tổng hợp:
+FireRisk = 0.30 × LST_score         + 0.25 × Dryness_score         + 0.20 × Wind_score         + 0.15 × Rainfall_score         + 0.10 × Slope_score
+Cấp cảnh báo
+Điều kiện gợi ý
+Màu hiển thị
+Cấp 1 – Thấp
+FireRisk < 0.2
+Xanh
+Cấp 2 – Trung bình
+0.2–0.4
+Vàng
+Cấp 3 – Cao
+0.4–0.6
+Cam
+Cấp 4 – Rất cao
+0.6–0.8
+Đỏ
+Cấp 5 – Nguy hiểm
+> 0.8
+Tím / đỏ đậm
+4. Xử lý trên Google Earth Engine
+Bước 1: Lấy vùng nghiên cứu
+var region = ee.FeatureCollection("users/your_account/kon_tum_boundary");Map.centerObject(region, 8);
+Bước 2: Lọc ảnh Sentinel-2
+var s2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")  .filterBounds(region)  .filterDate('2026-03-01', '2026-05-24')  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))  .median()  .clip(region);
+Bước 3: Tính NDVI, NDMI, NBR
+var ndvi = s2.normalizedDifference(['B8', 'B4']).rename('NDVI');var ndmi = s2.normalizedDifference(['B8', 'B11']).rename('NDMI');var nbr  = s2.normalizedDifference(['B8', 'B12']).rename('NBR');
+Bước 4: Lấy nhiệt độ bề mặt MODIS
+var lst = ee.ImageCollection("MODIS/061/MOD11A1")  .filterBounds(region)  .filterDate('2026-05-01', '2026-05-24')  .select('LST_Day_1km')  .mean()  .multiply(0.02)  .subtract(273.15)  .rename('LST')  .clip(region);
+Bước 5: Tạo điểm nguy cơ cháy
+var lstScore = lst.gt(35).multiply(1);var dryScore = ndmi.lt(0.2).multiply(1);var vegScore = ndvi.gt(0.3).multiply(1);var nbrScore = nbr.lt(0.3).multiply(1);var fireRisk = lstScore.multiply(0.35)  .add(dryScore.multiply(0.30))  .add(vegScore.multiply(0.20))  .add(nbrScore.multiply(0.15))  .rename('FireRisk');
+Bước 6: Phân cấp cảnh báo
+var riskClass = fireRisk.expression(  "(b('FireRisk') < 0.2) ? 1" +  ": (b('FireRisk') < 0.4) ? 2" +  ": (b('FireRisk') < 0.6) ? 3" +  ": (b('FireRisk') < 0.8) ? 4" +  ": 5").rename('risk_level');
+Bước 7: Hiển thị bản đồ cảnh báo
+Map.addLayer(riskClass, {  min: 1,  max: 5,  palette: ['00cc44', 'ffff00', 'ff9900', 'ff0000', '800000']}, 'Cảnh báo nguy cơ cháy rừng');
+5. Tích hợp NASA FIRMS để xác nhận điểm cháy
+NASA FIRMS nên dùng như lớp điểm cháy thực tế, còn GEE dùng để tính nguy cơ cháy.
+Nguy cơ cháy cao + Có điểm FIRMS gần đó→ Cảnh báo ưu tiên cao
+Dữ liệu VIIRS Active Fire có độ phân giải khoảng 375 m, phù hợp cho quản lý cháy rừng gần thời gian thực. 
+6. Lưu kết quả về PostGIS
+Bảng đề xuất:
+CREATE TABLE forest_fire_warning (  id SERIAL PRIMARY KEY,  risk_level INTEGER,  risk_score NUMERIC,  source VARCHAR(50),  province VARCHAR(100),  district VARCHAR(100),  commune VARCHAR(100),  forest_type VARCHAR(100),  warning_time TIMESTAMP,  geom GEOMETRY(Polygon, 4326));
+Bảng điểm cháy FIRMS:
+CREATE TABLE active_fire_point (  id SERIAL PRIMARY KEY,  latitude NUMERIC,  longitude NUMERIC,  brightness NUMERIC,  confidence VARCHAR(50),  satellite VARCHAR(50),  acq_date DATE,  acq_time VARCHAR(10),  geom GEOMETRY(Point, 4326));
+7. Hiển thị trên WebGIS
+Lớp bản đồ cần có
+Lớp
+Kiểu hiển thị
+Nguy cơ cháy rừng
+Polygon / raster màu
+Điểm cháy FIRMS
+Point icon lửa
+Ranh giới rừng
+Polygon viền xanh
+Tiểu khu rừng
+Polygon
+Trạm kiểm lâm
+Point
+Hướng gió
+Arrow layer
+Vùng dân cư gần rừng
+Point / polygon
+Popup cảnh báo
+Cấp cảnh báo: Rất caoChỉ số nguy cơ: 0.78Nhiệt độ bề mặt: 39.5°CNDMI: 0.12Gió: 18 km/hMưa 7 ngày: thấpThời gian cập nhật: 24/05/2026Khuyến nghị: Kiểm tra thực địa / gửi cảnh báo MobileGIS
+8. Mã hiển thị Mapbox mẫu
+map.addSource('fire-risk', {  type: 'geojson',  data: '/api/fire-risk/latest'});map.addLayer({  id: 'fire-risk-layer',  type: 'fill',  source: 'fire-risk',  paint: {    'fill-color': [      'match',      ['get', 'risk_level'],      1, '#00cc44',      2, '#ffff00',      3, '#ff9900',      4, '#ff0000',      5, '#800000',      '#cccccc'    ],    'fill-opacity': 0.55  }});
+9. Hiển thị cảnh báo trên MobileGIS
+MobileGIS nên có:
+Chức năng
+Mô tả
+Bản đồ cảnh báo
+Hiển thị vùng nguy cơ cháy
+Cảnh báo gần vị trí GPS
+Nếu người dùng gần vùng nguy cơ cao
+Gửi ảnh hiện trường
+Người dân/kiểm lâm gửi ảnh cháy
+Thông báo đẩy
+Firebase Cloud Messaging
+Chỉ đường
+Dẫn tới điểm cảnh báo
+Xác nhận hiện trường
+Cập nhật trạng thái: mới, đang kiểm tra, đã xử lý
+10. Kiến trúc xử lý đề xuất
+Google Earth Engine  ├── Sentinel-2: NDVI, NDMI, NBR  ├── MODIS LST: nhiệt độ bề mặt  ├── ERA5-Land: mưa, gió, độ ẩm  ↓Export GeoTIFF / GeoJSON  ↓Node.js Cronjob  ↓PostgreSQL/PostGIS  ↓API /api/fire-risk/latest  ↓Mapbox WebGIS + MobileGIS
+11. Lịch cập nhật đề xuất
+Dữ liệu
+Tần suất
+FIRMS điểm cháy
+1–3 giờ/lần
+Thời tiết
+1 giờ/lần
+MODIS LST
+1 ngày/lần
+Sentinel-2
+5 ngày/lần
+Bản đồ nguy cơ tổng hợp
+1 ngày/lần
+Phản ánh người dân
+Thời gian thực
+12. Khuyến nghị triển khai
+Nên chia thành 2 lớp cảnh báo:
+Lớp
+Ý nghĩa
+Nguy cơ cháy rừng
+Dự báo nguy cơ dựa trên nhiệt, khô hạn, gió, độ ẩm
+Điểm cháy thực tế
+Điểm cháy đang hoạt động từ NASA FIRMS
+

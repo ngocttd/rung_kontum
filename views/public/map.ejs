@@ -1,0 +1,206 @@
+<%- include('../partials/head', { needsMap: true }) %>
+<%- include('../partials/header') %>
+<%
+  const ov = Object.fromEntries(overlays.map(o => [o.id, o]));
+  const tools = (info) => `<button type="button" class="lt-btn" data-gear title="Độ mờ">${ic('gear-fill')}</button><button type="button" class="lt-btn" data-more title="${info}">${ic('three-dots')}</button>`;
+  function ovItem(id, label, sw) {
+    const o = ov[id]; if (!o) return '';
+    return `<div class="lt-item"><input type="checkbox" id="ly-${id}" data-overlay="${id}"><label for="ly-${id}">${sw || ''}${label}</label>${tools(o.title + ' – ' + o.source + '. ' + o.meaning + (o.resolution ? ' (' + o.resolution + ')' : ''))}<input type="range" min="0" max="1" step="0.05" value="1" data-opacity="${id}" aria-label="Độ mờ ${label}"></div>`;
+  }
+  function vec(id, label, sw, checked, info) { return `<div class="lt-item"><input type="checkbox" id="ly-${id}" data-vector="${id}" ${checked ? 'checked' : ''}><label for="ly-${id}">${sw}${label}</label>${tools(info)}</div>`; }
+  function choro(mode, label, sw, info) { return `<div class="lt-item choro"><input type="checkbox" id="choro-${mode}" data-choro="${mode}"><label for="choro-${mode}">${sw}${label}</label>${tools(info)}</div>`; }
+  const sym = (n) => `<img class="mk" src="/assets/symbols/${n}.svg" alt="">`;
+  const mk = (n) => `<img class="mk" src="/assets/markers/${n}.svg" alt="">`;
+  const ic2 = (n) => `<img class="mk" src="/assets/icons/colored/${n}.svg" alt="">`;
+  const fv = fcg ? fcg.forecast.validation : null;
+  const lossH = fcg ? fcg.history.aoi_annual_loss_ha : {};
+  const loss5 = ['2020','2021','2022','2023','2024'].reduce((a, y) => a + (lossH[y] || 0), 0);
+  const prev5 = ['2015','2016','2017','2018','2019'].reduce((a, y) => a + (lossH[y] || 0), 0);
+  const expected = fcg ? Object.values(fcg.forecast.risk_by_commune).filter(Boolean).reduce((a, r) => a + r.expected_loss_ha, 0) : 0;
+  const latest = ov['s2-latest'];
+%>
+<h1 class="sr-only">Bản đồ WebGIS</h1>
+<main class="map-page">
+  <div class="layout-3 map-layout">
+    <!-- layer tree -->
+    <aside class="card col-left lt-panel">
+      <div class="card-h"><h2><%- ic('layers-fill') %> Lớp bản đồ</h2></div>
+      <div class="seg lt-tabs" data-lt-tabs><button type="button" data-lt="theme" class="on">Chuyên đề</button><button type="button" data-lt="base">Dữ liệu nền</button></div>
+      <div style="padding:8px 12px 0"><div class="search-box" style="display:block"><%- ic('search') %><input id="layer-filter" type="search" placeholder="Tìm kiếm lớp dữ liệu..." style="width:100%"></div></div>
+      <div class="lt-active" id="lt-active"></div>
+      <div class="layer-tree" id="layer-tree">
+        <div class="lt-sec sec-admin" data-lt-group="theme base"><%- ic('geo-fill') %> HÀNH CHÍNH</div>
+        <details class="lt-group" open data-lt-group="theme base"><summary>Ranh giới</summary>
+          <%- vec('province', 'Ranh giới Kon Tum (cũ)', sym('boundary-historical'), true, 'Government of Viet Nam / HDX qua geoBoundaries, năm 2020') %>
+          <%- vec('communes', 'Ranh giới xã/phường', sym('boundary-commune'), true, 'vietnamese-provinces-database v5.2.0, cắt theo ranh Kon Tum cũ') %>
+        </details>
+
+        <div class="lt-sec sec-forest" data-lt-group="theme"><%- ic('tree-fill') %> CHUYÊN ĐỀ RỪNG</div>
+        <details class="lt-group" open data-lt-group="theme"><summary>Tài nguyên rừng 2025</summary>
+          <%- choro('cover', 'Che phủ rừng 2025', sym('forest-protection'), 'QĐ 1047/QĐ-UBND – tỷ lệ che phủ công bố theo xã') %>
+          <%- choro('forest', 'Diện tích rừng 2025', sym('forest-special-use'), 'QĐ 1047/QĐ-UBND – diện tích đã thành rừng theo xã') %>
+          <%- ovItem('worldcover-2021', 'Lớp phủ đất 2021 (ESA)', sym('forest-evergreen')) %>
+          <%- ovItem('ndvi-2025-dry', 'NDVI mùa khô 2025', sym('forest-production')) %>
+          <%- ovItem('ndvi-2025-wet', 'NDVI mùa mưa 2025', sym('forest-production')) %>
+        </details>
+        <details class="lt-group" open data-lt-group="theme"><summary>Lớp phủ 1991–2023 (dữ liệu dự án)</summary>
+          <%- ovItem('lc-2023', 'Lớp phủ năm 2023', sym('forest-evergreen')) %>
+          <%- ovItem('lc-2014', 'Lớp phủ năm 2014', sym('forest-mixed')) %>
+          <%- ovItem('lc-1991', 'Lớp phủ năm 1991', sym('forest-conifer')) %>
+          <%- ovItem('lc-forest-change-1991-2023', 'Mất / tăng rừng 1991–2023', sym('change-suspected')) %>
+          <%- vec('samples', 'Mẫu thực địa 2025', mk('survey'), false, 'Mau_KON_TUM_2025 – 389 điểm, dữ liệu thực tế dự án') %>
+        </details>
+        <details class="lt-group" open data-lt-group="theme"><summary>Biến động và dự báo mất rừng</summary>
+          <%- ovItem('hansen-loss', 'Mất tán cây 2001–2024', sym('change-suspected')) %>
+          <%- vec('candidates', 'Biến động nghi vấn 2026', sym('change-suspected'), false, 'Sentinel-2 chuỗi tháng 100 m – chưa xác minh hiện trường') %>
+          <%- ovItem('forest-loss-risk', 'Dự báo nguy cơ mất rừng 2025–26', sym('risk-4')) %>
+          <%- choro('risk', 'Xác suất mất rừng', sym('risk-3'), 'Xác suất mất rừng trung bình 2025–2026 (mô hình hiệu chỉnh)') %>
+          <%- choro('loss', 'Mất tán cây 2020–2024', sym('risk-5'), 'Hansen GFC – tổng diện tích mất tán cây 2020–2024 theo xã') %>
+        </details>
+
+        <div class="lt-sec sec-fire" data-lt-group="theme"><%- ic('fire') %> CẢNH BÁO CHÁY RỪNG</div>
+        <details class="lt-group" open data-lt-group="theme"><summary>Điểm nóng và nguy cơ cháy</summary>
+          <%- vec('hotspots', 'Điểm nóng cháy (FIRMS)', mk('hotspot-unverified'), true, firms.source) %>
+          <%- choro('danger', 'Cấp nguy cơ cháy theo ngày', sym('risk-5'), 'Cấp dự báo cháy theo chỉ số P Nesterov – theo ngày chọn ở khung bên phải') %>
+          <%- choro('danger7', 'Cấp cao nhất 7 ngày tới', sym('risk-4'), 'Cấp cao nhất trong 7 ngày tới') %>
+        </details>
+
+        <div class="lt-sec sec-env" data-lt-group="theme"><%- ic('cloud-sun-fill') %> MÔI TRƯỜNG & HIỆN TRƯỜNG</div>
+        <details class="lt-group" open data-lt-group="theme"><summary>Thời tiết, phản ánh</summary>
+          <%- vec('weather', 'Nhiệt độ và hướng gió', ic2('wind'), false, 'OpenWeather – thời tiết hiện tại tại điểm đại diện xã') %>
+          <%- vec('reports', 'Phản ánh hiện trường', mk('report-photo'), false, 'Phản ánh đã được cán bộ cho phép công khai') %>
+        </details>
+
+        <% if (mapLayers.length || custom.length) { %>
+        <div class="lt-sec sec-map" data-lt-group="theme"><%- ic('map-fill') %> BẢN ĐỒ CHUYÊN ĐỀ <span class="n"><%= mapLayers.length + custom.length %></span></div>
+        <% if (mapLayers.length) { %>
+        <details class="lt-group" open data-lt-group="theme"><summary>Đã xuất bản (PDF/GeoTIFF)</summary>
+          <% mapLayers.forEach(l => { %><div class="lt-item"><input type="checkbox" id="ly-m-<%= l.id %>" data-overlay="m-<%= l.id %>"><label for="ly-m-<%= l.id %>"><%- ic2('layers') %><%= l.title %></label><button type="button" class="lt-btn" data-gear title="Độ mờ"><%- ic('gear-fill') %></button><button type="button" class="lt-btn" data-more title="<%= (l.source_org || '') + (l.map_year ? ' · ' + l.map_year : '') + (l.georef_method && l.georef_method.startsWith('gcp') ? ' · nắn chỉnh, RMSE ' + l.residual_error + ' m' : '') %>"><%- ic('three-dots') %></button><input type="range" min="0" max="1" step="0.05" value="<%= (l.display && l.display.opacity) || 0.8 %>" data-opacity="m-<%= l.id %>" aria-label="Độ mờ"></div><% }) %>
+        </details>
+        <% } %>
+        <% if (custom.length) { %>
+        <details class="lt-group" open data-lt-group="theme"><summary>Lớp vector bổ sung</summary>
+          <% custom.forEach(l => { %><div class="lt-item"><input type="checkbox" id="ly-c-<%= l.id %>" data-custom="<%= l.id %>"><label for="ly-c-<%= l.id %>"><span class="sw" style="background:<%= (l.style && l.style.color) || '#00bcd4' %>"></span><%= l.title %></label></div><% }) %>
+        </details>
+        <% } %>
+        <% } %>
+
+        <div class="lt-sec sec-base" data-lt-group="base"><%- ic('globe2') %> BẢN ĐỒ NỀN</div>
+        <div class="basemap-list" data-lt-group="base">
+          <label><input type="radio" name="bm-left" value="satellite" checked><img src="/generated/overlays/s2-2025-dry-true.webp" alt=""> Ảnh vệ tinh (Mapbox)</label>
+          <label><input type="radio" name="bm-left" value="streets"><img src="/assets/maps/communes-detail.png" alt=""> Bản đồ đường phố</label>
+          <label><input type="radio" name="bm-left" value="terrain"><img src="/generated/overlays/dem-2024.webp" alt=""> Bản đồ địa hình</label>
+          <label><input type="radio" name="bm-left" value="light"><img src="/assets/maps/administrative-overview.png" alt=""> Nền nhạt</label>
+        </div>
+        <div class="lt-sec sec-base" data-lt-group="base"><%- ic('image-fill') %> ẢNH VỆ TINH SENTINEL-2</div>
+        <details class="lt-group" open data-lt-group="base"><summary>Tổ hợp ảnh</summary>
+          <%- ovItem('s2-latest', latest ? 'Ảnh mới nhất ' + latest.month.slice(5) + '/' + latest.month.slice(0, 4) : 'Ảnh mới nhất', ic2('satellite')) %>
+          <%- ovItem('s2-2025-dry-true', 'Màu tự nhiên – mùa khô 2025', ic2('satellite')) %>
+          <%- ovItem('s2-2025-wet-true', 'Màu tự nhiên – mùa mưa 2025', ic2('satellite')) %>
+          <%- ovItem('s2-2025-dry-false', 'Giả màu – mùa khô 2025', ic2('satellite')) %>
+          <%- ovItem('s2-2025-wet-false', 'Giả màu – mùa mưa 2025', ic2('satellite')) %>
+        </details>
+        <div class="lt-sec sec-base" data-lt-group="base"><%- ic('graph-up-arrow') %> ĐỊA HÌNH & CHỈ SỐ</div>
+        <details class="lt-group" open data-lt-group="base"><summary>Địa hình, NDVI</summary>
+          <%- ovItem('dem-2024', 'Địa hình (DEM 30 m)', ic2('map')) %>
+          <%- ovItem('ndvi-2024-dry', 'NDVI mùa khô 2024', ic2('plantation')) %>
+          <%- ovItem('ndvi-2024-wet', 'NDVI mùa mưa 2024', ic2('plantation')) %>
+        </details>
+      </div>
+      <div style="padding:8px 12px 10px"><a class="btn btn-outline btn-block btn-sm" href="/quan-tri/ban-do"><%- ic('plus-lg') %> Thêm lớp dữ liệu</a></div>
+    </aside>
+
+    <!-- map -->
+    <section class="map-col">
+      <div class="map-shell card">
+        <div id="map" class="map"></div>
+        <div class="map-tools">
+          <button type="button" data-act="zoom-in" title="Phóng to"><%- ic('plus-lg') %></button>
+          <button type="button" data-act="zoom-out" title="Thu nhỏ"><%- ic('dash-lg') %></button>
+          <button type="button" data-act="home" title="Toàn vùng"><%- ic('house-fill') %></button>
+          <button type="button" data-act="locate" title="Vị trí của tôi"><%- ic('crosshair') %></button>
+          <button type="button" data-act="fullscreen" title="Toàn màn hình"><%- ic('fullscreen') %></button>
+        </div>
+        <div class="map-search" data-search="map"><%- ic('search') %><input type="search" placeholder="Tìm kiếm địa điểm, tọa độ, địa danh..." autocomplete="off"><div class="search-results"></div></div>
+        <div class="toolbar">
+          <button type="button" data-tool="select" class="on"><%- ic('cursor-fill') %>Chọn</button>
+          <button type="button" data-tool="length"><%- ic('rulers') %>Đo khoảng cách</button>
+          <button type="button" data-tool="area"><%- ic('bounding-box') %>Đo diện tích</button>
+          <button type="button" data-tool="coord"><%- ic('geo-alt-fill') %>Tọa độ</button>
+          <button type="button" data-act="export"><%- ic('image-fill') %>Xuất bản đồ</button>
+          <button type="button" data-act="share"><%- ic('share-fill') %>Chia sẻ</button>
+          <button type="button" data-act="print"><%- ic('file-earmark-pdf-fill') %>In</button>
+        </div>
+        <div class="basemaps">
+          <button type="button" data-base="satellite" class="on"><img src="/generated/overlays/s2-2025-dry-true.webp" alt="">Vệ tinh</button>
+          <button type="button" data-base="streets"><img src="/assets/maps/communes-detail.png" alt="">Đường phố</button>
+          <button type="button" data-base="terrain"><img src="/generated/overlays/dem-2024.webp" alt="">Địa hình</button>
+          <button type="button" data-base="light"><img src="/assets/maps/administrative-overview.png" alt="">Ảnh nền nhạt</button>
+          <button type="button" data-act="3d" class="b3d">3D</button>
+        </div>
+        <div class="legend" id="legend" hidden></div>
+        <div class="map-status" id="map-status">Nhấp vào bản đồ để xem thông tin</div>
+      </div>
+    </section>
+
+    <!-- info panel -->
+    <aside class="grid map-right">
+      <section class="card">
+        <div class="card-h"><h2><%- ic('info-circle-fill') %> Thông tin đối tượng</h2></div>
+        <div class="info-tabs" data-tabs="info"><button data-tab="hotspot" class="on">Điểm nóng cháy</button><button data-tab="forest">Rừng</button><button data-tab="admin">Hành chính</button></div>
+        <div class="card-b" id="info-body">
+          <div data-panel-group="info" data-panel="hotspot" id="info-hotspot"><p class="muted">Không có điểm nóng FIRMS trong 7 ngày gần nhất (cập nhật <%= fmt.dateTime(firms.collected_at) %>).</p></div>
+          <div data-panel-group="info" data-panel="forest" id="info-forest" hidden><p class="muted">Nhấp vào một xã trên bản đồ để xem số liệu rừng chính thức và biến động.</p></div>
+          <div data-panel-group="info" data-panel="admin" id="info-admin" hidden><p class="muted">Nhấp vào một xã để xem thông tin hành chính.</p></div>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('fire', 'lt-red') %> Dự báo nguy cơ cháy rừng</h2>
+          <select class="input" id="danger-day" style="width:auto;margin-left:auto;padding:5px 8px">
+            <% if (danger) { %><option value="current"><%= fmt.ymd(danger.today) %> (hôm nay)</option><% danger.daily.forEach((d, i) => { %><option value="<%= i %>"><%= fmt.ymd(d.date) %></option><% }) } %>
+          </select></div>
+        <div class="card-b">
+          <div class="donut-wrap" style="grid-template-columns:minmax(0,1fr) 128px"><ul class="risk-list" id="danger-list"></ul><div class="chart-box" style="height:128px"><canvas id="ch-danger"></canvas></div></div>
+          <p class="src" style="margin:6px 0 0">Diện tích có rừng (2025) của các xã theo cấp dự báo – chỉ số P Nesterov, tự động, chưa phải cảnh báo chính thức. <%= hotspotCount %> điểm nóng 7 ngày là dữ liệu quan sát riêng. <a href="/canh-bao-chay?tab=du-bao">Phương pháp</a></p>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('cloud-sun-fill', 'lt-blue') %> Thời tiết hiện tại</h2><span class="more muted" style="font-weight:400">Trung bình <%= weather.points %> điểm xã</span></div>
+        <div class="card-b">
+          <div class="wx"><%- cicon('weather') %><div><div class="t"><%= fmt.num(weather.temp, 0) %>°C</div><span class="muted"><%= weather.description %></span></div>
+            <div class="wx-grid" style="grid-template-columns:repeat(3,auto);gap:14px"><div><%- ic('droplet-fill', 'lt-blue') %> Độ ẩm<strong><%= fmt.num(weather.humidity, 0) %>%</strong></div><div><%- ic('cloud-rain-fill', 'lt-blue') %> Lượng mưa<strong><%= fmt.num(weather.rain1h || 0, 0) %> mm</strong></div><div><%- ic('wind', 'lt-blue') %> Gió<strong><%= fmt.num(weather.wind_ms * 3.6, 0) %> km/h</strong></div></div></div>
+          <p class="src" style="margin:6px 0 0">OpenWeather · <%= fmt.dateTime(weather.dt) %> · <a href="/thoi-tiet">Dự báo 7 ngày</a></p>
+        </div>
+      </section>
+    </aside>
+
+    <!-- bottom statistics -->
+    <div class="grid span-2 map-bottom">
+      <div class="card"><div class="card-h"><h3>Chuỗi thời gian điểm nóng cháy (7 ngày qua)</h3>
+        <select class="input" id="hs-commune" style="width:auto;margin-left:auto;padding:4px 8px;font-size:12.5px"><option value="">Toàn vùng</option></select></div>
+        <div class="card-b" style="padding-top:8px"><div class="chart-box short"><canvas id="ch-hot"></canvas></div></div></div>
+      <div class="card"><div class="card-h"><h3>Diện tích rừng theo loại</h3></div><div class="card-b" style="padding-top:8px">
+        <div class="donut-wrap" style="grid-template-columns:150px minmax(0,1fr)"><div class="chart-box" style="height:150px"><canvas id="ch-plan"></canvas></div>
+        <ul class="risk-list" style="font-size:12px">
+          <li><span class="dot" style="background:#006b38"></span>Rừng đặc dụng<span class="v"><%= fmt.num(summary.special_use_ha) %> ha (<%= fmt.num(summary.special_use_ha / summary.planning_ha * 100, 1) %>%)</span></li>
+          <li><span class="dot" style="background:#75bb25"></span>Rừng phòng hộ<span class="v"><%= fmt.num(summary.protection_ha) %> ha (<%= fmt.num(summary.protection_ha / summary.planning_ha * 100, 1) %>%)</span></li>
+          <li><span class="dot" style="background:#f8ce42"></span>Rừng sản xuất<span class="v"><%= fmt.num(summary.production_ha) %> ha (<%= fmt.num(summary.production_ha / summary.planning_ha * 100, 1) %>%)</span></li>
+        </ul></div></div></div>
+      <div class="card"><div class="card-h"><h3>Ảnh vệ tinh mới nhất</h3></div><div class="card-b" style="padding-top:8px">
+        <span class="src"><%= latest ? 'Sentinel-2 (' + latest.month.slice(5) + '/' + latest.month.slice(0, 4) + ')' : 'Sentinel-2' %></span>
+        <button type="button" class="btn-ghost" style="border:0;padding:0;cursor:pointer;width:100%;margin-top:4px" data-show-overlay="<%= latest ? 's2-latest' : 's2-2025-wet-true' %>"><img src="<%= latest ? latest.url : '/generated/overlays/s2-2025-wet-true.webp' %>" alt="Ảnh Sentinel-2 mới nhất" style="height:118px;width:100%;object-fit:cover;border-radius:6px;background:#20322e"></button></div></div>
+      <div class="card"><div class="card-h"><h3>Biến động rừng 2020–2024</h3></div><div class="card-b" style="padding-top:8px">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px"><img src="/assets/symbols/change-suspected.svg" width="34" alt=""><div><span class="muted">Mất tán cây</span><br><strong style="font-size:20px;color:var(--red)"><%= fmt.num(loss5) %> ha</strong></div>
+          <span style="margin-left:auto;color:<%= loss5 < prev5 ? '#0c7a51' : '#c0261f' %>;font-weight:700"><%= loss5 < prev5 ? '↓' : '↑' %> <%= fmt.num(Math.abs(loss5 - prev5) / prev5 * 100, 1) %>%</span></div>
+        <div style="display:flex;gap:12px;align-items:center"><img src="/assets/symbols/risk-4.svg" width="34" alt=""><div><span class="muted">Dự báo mất 2025–2026</span><br><strong style="font-size:20px;color:var(--navy)"><%= fmt.num(expected) %> ha</strong></div>
+          <span style="margin-left:auto" class="src">AUC <%= fv ? fmt.num(fv.auc, 2) : '—' %></span></div>
+        <p class="src" style="margin:6px 0 0">So với 2015–2019 · Hansen GFC; dự báo mô hình chưa phê duyệt</p></div></div>
+    </div>
+  </div>
+</main>
+<%- include('../partials/footer') %>
+<%- include('../partials/chartjs') %>
+<%- include('../partials/mapjs') %>
+<%- include('../partials/page-data', { pageData: { overlays: [...overlays, ...mapLayers.map(l => ({ id: 'm-' + l.id, url: l.overlay_url, coordinates: l.overlay_bounds, title: l.title, source: (l.source_org || 'Bản đồ chuyên đề') + (l.map_year ? ' · ' + l.map_year : ''), meaning: l.description || '', opacity: (l.display && l.display.opacity) || 0.8, tiles: l.display && l.display.tiles ? { url: '/ban-do-chuyen-de/tiles/' + l.id + '/{z}/{x}/{y}.png', minzoom: l.display.tiles.minzoom, maxzoom: l.display.tiles.maxzoom, bounds: l.display.tiles.bounds } : undefined }))], custom: custom.map(l => ({ id: l.id, title: l.title, url: '/api/public/layers/custom/' + l.id, style: l.style })), danger } }) %>
+<script src="/js/pages/map.js"></script>
+</body></html>

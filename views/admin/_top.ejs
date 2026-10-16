@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= title %> · Quản trị rừng Kon Tum</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/img/favicon-32.png" sizes="32x32" type="image/png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png"><meta name="theme-color" content="#0b6b3a">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<% if (typeof needsMap !== 'undefined' && needsMap) { %><link href="https://api.mapbox.com/mapbox-gl-js/v3.9.4/mapbox-gl.css" rel="stylesheet"><% } %>
+<link rel="stylesheet" href="/css/site.css"><link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin">
+<div class="adm">
+  <aside class="adm-side">
+    <a class="adm-brand" href="/quan-tri"><img src="/img/brand/emblem-128.png" alt=""><span>WebGIS KON TUM<small>Phân hệ quản trị</small></span></a>
+    <ul class="adm-nav">
+      <% const items = [
+        ['dashboard','/quan-tri','grid-fill','Dashboard','dashboard.view'],
+        ['grp','Dữ liệu'],
+        ['layers','/quan-tri/du-lieu','layers-fill','Dữ liệu không gian','dashboard.view'],
+        ['maps','/quan-tri/ban-do','map-fill','Bản đồ PDF / GeoTIFF','dashboard.view'],
+        ['imagery','/quan-tri/anh-ve-tinh','globe2','Ảnh vệ tinh','dashboard.view'],
+        ['forest','/quan-tri/tai-nguyen','tree-fill','Tài nguyên rừng','dashboard.view'],
+        ['analysis','/quan-tri/phan-tich','graph-up-arrow','Phân tích (Python)','dashboard.view'],
+        ['grp','Nghiệp vụ'],
+        ['alerts','/quan-tri/canh-bao','fire','Cảnh báo cháy & biến động','dashboard.view'],
+        ['reports','/quan-tri/phan-anh','megaphone-fill','Phản ánh hiện trường','reports.view'],
+        ['news','/quan-tri/tin-tuc','newspaper','Tin tức','dashboard.view'],
+        ['docs','/quan-tri/tai-lieu','file-earmark-pdf-fill','Tài liệu – Bản đồ PDF','dashboard.view'],
+        ['field','/quan-tri/hien-truong','geo-alt-fill','Nhiệm vụ hiện trường','dashboard.view'],
+        ['grp','Hệ thống'],
+        ['users','/quan-tri/nguoi-dung','people-fill','Người dùng','users.manage'],
+        ['audit','/quan-tri/nhat-ky','clock-history','Nhật ký hệ thống','audit.view'],
+        ['guide','/quan-tri/huong-dan','question-circle-fill','Hướng dẫn sử dụng'],
+        ['settings','/quan-tri/cai-dat','gear-fill','Cài đặt hệ thống',null],
+      ]; %>
+      <% items.forEach(it => { if (it[0] === 'grp') { %><li class="grp"><%= it[1] %></li><% } else if (!it[4] || can(it[4])) { %><li><a href="<%= it[1] %>" class="<%= section === it[0] ? 'on' : '' %>"><%- ic(it[2]) %> <%= it[3] %></a></li><% } }) %>
+      <li class="grp">Trang công khai</li>
+      <li><a href="/" target="_blank"><%- ic('box-arrow-right') %> Xem website</a></li>
+    </ul>
+  </aside>
+  <div class="adm-main">
+    <header class="adm-top">
+      <h1><%= title %></h1>
+      <div class="who">
+        <span class="muted"><%= ROLES[user.role] %></span>
+        <span class="avatar" title="<%= user.username %>"><%= (user.name || user.username).trim().charAt(0).toUpperCase() %></span>
+        <span><b><%= user.name || user.username %></b></span>
+        <form method="post" action="/quan-tri/dang-xuat"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm"><%- ic('box-arrow-right') %> Đăng xuất</button></form>
+      </div>
+    </header>
+    <main class="adm-body">
+      <% if (flash) { %><div class="flash <%= flash.type %>"><%= flash.text %></div><% } %>

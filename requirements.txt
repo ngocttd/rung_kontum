@@ -1,0 +1,14 @@
+# Python 3.11 (Windows/Linux x64) - analysis pipelines: scripts/*.py, scripts/map_worker.py
+# pip install -r requirements.txt   (inside a venv, then set PYTHON=... in .env)
+numpy==1.26.4
+rasterio==1.4.3
+scipy==1.13.1
+scikit-learn==1.5.2
+pillow==10.4.0
+shapely==2.0.6
+pyproj==3.7.0
+requests==2.32.3
+earthengine-api==1.4.3
+pymupdf==1.24.14
+beautifulsoup4==4.12.3
+openpyxl==3.1.5

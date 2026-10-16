@@ -1,0 +1,33 @@
+<%- include('_top') %>
+<% const stB = { published: ['b-green', 'Hoạt động'], staging: ['b-orange', 'Chờ duyệt'], invalid: ['b-red', 'Lỗi kiểm tra'] }; %>
+<div class="adm-tabs"><a class="on" href="#ds">Danh sách lớp dữ liệu</a><% if (can('data.manage')) { %><a href="#them">Thêm mới (GeoJSON)</a><% } %></div>
+<section class="card" id="ds">
+  <div class="card-h"><h2><%- ic('layers-fill') %> Lớp dữ liệu bản đồ</h2></div>
+  <div class="card-b table-wrap"><table class="tbl" data-page-size="15"><thead><tr><th>STT</th><th>Tên lớp dữ liệu</th><th>Loại dữ liệu</th><th>Nguồn</th><th>Độ phân giải</th><th>Ghi chú</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+    <% layers.forEach((l, i) => { %><tr><td><%= i + 1 %></td><td><%= l.title %></td><td><%= l.kind %></td><td><%= l.source %></td><td><%= l.resolution || '—' %></td><td class="src"><%= l.meaning || '' %></td><td><span class="badge b-green">Hoạt động</span></td><td class="src">Pipeline Python</td></tr><% }) %>
+    <% custom.forEach((l, i) => { %><tr><td><%= layers.length + i + 1 %></td><td><span class="dot" style="background:<%= l.style.color %>"></span> <%= l.title %></td><td>GeoJSON (<%= (l.validation.types || []).join(', ') %>) · <%= l.validation.count || 0 %> đối tượng</td><td><%= l.source || '—' %></td><td>—</td>
+      <td class="src"><%= l.validation.errors.length ? l.validation.errors.join('; ') : l.description %><br>Tải lên bởi <%= l.uploaded_by %> · <%= fmt.dateTime(l.created_at) %></td><td><span class="badge <%= stB[l.status][0] %>"><%= stB[l.status][1] %></span></td>
+      <td><% if (can('data.manage')) { %><form method="post" action="/quan-tri/du-lieu/<%= l.id %>/trang-thai" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>">
+        <% if (l.status === 'staging') { %><button class="btn btn-primary btn-sm" name="action" value="published">Duyệt công bố</button><% } %>
+        <% if (l.status === 'published') { %><button class="btn btn-outline btn-sm" name="action" value="staging">Gỡ công bố</button><% } %>
+        <button class="btn btn-outline btn-sm" name="action" value="delete" onclick="return confirm('Xóa lớp này?')"><%- ic('trash-fill') %></button></form><% } %></td></tr><% }) %>
+  </tbody></table></div>
+  <div class="card-f">Ranh giới: nguồn <%= manifest && manifest.source_version ? manifest.source_version.DatasetVersion : '' %> (commit <%= manifest ? String(manifest.source_commit).slice(0, 8) : '' %>). Các lớp raster được dựng lại bằng job “Dựng lại lớp ảnh bản đồ” ở mục Phân tích.</div>
+</section>
+<% if (can('data.manage')) { %>
+<form class="card" id="them" style="margin-top:16px" method="post" action="/quan-tri/du-lieu/tai-len" enctype="multipart/form-data">
+  <div class="card-h"><h2><%- ic('upload') %> Thêm lớp dữ liệu (GeoJSON, EPSG:4326)</h2></div>
+  <div class="card-b grid cols-4">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label class="field"><span>Tên lớp *</span><input class="input" name="title" required></label>
+    <label class="field"><span>Nguồn / cơ quan cung cấp</span><input class="input" name="source"></label>
+    <label class="field"><span>Màu hiển thị</span><input class="input" type="color" name="color" value="#00bcd4" style="height:40px"></label>
+    <label class="field"><span>Tệp GeoJSON *</span><input class="input" type="file" name="file" accept=".geojson,.json,application/geo+json,application/json" required></label>
+    <label class="field" style="grid-column:1/-1"><span>Mô tả, phạm vi, năm dữ liệu</span><textarea class="input" name="description" rows="2"></textarea></label>
+    <div style="grid-column:1/-1"><button class="btn btn-primary"><%- ic('upload') %> Tải lên và kiểm tra</button>
+      <span class="src" style="margin-left:10px">Quy trình: kiểm tra định dạng, hệ tọa độ và hình học → vùng chờ (staging) → người có quyền duyệt công bố → hiển thị trong “Lớp dữ liệu bổ sung” của bản đồ. Shapefile/GeoPackage cần chuyển sang GeoJSON WGS84 trước khi tải lên.</span></div>
+  </div>
+</form>
+<% } %>
+<%- include('_bottom') %>
+</body></html>

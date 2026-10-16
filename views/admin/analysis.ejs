@@ -1,0 +1,56 @@
+<%- include('_top') %>
+<% const st = { running: ['b-orange', 'Đang chạy'], succeeded: ['b-green', 'Hoàn thành'], failed: ['b-red', 'Lỗi'] }; const fv = fcg ? fcg.forecast.validation : null; const vd = fd ? fd.validation : null; %>
+<% const per = (h) => h >= 720 ? 'tháng' : h >= 168 ? (h / 168) + ' tuần' : h >= 24 ? (h / 24) + ' ngày' : h + ' giờ'; const rel = (t) => { if (!t) return '—'; const m = Math.round((new Date(t) - Date.now()) / 60e3); return m <= 0 ? 'đến hạn' : m < 60 ? `sau ${m} phút` : m < 2880 ? `sau ${Math.round(m / 60)} giờ` : `sau ${Math.round(m / 1440)} ngày`; }; %>
+<section class="card" style="margin-bottom:16px">
+  <div class="card-h"><h2><%- ic('calendar3') %> Lịch chạy tự động</h2>
+    <span class="badge <%= schedulerOn ? 'b-green' : 'b-gray' %>"><%= schedulerOn ? 'Bộ lập lịch đang hoạt động' : 'Bộ lập lịch tắt (ENABLE_DATA_JOBS=false)' %></span></div>
+  <div class="card-b">
+    <form method="post" action="/quan-tri/phan-tich/lich">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th style="width:34%">Tác vụ</th><th>Tự động</th><th>Chu kỳ</th><th>Lần chạy gần nhất</th><th>Lần tới</th><th></th></tr></thead><tbody>
+        <% Object.entries(defs).forEach(([k, d]) => { const p = plan[k]; const l = p.last; %>
+          <tr>
+            <td><b><%= d.title %></b><div class="src"><%= d.steps.map(s => s.script + (s.optional ? '*' : '')).join(' → ') %></div><div class="src"><%= d.note %></div></td>
+            <td><label class="switch-l"><input type="checkbox" name="en_<%= k %>" <%= p.enabled ? 'checked' : '' %> <%= !can('jobs.run') ? 'disabled' : '' %>> Bật</label></td>
+            <td><select name="every_<%= k %>" <%= !can('jobs.run') ? 'disabled' : '' %>><option value="0" <%= !p.every ? 'selected' : '' %>>Chỉ chạy tay</option><% periods.forEach(h => { %><option value="<%= h %>" <%= p.every === h ? 'selected' : '' %>>Mỗi <%= per(h) %></option><% }) %></select></td>
+            <td><% if (l) { %><span class="badge <%= st[l.status][0] %>"><%= st[l.status][1] %></span> <%= fmt.dateTime(l.started_at) %><div class="src"><%= l.trigger === 'schedule' ? 'tự động' : (l.by || '') %><%= l.duration_s ? ' · ' + Math.round(l.duration_s / 60) + ' phút' : '' %><%= l.warnings && l.warnings.length ? ' · thu thập lỗi: ' + l.warnings.join(', ') : '' %></div><% if (p.fails) { %><div class="src" style="color:#c0392b">Lỗi liên tiếp <%= p.fails %> lần<%= p.fails <= 3 ? ' – tự thử lại sau 30 phút' : ' – chờ chu kỳ kế tiếp' %></div><% } %><% } else { %>Chưa chạy<% } %></td>
+            <td><%= p.enabled ? (p.next ? fmt.dateTime(p.next) : 'đang chạy') : '—' %><div class="src"><%= p.enabled && p.next ? rel(p.next) : '' %></div></td>
+            <td><button class="btn btn-outline btn-sm" formaction="/quan-tri/phan-tich/chay" name="key" value="<%= k %>" <%= running || !can('jobs.run') ? 'disabled' : '' %>><%- ic('arrow-repeat') %> Chạy ngay</button></td>
+          </tr>
+        <% }) %>
+          <tr><td><b>Điểm nóng cháy NASA FIRMS (Area API)</b><div class="src">Dịch vụ nền của máy chủ, tiết kiệm lượt gọi (kiểm tra hạn mức trước khi tải)</div></td><td><%= firmsSt.enabled ? 'Luôn bật' : 'Chưa có MAP KEY' %></td><td>Mỗi <%= firmsSt.interval_minutes %> phút</td><td><%= firmsSt.collected_at ? fmt.dateTime(firmsSt.collected_at) : '—' %></td><td><%= firmsSt.backoff_until ? 'tạm hoãn đến ' + fmt.dateTime(firmsSt.backoff_until) : '' %></td><td></td></tr>
+        </tbody></table></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+        <% if (can('jobs.run')) { %><button class="btn btn-primary btn-sm"><%- ic('check-lg') %> Lưu lịch</button><% } %>
+        <span class="src">Chỉ một tác vụ chạy tại một thời điểm; tác vụ đến hạn được xếp lượt. Bước có dấu * là thu thập dữ liệu từ nguồn ngoài (Open-Meteo, Google Earth Engine): nếu lỗi mạng hoặc hạn mức, tác vụ vẫn tính tiếp với dữ liệu đã có và ghi cảnh báo. Kết quả dự báo vẫn cần cán bộ duyệt trước khi phát hành cảnh báo chính thức.</span>
+      </div>
+    </form>
+  </div>
+</section>
+<div class="grid" style="grid-template-columns:minmax(0,1fr)">
+  <section class="card">
+    <div class="card-h"><h2><%- ic('check-circle-fill') %> Kết quả mô hình hiện hành</h2></div>
+    <div class="card-b">
+      <h3 style="font-size:14px">Dự báo nguy cơ mất rừng (Random Forest, 100 m)</h3>
+      <% if (fv) { %><table class="kv"><tr><td>AUC kiểm định 2023–2024</td><td><b><%= fmt.num(fv.auc, 3) %></b></td></tr><tr><td>Brier hiệu chỉnh</td><td><%= fv.brier_calibrated %></td></tr><tr><td>Bắt được ở 10% nguy cơ cao nhất</td><td><%= fmt.num(fv.top10pct_capture * 100, 1) %>%</td></tr><tr><td>Tính lúc</td><td><%= fmt.dateTime(fcg.generated_at_utc) %></td></tr></table><% } %>
+      <h3 style="font-size:14px;margin-top:12px">Chỉ số nguy cơ cháy (Nesterov P, FWI)</h3>
+      <% if (vd) { %><table class="kv"><tr><td>AUC P / FWI</td><td><b><%= fmt.num(vd.auc_nesterov_p, 3) %></b> / <b><%= fmt.num(vd.auc_fwi, 3) %></b></td></tr><tr><td>Ngày-xã kiểm định</td><td><%= fmt.num(vd.commune_days) %> (<%= fmt.num(vd.commune_days_with_hotspot) %> có điểm nóng)</td></tr><tr><td>Tính lúc</td><td><%= fmt.dateTime(fd.generated_at_utc) %></td></tr></table><% } %>
+      <p class="src">Tham chiếu kiểm định là dữ liệu vệ tinh (Hansen, FIRMS), chưa phải hồ sơ đã xác minh. Kết quả xác minh nhập ở mục Cảnh báo sẽ là nhãn để hiệu chỉnh mô hình về sau.</p>
+    </div>
+  </section>
+</div>
+<% if (job) { %>
+<section class="card" style="margin-top:16px"><div class="card-h"><h2><%- ic('hourglass-split') %> <%= job.title %></h2><span class="badge <%= st[job.status][0] %>" id="job-st"><%= st[job.status][1] %></span></div>
+  <div class="card-b"><pre class="log-pre" id="job-log"><%= (job.log || []).join('\n') %></pre></div></section>
+<script>
+(function () { const id = <%- JSON.stringify(job.id) %>; const st = { running: 'Đang chạy', succeeded: 'Hoàn thành', failed: 'Lỗi' };
+  const tick = async () => { const j = await fetch('/quan-tri/api/jobs/' + id).then((r) => r.json()); document.getElementById('job-log').textContent = (j.log || []).join('\n'); document.getElementById('job-st').textContent = st[j.status]; if (j.status === 'running') setTimeout(tick, 2500); };
+  if (<%- JSON.stringify(job.status) %> === 'running') setTimeout(tick, 1500); })();
+</script>
+<% } %>
+<section class="card" style="margin-top:16px"><div class="card-h"><h2><%- ic('clock-history') %> Lịch sử chạy</h2></div>
+  <div class="card-b table-wrap"><% if (!jobs.length) { %><div class="empty-state">Chưa có lần chạy nào.</div><% } else { %><table class="tbl"><thead><tr><th>Tác vụ</th><th>Người chạy</th><th>Bắt đầu</th><th>Kết thúc</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    <% const pg = paginate(jobs, query.trang, 10); pg.items.forEach(j => { %><tr><td><%= j.title %></td><td><%= j.by %></td><td><%= fmt.dateTime(j.started_at) %></td><td><%= j.finished_at ? fmt.dateTime(j.finished_at) : '—' %></td><td><span class="badge <%= st[j.status][0] %>"><%= st[j.status][1] %></span></td><td><a href="?job=<%= j.id %>">Nhật ký</a></td></tr><% }) %></tbody></table><%- include('../partials/pager', { pg: pg }) %><% } %></div></section>
+<%- include('_bottom') %>
+</body></html>

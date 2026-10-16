@@ -1,0 +1,27 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<% const photo = photos.find(p => p.public_path === a.image); %>
+<main class="container page">
+  <div class="crumbs"><a href="/"><%- ic('house-fill') %></a> › <a href="/tin-tuc">Tin tức</a> › <span><%= a.categoryLabel %></span></div>
+  <div class="layout-2r" style="margin-top:8px">
+    <article class="card card-b article" style="max-width:none;padding:24px 28px">
+      <div class="meta"><span class="badge b-green"><%= a.categoryLabel %></span><% if (a.status !== 'published') { %><span class="badge b-draft"><%= a.statusLabel %> – nội dung chưa được duyệt xuất bản</span><% } %></div>
+      <h1><%= a.title %></h1>
+      <div class="meta"><span><%- ic('calendar3') %> <%= fmt.date(a.published_at || a.created_at) %></span><span><%- ic('person-fill') %> <%= a.author %></span><span><%- ic('eye-fill') %> <%= a.views || 0 %> lượt xem</span></div>
+      <figure><img src="<%= a.image %>" alt="">
+        <figcaption><%= photo ? photo.caption_vi + ' · ' + photo.credit_line : 'Ảnh minh họa, không phải ảnh hiện trường của sự kiện.' %><% if (photo) { %> · <a href="<%= photo.source_page %>" target="_blank" rel="noopener">nguồn</a><% } %></figcaption></figure>
+      <div class="body"><% String(a.body).split(/\n+/).forEach(p => { %><p><%= p %></p><% }) %></div>
+      <% if (a.source_url) { %><p class="src">Nguồn tham khảo: <a href="<%= a.source_url %>" target="_blank" rel="noopener"><%= a.source_url %></a><%= a.source_date ? ' · ' + fmt.ymd(a.source_date) : '' %></p><% } %>
+      <div style="display:flex;gap:8px;margin-top:14px"><a class="btn btn-outline btn-sm" href="/tin-tuc"><%- ic('chevron-left') %> Danh sách tin</a><button class="btn btn-outline btn-sm" onclick="navigator.share ? navigator.share({ title: document.title, url: location.href }) : navigator.clipboard.writeText(location.href)"><%- ic('share-fill') %> Chia sẻ</button></div>
+    </article>
+    <aside class="card">
+      <div class="card-h"><h2><%- ic('newspaper') %> Tin liên quan</h2></div>
+      <div class="card-b" style="padding-top:2px">
+        <% if (!related.length) { %><p class="muted">Chưa có tin cùng chủ đề.</p><% } %>
+        <% related.forEach(r => { %><div class="news-row"><img src="<%= r.image %>" alt="" loading="lazy"><div><h4><a href="/tin-tuc/<%= r.slug %>"><%= r.title %></a></h4><span class="src"><%= fmt.date(r.published_at || r.created_at) %></span></div></div><% }) %>
+      </div>
+    </aside>
+  </div>
+</main>
+<%- include('../partials/footer') %>
+</body></html>
