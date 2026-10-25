@@ -515,7 +515,8 @@ class _HotspotsLayer extends ConsumerWidget {
     for (final f in (g['features'] as List).cast<Map>()) {
       final p = (f['properties'] as Map).cast<String, dynamic>();
       final t = DateTime.tryParse(p['utc']?.toString() ?? '');
-      if (t != null && t.isBefore(since)) continue;
+      // lọc theo khoảng giờ chỉ áp dụng cho điểm chưa xác minh; điểm đang xử lý/đã xác nhận luôn hiện (máy chủ đã áp quy tắc hiển thị)
+      if (t != null && t.isBefore(since) && (p['status'] ?? 'new') == 'new') continue;
       final c = (f['geometry'] as Map)['coordinates'] as List;
       final pt = LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble());
       final icon = switch (p['status']) { 'confirmed' || 'handling' => 'fire-confirmed', 'rejected' => 'fire-rejected', 'verifying' || 'assigned' => 'fire-investigating', 'closed' => 'fire-resolved', _ => 'hotspot-unverified' };

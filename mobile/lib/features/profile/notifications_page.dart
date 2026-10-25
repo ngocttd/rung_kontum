@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
+import '../../core/notify_open.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
 
@@ -50,14 +50,8 @@ class NotificationsPage extends ConsumerWidget {
                   isThreeLine: true,
                   onTap: () async {
                     if (ref.read(sessionProvider).signedIn) ref.read(apiProvider).post('/api/mobile/notifications/read', {'ids': [n['id']]}).catchError((_) => <String, dynamic>{});
-                    switch (link['screen']) {
-                      case 'task':
-                        context.push('/tasks');
-                      case 'report':
-                        context.push('/reports?ma=${link['code']}');
-                      default:
-                        context.go('/fire');
-                    }
+                    await openNotificationLink(context, ref, link, fromList: true);
+                    ref.invalidate(notificationsProvider);
                   },
                 );
               },

@@ -131,7 +131,7 @@ async function scan() {
       const fire = r.type === 'chay-rung';
       await add({
         source_ref: `pa-new:${r.code}`, kind: 'report_new', title: `${fire ? 'Tin báo cháy rừng' : 'Phản ánh mới'} ${r.code}${r.commune_name ? ` – ${r.commune_name}` : ''}`,
-        body: String(r.description || '').slice(0, 200), data: { screen: fire ? 'fire' : 'notifications', code: r.code, lat: r.lat, lon: r.lon },
+        body: String(r.description || '').slice(0, 200), data: { screen: 'report', code: r.code, lat: r.lat, lon: r.lon },
         target_roles: ['specialist', 'leader'], target_communes: r.commune_code ? [r.commune_code] : null, priority: fire ? 'high' : 'normal',
       });
     }

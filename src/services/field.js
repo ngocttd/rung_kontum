@@ -596,8 +596,8 @@ async function notifications(auth, communes) {
       if (r.timeline.length > 1) list.push({ id: `PA-${r.code}-${r.timeline.length}`, kind: 'report', title: `Phản ánh ${r.code}: ${reports.STATUS[r.status].label}`, body: last.public_note || '', at: last.at, link: { screen: 'report', code: r.code } });
     }
     if (db.enabled && auth.role === 'specialist') {
-      const a = await db.query("SELECT code, title, created_at, due_at FROM mobile.field_assignments WHERE assignee_id = $1 AND status IN ('assigned','returned')", [auth.sub]);
-      for (const x of a.rows) list.push({ id: `NV-${x.code}`, kind: 'assignment', title: `Nhiệm vụ mới ${x.code}`, body: x.title, at: x.created_at, link: { screen: 'task', code: x.code } });
+      const a = await db.query("SELECT id, code, title, created_at, due_at FROM mobile.field_assignments WHERE assignee_id = $1 AND status IN ('assigned','returned')", [auth.sub]);
+      for (const x of a.rows) list.push({ id: `NV-${x.code}`, kind: 'assignment', title: `Nhiệm vụ mới ${x.code}`, body: x.title, at: x.created_at, link: { screen: 'task', id: x.id, code: x.code } });
     }
   }
   list.sort((a, b) => String(b.at).localeCompare(String(a.at)));

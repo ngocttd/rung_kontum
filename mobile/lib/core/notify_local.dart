@@ -34,6 +34,12 @@ class LocalNotifs {
     await android?.createNotificationChannel(_alerts);
     await android?.createNotificationChannel(_general);
     _ready = true;
+    // ứng dụng được mở từ một thông báo cục bộ (đã đóng hẳn) → giữ nội dung để khung ứng dụng mở đúng màn hình
+    try {
+      final launch = await _plugin.getNotificationAppLaunchDetails();
+      final payload = launch?.notificationResponse?.payload;
+      if (launch?.didNotificationLaunchApp == true && payload != null) tapped.value = (jsonDecode(payload) as Map).cast<String, dynamic>();
+    } catch (_) {}
   }
 
   /// Android 13+: xin quyền hiển thị thông báo.

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/notify_local.dart';
+import '../core/notify_open.dart';
 import '../core/outbox.dart';
 import '../core/push.dart';
 import '../core/realtime.dart';
@@ -119,6 +120,8 @@ class _ShellState extends ConsumerState<_Shell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(realtimeProvider.notifier).connect();
       ref.read(pushProvider.notifier).enable();
+      // chạm thông báo lúc ứng dụng đã đóng: nội dung đến trước khi khung ứng dụng sẵn sàng → mở ngay bây giờ
+      _openTapped();
     });
     LocalNotifs.tapped.addListener(_openTapped);
   }
@@ -133,17 +136,10 @@ class _ShellState extends ConsumerState<_Shell> {
     final d = LocalNotifs.tapped.value;
     if (d == null || !mounted) return;
     LocalNotifs.tapped.value = null;
-    switch (d['screen']) {
-      case 'task':
-        d['id'] != null ? context.push('/tasks/${d['id']}') : context.go('/work');
-      case 'report':
-        context.push('/reports?ma=${d['code'] ?? ''}');
-      case 'fire':
-      case 'hotspot':
-        context.go('/fire');
-      default:
-        context.push('/notifications');
+    if (ref.read(sessionProvider).signedIn && d['id'] != null) {
+      ref.read(apiProvider).post('/api/mobile/notifications/read', {'ids': [d['id']]}).catchError((_) => <String, dynamic>{});
     }
+    openNotificationLink(context, ref, d);
   }
 
   @override
