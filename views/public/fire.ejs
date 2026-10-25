@@ -16,7 +16,7 @@
 <%- include('../partials/banner', { banner: 'p04-fire', heading: 'Cảnh báo cháy rừng Kon Tum', crumb: 'Cảnh báo cháy rừng',
   lead: 'Theo dõi điểm nóng vệ tinh, dự báo nguy cơ cháy rừng 7 ngày tới theo từng xã, hỗ trợ cảnh báo sớm và chỉ đạo ứng phó kịp thời.',
   kpis: [
-    { icon: 'fire', value: String(hotspots.length), label: 'Điểm nóng 7 ngày', tone: 'fire', sub: 'chưa xác minh hiện trường' },
+    { icon: 'fire', value: String(hotspots.length), label: 'Điểm nóng / điểm cháy trên bản đồ', tone: 'fire', sub: hotspots.filter(h => ['new','assigned','verifying'].includes(h.status)).length + ' chưa xác minh · ' + hotspots.filter(h => ['confirmed','handling','closed'].includes(h.status)).length + ' xác nhận cháy' },
     { icon: 'exclamation-triangle-fill', value: String(atRisk.length), label: 'Xã nguy cơ cấp III+ (7 ngày)', tone: 'warn', sub: danger ? 'tính lúc ' + fmt.dateTime(danger.inputs) : '' },
     { icon: 'tree-fill', value: fmt.num(forestAtRisk) + ' ha', label: 'Rừng thuộc các xã cấp III+', tone: 'green', sub: 'theo số liệu rừng 2025' },
     { icon: 'thermometer-half', value: fmt.num(weather.temp, 0) + '°C', label: 'Nhiệt độ trung bình', tone: 'blue', sub: 'độ ẩm ' + fmt.num(weather.humidity, 0) + '%' },
@@ -32,8 +32,8 @@
     <aside class="card col-left">
       <div class="card-h"><h2><%- ic('layers-fill') %> Lớp dữ liệu</h2></div>
       <div class="card-b">
-        <div class="field"><span>Điểm nóng (7 ngày)</span>
-          <% Object.entries({ J1_VIIRS: 'VIIRS NOAA-20', J2_VIIRS: 'VIIRS NOAA-21', SUOMI_VIIRS: 'VIIRS S-NPP', MODIS: 'MODIS Terra/Aqua' }).forEach(([k, l]) => { %>
+        <div class="field"><span>Điểm nóng (FIRMS 7 ngày) và điểm cháy nhập tay</span>
+          <% Object.entries({ J1_VIIRS: 'VIIRS NOAA-20', J2_VIIRS: 'VIIRS NOAA-21', SUOMI_VIIRS: 'VIIRS S-NPP', MODIS: 'MODIS Terra/Aqua', MANUAL: 'Nhập thủ công (báo tin)' }).forEach(([k, l]) => { %>
             <label class="check"><input type="checkbox" data-sensor="<%= k %>" checked> <img src="/assets/markers/hotspot-unverified.png" width="16" alt=""> <%= l %> <span class="muted">(<%= sensorCount[k] || 0 %>)</span></label>
           <% }) %>
         </div>
@@ -69,7 +69,10 @@
           <h4>Cấp dự báo cháy rừng (chỉ số P)</h4>
           <% [5,4,3,2,1].forEach(k => { const m = fd ? fd.method.nesterov_classes[k] : null; %><div class="row"><span class="sw" style="background:var(--r<%= k %>)"></span><%= LV[k].split(' – ')[1] %> <span class="muted">(<%= k === 1 ? '≤ 5.000' : k === 5 ? '> 20.000' : fmt.num(fd.method.nesterov_classes[k-1].max_p + 1) + '–' + fmt.num(m.max_p) %>)</span></div><% }) %>
           <div class="row"><img src="/assets/markers/hotspot-unverified.png" width="16" alt=""> Điểm nóng chưa xác minh</div>
-          <div class="row"><img src="/assets/markers/fire-confirmed.png" width="16" alt=""> Cháy đã xác nhận</div>
+          <div class="row"><img src="/assets/markers/fire-investigating.png" width="16" alt=""> Đang xác minh</div>
+          <div class="row"><img src="/assets/markers/fire-confirmed.png" width="16" alt=""> Xác nhận cháy / đang xử lý</div>
+          <div class="row"><img src="/assets/markers/fire-rejected.png" width="16" alt=""> Không phải cháy rừng</div>
+          <div class="row"><img src="/assets/markers/fire-resolved.png" width="16" alt=""> Đã kết thúc</div>
         </div>
       </div>
     </section>
@@ -100,7 +103,7 @@
       <section class="card">
         <div class="card-h"><h2><%- ic('bell-fill') %> Cảnh báo mới nhất</h2></div>
         <div class="card-b" style="padding-top:0;padding-bottom:0">
-          <% const latest = [...dangerAlerts.slice(0, 3), ...hotspots.slice(0, 2).map(h => ({ type: 'hotspot', title: 'Điểm nóng ' + h.sensorLabel + (h.commune ? ' tại ' + h.commune : ''), detail: 'Độ tin cậy ' + h.confidence + ' · ' + h.statusLabel, time: h.utc, link: '?diem=' + encodeURIComponent(h.id) }))]; %>
+          <% const latest = [...dangerAlerts.slice(0, 3), ...hotspots.slice(0, 2).map(h => ({ type: 'hotspot', title: (h.manual ? 'Điểm cháy báo tin ' + h.manual.code : 'Điểm nóng ' + h.sensorLabel) + (h.commune ? ' tại ' + h.commune : ''), detail: (h.manual ? h.sensorLabel : 'Độ tin cậy ' + h.confidence) + ' · ' + h.statusLabel, time: h.utc, link: '?diem=' + encodeURIComponent(h.id) }))]; %>
           <% if (!latest.length) { %><div class="empty-state"><%- ic('check-circle-fill') %>Không có xã nào đạt cấp III trở lên trong 7 ngày tới.</div><% } %>
           <% latest.forEach(a => { %>
             <a class="alert-item" href="<%= a.link %>" style="text-decoration:none;color:inherit">
@@ -118,10 +121,11 @@
   <section data-panel-group="fire" data-panel="diem-nong" <%= tab === 'diem-nong' ? '' : 'hidden' %> class="card span-2">
     <div class="card-h"><h2><%- ic('fire') %> Danh sách điểm nóng 7 ngày gần nhất</h2><span class="more muted" style="font-weight:400">Cập nhật nguồn: <%= fmt.dateTime(firms.collected_at) %></span></div>
     <div class="card-b table-wrap">
+      <div class="note info" id="hs-live-note" hidden style="margin-bottom:8px">Có điểm nóng mới hoặc đã thay đổi danh sách – <a href="">tải lại trang</a> để xem đầy đủ. Bản đồ đã cập nhật.</div>
       <% if (!hotspots.length) { %><div class="empty-state">Không có điểm nóng.</div><% } else { %>
       <table class="tbl" data-page-size="10"><thead><tr><th>Mã</th><th>Thời gian (giờ VN)</th><th>Cảm biến</th><th>Độ tin cậy</th><th class="num">FRP (MW)</th><th class="num">Nhiệt độ sáng (K)</th><th>Vị trí</th><th>Địa bàn</th><th>Lớp phủ tại điểm</th><th>Trạng thái</th></tr></thead><tbody>
         <% hotspots.forEach(h => { %><tr data-hs="<%= h.id %>" style="cursor:pointer"><td class="src"><%= h.id.slice(0, 22) %></td><td><%= fmt.dateTime(h.utc) %></td><td><%= h.sensorLabel %></td><td><%= h.confidence %></td><td class="num"><%= h.frp ?? '—' %></td><td class="num"><%= fmt.num(h.brightness, 1) %></td><td><%= h.lat.toFixed(4) %>, <%= h.lon.toFixed(4) %></td><td><%= h.commune || 'Ngoài ranh xã' %></td>
-          <td><%= h.context ? (h.context.landcover || '—') + (h.context.in_forest ? ' · trong rừng' : ' · ngoài rừng') : '—' %></td><td><span class="badge <%= hsBadge[h.status] %>"><%= h.statusLabel %></span></td></tr><% }) %>
+          <td><%= h.context ? (h.context.landcover || '—') + (h.context.in_forest ? ' · trong rừng' : ' · ngoài rừng') : '—' %></td><td><span class="badge <%= hsBadge[h.status] %>" data-hs-status="<%= h.id %>"><%= h.statusLabel %></span></td></tr><% }) %>
       </tbody></table><% } %>
       <p class="src">NASA FIRMS (LANCE NRT). Thời gian gốc UTC được chuyển sang giờ Việt Nam. Lớp phủ đối chiếu trong cửa sổ ~90 m: ESA WorldCover 2021 và rừng Hansen còn đến 2024. Điểm nóng có thể là đốt nương rẫy, đốt thực bì hoặc nguồn nhiệt khác; chỉ ghi “cháy rừng” sau xác minh.</p>
     </div>
@@ -193,6 +197,26 @@
         <p class="src">Điểm nóng: <%= history ? history.source : '' %> (<%= history ? fmt.num(history.total) : 0 %> pixel). Diện tích cháy: <%= burned ? burned.source : '' %> (pixel 500 m, mọi loại lớp phủ, có độ trễ công bố).</p></div></div>
     <div class="card"><div class="card-h"><h2><%- ic('bar-chart-fill') %> Xã có nhiều điểm nóng nhất 2024–2026</h2></div>
       <div class="card-b"><div class="chart-box tall"><canvas id="ch-hist-commune"></canvas></div></div></div>
+    <div class="card span-2" id="tra-cuu" style="grid-column:1 / -1">
+      <div class="card-h"><h2><%- ic('search') %> Tra cứu lịch sử điểm nóng / điểm cháy</h2><span class="more muted" style="font-weight:400" id="ar-count"></span></div>
+      <div class="card-b">
+        <p class="note info" style="margin-bottom:10px">Bản đồ hiện hành chỉ hiện: điểm <b>chưa xác minh</b> trong 7 ngày kể từ lúc phát hiện; điểm <b>đang xác minh / xác nhận cháy / đang xử lý</b> cho đến khi đóng hồ sơ; điểm <b>đã kết thúc</b> thêm 7 ngày; điểm <b>không phải cháy rừng</b> ẩn ngay. Mọi điểm (NASA FIRMS từng tải về và điểm nhập tay) đều được lưu và tra cứu tại đây.</p>
+        <form class="filters" id="ar-form">
+          <label>Từ ngày<input class="input" type="date" name="from"></label>
+          <label>Đến ngày<input class="input" type="date" name="to"></label>
+          <label>Xã/phường<select class="input" name="xa"><option value="">Toàn vùng</option><% communes.slice().sort((a, b) => a.fullName.localeCompare(b.fullName, 'vi')).forEach(c => { %><option value="<%= c.code %>"><%= c.fullName %></option><% }) %></select></label>
+          <label>Trạng thái<select class="input" name="trang_thai"><option value="">Tất cả</option><% Object.entries({ new: 'Mới phát hiện', assigned: 'Cần xác minh', verifying: 'Đang xác minh', confirmed: 'Xác nhận cháy', handling: 'Đang xử lý', closed: 'Kết thúc', rejected: 'Không phải cháy rừng' }).forEach(([k, l]) => { %><option value="<%= k %>"><%= l %></option><% }) %></select></label>
+          <label>Nguồn<select class="input" name="nguon"><option value="">Tất cả</option><option value="firms">Tự động (NASA FIRMS)</option><option value="tay">Nhập thủ công</option></select></label>
+          <button class="btn btn-primary btn-sm" type="submit"><%- ic('search') %> Tra cứu</button>
+          <a class="btn btn-outline btn-sm" id="ar-csv" href="#"><%- ic('download') %> Tải CSV</a>
+        </form>
+        <div class="grid" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:12px;margin-top:10px">
+          <div class="map-shell" style="height:460px"><div id="ar-map" class="map"></div><div class="legend" id="ar-legend"></div></div>
+          <div class="table-wrap" style="max-height:460px;overflow:auto"><table class="tbl compact" id="ar-table"><thead><tr><th>Thời điểm (giờ VN)</th><th>Nguồn</th><th>Xã/phường</th><th>Trạng thái</th></tr></thead><tbody><tr><td colspan="4" class="muted">Chọn điều kiện rồi bấm Tra cứu.</td></tr></tbody></table></div>
+        </div>
+        <p class="src" id="ar-src">Nguồn: PostGIS fire.hotspots (mọi điểm NASA FIRMS NRT đã tải về) và điểm cháy nhập thủ công. Mặc định 30 ngày gần nhất; tối đa 2.000 điểm mỗi lần hiển thị, 20.000 điểm khi tải CSV.</p>
+      </div>
+    </div>
   </section>
   </div>
 </main>
@@ -203,7 +227,7 @@
   communes: fd ? fd.communes.map(c => ({ code: c.code, name: c.name, days: [c.current, ...c.forecast], recent: c.recent.slice(-8) })) : [],
   forest: Object.fromEntries(communes.map(c => [c.code, (c.official || {}).established_forest_ha || 0])),
   names: Object.fromEntries(communes.map(c => [c.code, c.fullName])),
-  hotspots: hotspots.map(h => ({ ...h, decision: undefined })), history, burnedMonthly: burned ? burned.monthly : null,
+  hotspots: hotspots.map(h => ({ ...h, decision: undefined })), hsBadge, history, burnedMonthly: burned ? burned.monthly : null,
   validation: v, overlays: overlays.filter(o => ['worldcover-2021', 'ndvi-2025-dry'].includes(o.id)), selectedHotspot, selectedCommune } }) %>
 <script src="/js/pages/fire.js"></script>
 </body></html>

@@ -34,8 +34,9 @@ function fireDangerAlerts(minClass = 3) {
 
 function hotspotAlerts() {
   return repo.hotspots().map((h) => ({
-    id: h.id, type: 'hotspot', level: null, title: `Điểm nóng ${h.sensorLabel}${h.commune ? ` tại ${h.commune}` : ''}`,
-    detail: `Độ tin cậy ${h.confidence}${h.frp ? ` · FRP ${h.frp} MW` : ''}${h.context ? ` · ${h.context.in_forest ? 'trong vùng rừng' : `lớp phủ: ${h.context.landcover || 'không rõ'}`}` : ''}`,
+    id: h.id, type: 'hotspot', level: null, manual: Boolean(h.manual),
+    title: h.manual ? `Điểm cháy báo tin ${h.manual.code}${h.commune ? ` tại ${h.commune}` : ''}` : `Điểm nóng ${h.sensorLabel}${h.commune ? ` tại ${h.commune}` : ''}`,
+    detail: h.manual ? `${h.sensorLabel}${h.manual.area_ha ? ` · ước tính ${h.manual.area_ha} ha` : ''}` : `Độ tin cậy ${h.confidence}${h.frp ? ` · FRP ${h.frp} MW` : ''}${h.context ? ` · ${h.context.in_forest ? 'trong vùng rừng' : `lớp phủ: ${h.context.landcover || 'không rõ'}`}` : ''}`,
     commune: h.commune, communeCode: h.communeCode, time: h.utc, status: h.status, statusLabel: h.statusLabel,
     official: h.status === 'confirmed', link: `/canh-bao-chay?diem=${encodeURIComponent(h.id)}`, lon: h.lon, lat: h.lat,
   }));

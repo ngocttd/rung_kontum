@@ -64,7 +64,7 @@ const publicGuide = {
       ],
       notes: [
         { type: 'warn', text: 'Điểm “nghi vấn” chưa phải kết luận mất rừng. Chỉ khi cán bộ xác minh thực địa, trạng thái mới chuyển thành “Xác nhận mất rừng” hoặc “Không phải mất rừng / Rụng lá theo mùa”.' },
-        { type: 'tip', text: 'Hệ thống tự động tải ảnh tháng mới và tính lại hằng tuần, nên danh sách luôn phản ánh tháng gần nhất đã đủ ảnh.' },
+        { type: 'tip', text: 'Hệ thống tự động tải ảnh tổng hợp tháng mới và tính lại vào ngày 5 hằng tháng (hoặc hằng quý nếu quản trị chọn), khi ảnh tháng trước đã đủ – ảnh quang học hay bị mây nên không cập nhật theo ngày/tuần.' },
       ],
     },
     {
@@ -78,6 +78,7 @@ const publicGuide = {
       ],
       notes: [
         { type: 'warn', text: 'Ba loại thông tin cần phân biệt: (1) Dự báo nguy cơ – thời tiết thuận lợi cho cháy, không phải đang cháy; (2) Điểm nóng vệ tinh – điểm nhiệt bất thường, có thể là đốt nương, đốt rác; (3) Sự kiện đã xác minh – do cán bộ kiểm tra thực địa.' },
+        { type: 'tip', text: 'Thời gian hiện trên bản đồ: điểm chưa xác minh 7 ngày kể từ lúc phát hiện; điểm đang xác minh, xác nhận cháy, đang xử lý hiện cho đến khi đóng hồ sơ; điểm đã kết thúc hiện thêm 7 ngày; điểm “không phải cháy rừng” ẩn ngay. Sau đó dữ liệu không bị xoá – tra cứu, xem trên bản đồ và tải CSV ở trang Cảnh báo cháy rừng → thẻ Lịch sử điểm nóng.' },
         { type: 'tip', text: 'Điểm nóng cập nhật tự động mỗi 30 phút; dự báo khí tượng 3 giờ/lần; số liệu tái phân tích ERA5-Land 1 lần/ngày.' },
       ],
     },
@@ -129,7 +130,7 @@ const publicGuide = {
   faq: [
     ['Vì sao bản đồ thể hiện cấp nguy cơ cao nhưng không có cháy?', 'Cấp nguy cơ phản ánh điều kiện thời tiết thuận lợi cho cháy (nắng nóng, khô, ít mưa). Cháy chỉ xảy ra khi có nguồn lửa; cấp cao là lúc cần tăng cường phòng ngừa.'],
     ['Điểm nóng vệ tinh có phải là cháy rừng?', 'Chưa chắc. Điểm nóng là điểm có nhiệt độ bất thường; có thể là đốt nương rẫy, đốt phụ phẩm, công trình. Trạng thái xác minh của cán bộ được ghi kèm từng điểm.'],
-    ['Số liệu được cập nhật khi nào?', 'Điểm nóng: 30 phút/lần. Dự báo nguy cơ cháy: 3 giờ/lần. Tái phân tích ERA5-Land: hằng ngày. Ảnh Sentinel-2 và biến động rừng: hằng tuần (theo tháng ảnh mới). Hiện trạng rừng: theo quyết định công bố hằng năm.'],
+    ['Số liệu được cập nhật khi nào?', 'Điểm nóng: 30 phút/lần. Dự báo nguy cơ cháy: 3 giờ/lần. Tái phân tích ERA5-Land: hằng ngày. Ảnh Sentinel-2 và biến động rừng: hằng tháng (ngày 5) hoặc hằng quý. Hiện trạng rừng: theo quyết định công bố hằng năm.'],
     ['Thông tin cá nhân khi gửi phản ánh có bị công khai?', 'Không. Họ tên, số điện thoại chỉ cán bộ xử lý được xem; tra cứu bằng mã hồ sơ không hiển thị số điện thoại.'],
   ],
 };
@@ -138,9 +139,9 @@ const adminGuide = {
   title: 'Hướng dẫn sử dụng – Phân hệ quản trị',
   lead: 'Dành cho Quản trị hệ thống, Cán bộ chuyên môn (Sở NN&MT / Kiểm lâm) và Lãnh đạo. Các chức năng hiển thị theo quyền của từng vai trò.',
   roles: [
-    ['Quản trị hệ thống (admin)', 'Quản lý người dùng, cấu hình, dữ liệu, bản đồ (được xuất bản/thu hồi/xoá bản đồ), tin tức, tài liệu, chạy phân tích. Không xác minh nghiệp vụ cảnh báo.'],
+    ['Quản trị hệ thống (admin)', 'Quản lý người dùng, cấu hình, dữ liệu, bản đồ (được xuất bản/thu hồi/xoá bản đồ), tin tức, tài liệu, chạy phân tích; cập nhật và đánh dấu đã kiểm tra phản ánh; nhập tin báo cháy. Không xác minh nghiệp vụ cảnh báo.'],
     ['Cán bộ chuyên môn (specialist)', 'Xác minh điểm nóng, biến động; phê duyệt cảnh báo nguy cơ cháy; xử lý phản ánh; quản lý dữ liệu, bản đồ (tải lên, cấu hình, nắn chỉnh, gửi duyệt), tin tức, tài liệu; chạy phân tích.'],
-    ['Lãnh đạo (leader)', 'Xem toàn bộ dashboard, phản ánh, nhật ký; phê duyệt công bố cảnh báo nguy cơ cháy.'],
+    ['Lãnh đạo (leader)', 'Xem toàn bộ dashboard, nhật ký; cập nhật và đánh dấu đã kiểm tra phản ánh; nhập tin báo cháy; phê duyệt công bố cảnh báo nguy cơ cháy.'],
   ],
   sections: [
     {
@@ -209,7 +210,7 @@ const adminGuide = {
       steps: [
         '“Cập nhật khí tượng Open-Meteo và chỉ số nguy cơ cháy” – mặc định mỗi 3 giờ.',
         '“Cập nhật tái phân tích ERA5-Land (GEE)…” – mặc định mỗi ngày (ERA5-Land trễ khoảng 5 ngày).',
-        '“Ảnh Sentinel-2 tháng mới, biến động nghi vấn và dự báo nguy cơ mất rừng” – mặc định mỗi tuần; tháng vừa kết thúc được tải lại tới 5 ngày sau để nhận đủ ảnh.',
+        '“Ảnh Sentinel-2 tháng mới, biến động nghi vấn và dự báo nguy cơ mất rừng” – chỉ chọn được mỗi tháng (mặc định) hoặc mỗi quý; chạy ngày 5 lúc 02:00 (quý: tháng 1, 4, 7, 10) để tháng vừa kết thúc đã đủ ảnh. Ảnh quang học hay bị mây nên không đặt chu kỳ ngày/tuần. Dòng báo lỗi có liên kết “xem nhật ký lỗi”.',
         '“Dựng lại lớp ảnh bản đồ…” – chỉ chạy tay khi dữ liệu nền thay đổi.',
         'Điểm nóng NASA FIRMS là dịch vụ nền 30 phút/lần, có kiểm tra hạn mức khoá API trước khi tải.',
         'Đổi chu kỳ hoặc bật/tắt tự động ở cột “Tự động”, “Chu kỳ” rồi bấm “Lưu lịch”. “Chạy ngay” để chạy tức thì.',
@@ -222,13 +223,15 @@ const adminGuide = {
     },
     {
       id: 'canh-bao', title: '9. Cảnh báo cháy & biến động: xác minh, phê duyệt', icon: 'fire', img: 'a-alerts', caption: 'Thẻ Điểm nóng (FIRMS)',
-      intro: 'Ba thẻ: Điểm nóng (FIRMS), Nguy cơ cháy (P/FWI), Biến động rừng.',
+      intro: 'Các thẻ: Điểm nóng / điểm cháy (tự động FIRMS + nhập thủ công), Nhập thủ công điểm cháy, Nguy cơ cháy (P/FWI), Biến động rừng.',
       steps: [
-        'Điểm nóng: cán bộ chuyên môn cập nhật trạng thái theo luồng Mới phát hiện → Cần xác minh → Đang xác minh → Xác nhận cháy / Không phải cháy rừng → Đang xử lý → Kết thúc, kèm người được giao và ghi chú. Trạng thái hiện ngay trên bản đồ công khai.',
+        'Điểm nóng / điểm cháy: cán bộ chuyên môn cập nhật trạng thái theo luồng Mới phát hiện → Cần xác minh → Đang xác minh → Xác nhận cháy / Không phải cháy rừng → Đang xử lý → Kết thúc, kèm người được giao và ghi chú. Trạng thái hiện ngay trên bản đồ công khai. Lọc “Mọi nguồn / Tự động (NASA FIRMS) / Nhập thủ công”. Danh sách gồm điểm chưa xác minh 7 ngày, điểm còn đang xử lý (dù đã cũ – có ghi “đang theo dõi”) và điểm mới kết luận trong 7 ngày; điểm cũ hơn xem ở “Lịch sử điểm nóng”.',
+        'Nhập thủ công điểm cháy (khi có tin báo không đến từ vệ tinh, hoặc vệ tinh bỏ sót do mây, cháy nhỏ, cháy dưới tán): bấm “Nhập điểm cháy”, bấm trên bản đồ để lấy toạ độ (kéo ghim để chỉnh) hoặc nhập toạ độ GPS, chọn thời điểm phát hiện, nguồn tin (kiểm lâm, tổ chống cháy/xã, người dân báo tin, phản ánh…), diện tích ước tính, mô tả. Điểm nhập tay có mã CH-<năm>-<số>, đi chung danh sách, bản đồ và quy trình xác minh với điểm nóng FIRMS, luôn ghi rõ nguồn “Nhập thủ công”. Mô tả và người nhập chỉ cán bộ xem.',
+        'Trạng thái ban đầu: quản trị và lãnh đạo nhập tin ở trạng thái “Mới phát hiện” (chờ cán bộ chuyên môn xác minh); cán bộ chuyên môn có thể nhập thẳng “Xác nhận cháy” khi đã kiểm tra hiện trường – khi đó người dân và thiết bị theo dõi xã nhận thông báo “Đã xác minh cháy rừng” trên MobileGIS.',
         'Nguy cơ cháy: danh sách xã – ngày có cấp III trở lên. Cán bộ chuyên môn hoặc lãnh đạo chọn “Phê duyệt công bố” hoặc “Không công bố”.',
         'Biến động rừng: xác minh từng điểm nghi vấn thành Xác nhận mất rừng / Không phải mất rừng / Rụng lá theo mùa. Kết quả xác minh là nhãn để hiệu chỉnh mô hình về sau.',
       ],
-      notes: [{ type: 'warn', text: 'Quản trị hệ thống chỉ xem, không xác minh nghiệp vụ (tách bạch quản trị kỹ thuật và chuyên môn).' }],
+      notes: [{ type: 'warn', text: 'Quản trị hệ thống không xác minh nghiệp vụ (tách bạch quản trị kỹ thuật và chuyên môn), nhưng được nhập tin báo cháy để cán bộ chuyên môn xác minh.' }],
       extra: [['a-alerts-danger', 'Thẻ Nguy cơ cháy – phê duyệt công bố'], ['a-alerts-change', 'Thẻ Biến động rừng – xác minh điểm nghi vấn']],
     },
     {
@@ -246,12 +249,16 @@ const adminGuide = {
     },
     {
       id: 'phan-anh', title: '10. Xử lý phản ánh hiện trường', icon: 'megaphone-fill', img: 'a-reports', caption: 'Danh sách phản ánh',
-      intro: 'Tiếp nhận và xử lý phản ánh người dân gửi từ cổng công khai.',
+      intro: 'Tiếp nhận và xử lý phản ánh gửi từ cổng công khai và ứng dụng MobileGIS. Quản trị, lãnh đạo và cán bộ chuyên môn đều cập nhật được hồ sơ.',
       steps: [
-        'Lọc theo trạng thái, loại phản ánh; nhấp mã hồ sơ để mở chi tiết (ảnh, vị trí trên bản đồ, thông tin liên hệ).',
-        'Cập nhật trạng thái (Đã tiếp nhận → Đang xác minh → Đang xử lý → Đã xử lý / Không đủ căn cứ → Đã đóng), giao người xử lý, ghi chú nội bộ và ghi chú công khai.',
+        'Thẻ “Danh sách phản ánh”: lọc theo trạng thái, loại phản ánh, đã kiểm tra / chưa kiểm tra; bấm “Xử lý” để mở chi tiết (ảnh, video, vị trí trên bản đồ, thông tin liên hệ).',
+        'Thẻ “Bản đồ phản ánh”: hiện vị trí chính xác của các phản ánh theo bộ lọc, viền màu theo trạng thái xử lý; bấm điểm (hoặc dòng bên phải) để xem tóm tắt và mở hồ sơ.',
+        'Kiểm tra hồ sơ: bấm “Đánh dấu đã kiểm tra” ngay trên danh sách hoặc trong chi tiết; hệ thống ghi người và thời điểm kiểm tra vào lịch sử xử lý (có thể bỏ đánh dấu).',
+        'Cập nhật trạng thái (Đã tiếp nhận → Đang xác minh → Đang xử lý → Đã xử lý / Không đủ căn cứ → Đã đóng), giao người xử lý, ghi chú nội bộ và ghi chú công khai. Người gửi có tài khoản nhận thông báo khi hồ sơ đổi trạng thái.',
+        'Phản ánh loại “Cháy rừng”: khung “Điểm cháy trong cảnh báo” cho phép “Tạo điểm cháy – chờ xác minh” hoặc (cán bộ chuyên môn) “Xác nhận cháy và thông báo”. Điểm cháy được gắn với hồ sơ và xuất hiện trong Quản lý cảnh báo.',
         'Đánh dấu “Cho phép công khai” để phản ánh hiện trên bản đồ và danh sách công khai (không kèm thông tin người gửi).',
       ],
+      notes: [{ type: 'tip', text: 'Phản ánh mới (nhất là tin báo cháy) được thông báo ngay tới cán bộ phụ trách xã và lãnh đạo trên MobileGIS. Cán bộ chuyên môn gửi phản ánh “Cháy rừng” bằng GPS tại hiện trường thì hệ thống coi là đã xác minh: tự tạo điểm cháy “Xác nhận cháy” và thông báo cho người dân trong xã.' }],
     },
     {
       id: 'tin-tuc', title: '11. Tin tức', icon: 'newspaper', img: 'a-news-form', caption: 'Soạn tin',
@@ -382,8 +389,8 @@ const mobileGuide = {
       phones: [P('m20-me', 'Cá nhân'), P('m36-settings-push', 'Cài đặt – Thông báo'), P('m38-notif-feed', 'Thông báo')],
       steps: [
         'Cài đặt: cỡ chữ, tương phản cao, chọn xã/phường nhận thông báo, tự động gửi khi có mạng, xoá dữ liệu lưu tạm, địa chỉ máy chủ.',
-        'Thông báo chỉ gồm cảnh báo đã phê duyệt, sự kiện cháy đã xác minh, cập nhật hồ sơ của bạn và nhiệm vụ mới – không phát cảnh báo khẩn từ điểm nóng chưa xác minh.',
-        'Cài đặt → Thông báo: “Thời gian thực” cho biết ứng dụng đang kết nối máy chủ (nhận ngay khi mở). Để nhận cả khi ứng dụng đóng: iOS cho phép thông báo khi được hỏi; Android cài ứng dụng phân phối UnifiedPush (ví dụ ntfy) rồi bấm “Bật / đăng ký lại”. Nút “Gửi thông báo thử” để kiểm tra.',
+        'Thông báo gồm: cảnh báo nguy cơ cháy đã phê duyệt và cháy rừng đã xác minh (gửi người dân, thiết bị theo dõi xã); cập nhật hồ sơ phản ánh của bạn; với cán bộ thêm phản ánh/tin báo cháy mới trong địa bàn, nhiệm vụ mới và kết quả duyệt xác minh. Không phát cảnh báo khẩn từ điểm nóng hay tin báo chưa xác minh.',
+        'Cài đặt → Thông báo: “Thời gian thực” cho biết ứng dụng đang kết nối máy chủ (nhận ngay khi mở). Để nhận cả khi ứng dụng ở nền hoặc đã đóng: cho phép thông báo khi ứng dụng hỏi (Android 13+, iOS); dòng “Khi ứng dụng ở nền / đã đóng” hiện “Firebase Cloud Messaging – đã đăng ký”. Bấm “Bật / đăng ký lại” nếu chưa đăng ký, “Gửi thông báo thử” để kiểm tra.',
         'Đăng xuất: token bị thu hồi trên máy chủ, dữ liệu nghiệp vụ lưu tạm bị xoá; có tuỳ chọn đăng xuất mọi thiết bị.',
       ],
     },

@@ -144,7 +144,7 @@
     if (f) { const bb = new mapboxgl.LngLatBounds(); (f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates).forEach((p) => p[0].forEach((pt) => bb.extend(pt))); v.map.fitBounds(bb, { padding: 50 }); }
   }
   const select = document.getElementById('commune-select');
-  document.getElementById('apply').addEventListener('click', () => focus(select.value));
+  document.getElementById('apply').addEventListener('click', () => { setYear(yearSel.value); focus(select.value); });
   select.addEventListener('change', () => focus(select.value));
   KT.onCommuneSearch = (code) => { select.value = code; focus(code); };
   document.querySelectorAll('tr[data-code]').forEach((tr) => tr.addEventListener('click', () => { select.value = tr.dataset.code; focus(tr.dataset.code); window.scrollTo({ top: 200, behavior: 'smooth' }); }));
@@ -152,10 +152,34 @@
     select.value = ''; focus('');
     document.querySelectorAll('[data-ov]').forEach((c) => { c.checked = false; v.setVisible(`ov-${c.dataset.ov}`, false); });
     setChoro(null);
+    yearSel.value = '2025'; setYear('2025');
   });
+  // năm bản đồ: 2025 = số liệu hiện trạng chính thức tô theo xã; 1991/2014/2023 = bản đồ lớp phủ của dự án
+  const yearSel = document.getElementById('map-year');
+  const yearNote = document.getElementById('year-note');
+  let year = '2025';
+  function setYear(y) {
+    year = String(y || '2025');
+    const official = year === '2025';
+    (P.lc ? P.lc.years : []).forEach((ly) => v.setVisible(`ov-lc-${ly}`, String(ly) === year));
+    document.querySelectorAll('input[name=ftype]').forEach((c) => { c.disabled = !official; if (!official) c.checked = false; c.closest('label').style.opacity = official ? '' : '.45'; });
+    if (official) setChoro(document.querySelector('input[name=ftype]:checked') ? document.querySelector('input[name=ftype]:checked').value : null);
+    else { v.setChoropleth(null); renderLegend(); }
+    yearNote.hidden = official;
+    document.getElementById('map-title').textContent = official ? 'Bản đồ hiện trạng tài nguyên rừng năm 2025' : `Bản đồ lớp phủ năm ${year} (dữ liệu dự án)`;
+    if (!official) yearNote.textContent = `Bản đồ lớp phủ năm ${year} (ảnh viễn thám, 15 m) – dữ liệu dự án, không phải số liệu công bố. Lọc theo loại rừng chỉ áp dụng cho số liệu hiện trạng 2025.`;
+  }
+  yearSel.addEventListener('change', () => setYear(yearSel.value));
+  function lcRows(code) {
+    if (year === '2025' || !P.lc || !P.lc.by_commune[code]) return '';
+    const b = P.lc.by_commune[code][year] || P.lc.by_commune[code][Number(year)] || {};
+    const tot = Object.values(b).reduce((a, x) => a + x, 0);
+    return `<div class="pop" style="border-top:1px solid #e5e7eb;margin-top:6px;padding-top:6px"><h4>Lớp phủ năm ${year}</h4><table>${Object.keys(P.lc.classes).filter((k) => b[k]).map((k) => `<tr><td><span class="dot" style="background:${P.lc.classes[k].color}"></span> ${KT.esc(P.lc.classes[k].label)}</td><td>${KT.num(b[k])} ha${tot ? ` (${KT.num(b[k] / tot * 100, 1)}%)` : ''}</td></tr>`).join('')}</table></div>`;
+  }
+
   v.map.on('click', 'communes-fill', (e) => {
     const p = e.features[0].properties;
-    new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(KT.communeHtml(p)).addTo(v.map);
+    new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(KT.communeHtml(p) + lcRows(p.code)).addTo(v.map);
     select.value = p.code; focus(p.code);
   });
   v.map.on('mouseenter', 'communes-fill', () => { v.map.getCanvas().style.cursor = 'pointer'; });

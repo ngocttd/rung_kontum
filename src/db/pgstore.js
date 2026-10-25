@@ -16,6 +16,7 @@ const MAP = {
   documents: { table: 'ops.documents', cols: ['id', 'title', 'category', 'issuer', 'number', 'issued', 'description', 'type', 'bytes', 'sha256', 'original_name', 'stored_name', 'status', 'uploaded_by', 'created_at', 'updated_at'] },
   jobs: { table: 'ops.jobs', cols: ['id', 'key', 'title', 'status', 'started_at', 'finished_at', 'by', 'log', 'created_at', 'updated_at'], json: ['log'] },
   layers: { table: 'spatial.map_layers', cols: ['id', 'title', 'source', 'description', 'status', 'style', 'validation', 'original_name', 'uploaded_by', 'reviewed_by', 'created_at', 'updated_at'], json: ['style', 'validation'], features: true },
+  fire_points: { table: 'fire.manual_points', cols: ['id', 'code', 'observed_at', 'source_kind', 'description', 'area_ha', 'commune_code', 'commune_name', 'report_code', 'created_by', 'created_at', 'updated_at'], geom: true },
   counters: { table: 'ops.counters', cols: ['key', 'value'], pk: 'key', noData: true, from: (r) => ({ id: r.key, ...r }) },
 };
 

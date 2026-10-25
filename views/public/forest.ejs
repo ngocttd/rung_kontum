@@ -39,7 +39,11 @@
     <aside class="card col-left">
       <div class="card-h"><h2><%- ic('funnel-fill') %> Bộ lọc dữ liệu</h2></div>
       <div class="card-b">
-        <label class="field"><span>Năm bản đồ</span><select class="input" disabled><option>2025</option></select></label>
+        <label class="field"><span>Năm bản đồ</span><select class="input" id="map-year">
+          <option value="2025" title="Số liệu hiện trạng rừng theo QĐ 1047/QĐ-UBND">2025 – Hiện trạng (QĐ 1047)</option>
+          <% (lc ? lc.years.slice().reverse() : []).forEach(y => { if (ov['lc-' + y]) { %><option value="<%= y %>" title="Bản đồ lớp phủ năm <%= y %> – dữ liệu dự án"><%= y %> – Lớp phủ (dự án)</option><% } }) %>
+        </select></label>
+        <p class="src" id="year-note" hidden style="margin:-4px 0 10px"></p>
         <div class="field"><span>Loại rừng</span>
           <% filterTypes.forEach(([k, l, c]) => { %><label class="check"><input type="checkbox" name="ftype" value="<%= k %>"> <span class="sw" style="background:<%= c %>;width:14px;height:12px;border-radius:2px;display:inline-block"></span> <%= l %></label><% }) %>
         </div>
@@ -62,7 +66,7 @@
     </aside>
 
     <section class="card fill">
-      <div class="card-h"><h2><%- ic('map-fill') %> Bản đồ hiện trạng tài nguyên rừng năm 2025</h2>
+      <div class="card-h"><h2><%- ic('map-fill') %> <span id="map-title">Bản đồ hiện trạng tài nguyên rừng năm 2025</span></h2>
         <div class="search-box" data-search="map" style="margin-left:auto"><%- ic('search') %><input type="search" placeholder="Tìm kiếm địa điểm, xã/phường..." autocomplete="off" style="width:230px"><div class="search-results"></div></div></div>
       <div class="map-shell" style="border-radius:0 0 10px 10px">
         <div id="map" class="map"></div>

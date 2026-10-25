@@ -518,7 +518,7 @@ class _HotspotsLayer extends ConsumerWidget {
       if (t != null && t.isBefore(since)) continue;
       final c = (f['geometry'] as Map)['coordinates'] as List;
       final pt = LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble());
-      final icon = switch (p['status']) { 'confirmed' => 'fire-confirmed', 'rejected' => 'fire-rejected', 'verifying' || 'assigned' => 'fire-investigating', 'closed' || 'handling' => 'fire-resolved', _ => 'hotspot-unverified' };
+      final icon = switch (p['status']) { 'confirmed' || 'handling' => 'fire-confirmed', 'rejected' => 'fire-rejected', 'verifying' || 'assigned' => 'fire-investigating', 'closed' => 'fire-resolved', _ => 'hotspot-unverified' };
       markers.add(Marker(
         point: pt,
         width: 34,

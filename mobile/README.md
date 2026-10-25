@@ -202,53 +202,60 @@ Kiểm thử API theo TC01–TC12 và đồng bộ web ↔ mobile: `node scripts
 
 ## 7. Việc còn lại khi triển khai
 
-- **Thông báo:** không dùng Firebase – xem mục 8.
+- **Thông báo đẩy:** Firebase Cloud Messaging – cấu hình theo mục 8.1 (`firebase.json` cho bản build, service account trên máy chủ).
 - **Gói bản đồ ngoại tuyến theo khu vực:** hiện app đã lưu dữ liệu công khai đã xem và hàng đợi gửi. Muốn có nền bản đồ ngoại tuyến cần thêm gói tile (ví dụ MBTiles) theo địa bàn được giao.
 - **Tên miền HTTPS, Mapbox token** giới hạn URL / bundle id, chính sách quyền riêng tư khi phát hành lên kho ứng dụng.
 
-## 8. Thông báo – Socket.IO + PostgreSQL + push theo nền tảng (không Firebase)
+## 8. Thông báo – PostgreSQL + Socket.IO + Firebase Cloud Messaging
 
 | Lớp | Vai trò | Mã nguồn |
 |---|---|---|
-| **PostgreSQL** | Nguồn sự thật: `mobile.notifications` (thông báo + đối tượng nhận), `mobile.notification_deliveries` (trạng thái từng thiết bị × kênh, hàng đợi gửi lại có backoff, `SKIP LOCKED`), trigger `pg_notify` cho mọi tiến trình | `db/migrations/006_notifications.sql`, `src/services/notifier.js` |
+| **PostgreSQL** | Nguồn sự thật: `mobile.notifications` (thông báo + đối tượng nhận), `mobile.notification_deliveries` (trạng thái từng thiết bị × kênh, hàng đợi gửi lại có backoff, `SKIP LOCKED`), trigger `pg_notify` cho mọi tiến trình | `db/migrations/006_notifications.sql`, `008_fcm_push.sql`, `src/services/notifier.js` |
 | **Socket.IO** (namespace `/mobile`) | Ứng dụng đang mở: nhận `notification` tức thời (có ack) và `changed` để làm mới dữ liệu (đồng bộ web ↔ mobile) | `src/services/realtime.js`, `lib/core/realtime.dart` |
-| **APNs** (iOS) | Ứng dụng ở nền/đã đóng – máy chủ gửi thẳng tới Apple qua HTTP/2, khoá `.p8` | `src/services/push/apns.js`, `ios/Runner/AppDelegate.swift` |
-| **UnifiedPush / Web Push** (Android, trình duyệt) | Ứng dụng ở nền/đã đóng – chuẩn mở, Web Push mã hoá đầu-cuối (RFC 8291) + VAPID; không cần Google Play Services | `src/services/push/webpush.js`, `lib/core/push.dart` |
+| **Firebase Cloud Messaging** (Android + iOS) | Ứng dụng ở nền/đã đóng – máy chủ gọi FCM HTTP v1 bằng service account (JWT RS256 → OAuth2); iOS do Firebase chuyển tiếp qua APNs | `src/services/push/fcm.js`, `lib/core/push.dart`, `lib/app/firebase_config.dart` |
 
 **Luồng:**
 
-1. Một sự kiện đã được chốt xảy ra. Năm loại sự kiện tạo thông báo:
-   - cảnh báo cháy đã phê duyệt;
-   - cháy đã xác minh;
-   - phản ánh đổi trạng thái;
-   - nhiệm vụ mới hoặc bị trả lại;
-   - kết quả duyệt xác minh.
+1. Một sự kiện đã chốt xảy ra → `notifier.scan()` tạo bản ghi (`source_ref` UNIQUE nên nhiều tiến trình không tạo trùng). Các loại:
+   - cảnh báo nguy cơ cháy đã phê duyệt, cháy rừng đã xác minh (gồm điểm cháy nhập tay “Xác nhận cháy”) → người dân / thiết bị theo dõi xã;
+   - hồ sơ phản ánh đổi trạng thái → người gửi;
+   - phản ánh mới, tin báo cháy nhập tay chờ xác minh → cán bộ phụ trách xã (+ lãnh đạo với phản ánh);
+   - nhiệm vụ mới / bị trả lại, kết quả duyệt xác minh → cán bộ liên quan.
+2. Máy chủ xếp một bản giao FCM cho từng thiết bị phù hợp, chờ 4 giây.
+3. `pg_notify` báo cho mọi tiến trình; tiến trình giữ kết nối Socket.IO của thiết bị giao qua socket. Thiết bị ack → bản FCM đang chờ bị huỷ (không báo trùng).
+4. Socket không giao được → gửi FCM, thử lại tối đa 6 lần (thời gian chờ tăng dần) với lỗi tạm thời (429, 5xx). `UNREGISTERED`/404 → thiết bị bị đánh dấu ngừng nhận. FCM chưa cấu hình → bản giao “failed” kèm lý do, không thử lại.
 
-   Khi đó `notifier.scan()` tạo bản ghi, có `source_ref` UNIQUE nên dù chạy nhiều tiến trình cũng không trùng.
-2. Máy chủ xếp hàng một bản giao qua push nền tảng cho từng thiết bị phù hợp, chờ 4 giây.
-3. `pg_notify` báo cho mọi tiến trình. Tiến trình nào giữ kết nối Socket.IO của thiết bị sẽ gửi qua socket. Thiết bị xác nhận (ack) thì bản push đang chờ bị huỷ, nên không báo trùng.
-4. Nếu socket không giao được, bộ gửi thử lại tối đa 6 lần với thời gian chờ tăng dần.
-   - Mã 410 hoặc `Unregistered`: thiết bị bị đánh dấu ngừng nhận.
-   - Chưa cấu hình APNs: bản giao chuyển sang “failed” kèm lý do.
+**Quy tắc người nhận:** thông báo riêng → đúng người dùng; theo vai trò → cán bộ có địa bàn khớp (hoặc toàn vùng); công khai → thiết bị theo dõi xã đó hoặc toàn vùng. Không bao giờ phát từ điểm nóng/tin báo chưa xác minh. **Đăng xuất:** máy chủ gỡ liên kết thiết bị khỏi người dùng (chỉ còn nhận cảnh báo công khai).
 
-**Quy tắc người nhận:**
-- Thông báo riêng: gửi tới đúng người dùng.
-- Nhiệm vụ chưa giao: gửi tới cán bộ phụ trách xã đó.
-- Cảnh báo công khai: gửi tới thiết bị theo dõi xã đó, hoặc thiết bị theo dõi toàn vùng.
-- Không bao giờ phát từ điểm nóng chưa xác minh.
+### 8.1. Cấu hình Firebase (làm một lần)
 
-**Đăng xuất:** máy chủ gỡ liên kết thiết bị với người dùng, nên thiết bị chỉ còn nhận cảnh báo công khai.
+1. Tạo dự án trên <https://console.firebase.google.com> (không cần Google Analytics).
+2. Thêm ứng dụng:
+   - **Android** – package name `vn.gov.kontum.kontum_mobilegis` (SHA-1 không bắt buộc cho FCM);
+   - **iOS** – bundle ID `vn.gov.kontum.kontumMobilegis`.
+   Không cần tải `google-services.json` / `GoogleService-Info.plist`: ứng dụng khởi tạo Firebase bằng cấu hình truyền lúc build.
+3. **iOS:** Apple Developer → Keys → tạo khoá APNs (`.p8`) → Firebase *Project settings → Cloud Messaging → Apple app configuration* → tải khoá lên (Key ID, Team ID). Bundle ID phải bật capability Push Notifications (`ios/Runner/Runner.entitlements`; bản phát hành đổi `aps-environment` thành `production`). `Info.plist` đã khai báo Background Modes → `remote-notification`.
+4. **Cấu hình ứng dụng:** chép `firebase.example.json` thành `firebase.json` (đã nằm trong `.gitignore`) và điền từ *Project settings → General → Your apps*:
 
-**Cấu hình triển khai:**
-- **Android:** người dùng cài một ứng dụng phân phối UnifiedPush, ví dụ **ntfy** từ Google Play hoặc F-Droid (không cần tài khoản Google). Ứng dụng tự chọn bộ phân phối mặc định; có thể đổi trong *Cài đặt → Thông báo → Chọn ứng dụng phân phối*. Đơn vị có thể tự dựng máy chủ ntfy để dữ liệu không đi qua bên thứ ba. Không có bộ phân phối thì vẫn nhận qua Socket.IO khi mở ứng dụng.
-- **iOS:**
-  1. Trong Apple Developer, tạo khoá APNs (`.p8`), đặt vào `.secrets/` và khai báo `APNS_KEY_FILE`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID` trong `.env` (mẫu: `docs/06_Cau_hinh_mau/.env.example`).
-  2. Bật capability *Push Notifications* cho Bundle ID. Tệp `ios/Runner/Runner.entitlements` đã khai báo `aps-environment`.
-  3. Bản debug đăng ký môi trường `sandbox`, bản phát hành dùng `production`.
-- **Web Push (VAPID):** khoá tự sinh lần đầu (`storage/.vapid.json`) hoặc đặt `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`. Không đổi khoá sau khi đã có thiết bị đăng ký, nếu không các thiết bị phải đăng ký lại.
+   | Khoá | Lấy ở |
+   |---|---|
+   | `FIREBASE_PROJECT_ID` | Project ID |
+   | `FIREBASE_SENDER_ID` | Project number / Sender ID |
+   | `FIREBASE_ANDROID_API_KEY`, `FIREBASE_ANDROID_APP_ID` | ứng dụng Android: Web API key, App ID `1:…:android:…` |
+   | `FIREBASE_IOS_API_KEY`, `FIREBASE_IOS_APP_ID` | ứng dụng iOS: API key, App ID `1:…:ios:…` |
 
-**Kiểm thử:** chạy `node scripts/test_push.cjs` khi máy chủ đang chạy. Bài kiểm thử dùng dịch vụ Web Push giả lập, giải mã nội dung bằng khoá của thuê bao, và dùng máy chủ APNs HTTP/2 giả lập để kiểm tra chữ ký JWT ES256.
+   Đây là định danh công khai của ứng dụng (không phải khoá bí mật). Build: `build-apk.bat https://<máy-chủ>` tự dùng `firebase.json`; chạy thử: `flutter run --dart-define-from-file=firebase.json`. Thiếu tệp → ứng dụng vẫn chạy, chỉ nhận thông báo khi đang mở (Cài đặt → Thông báo hiển thị cảnh báo).
+5. **Máy chủ:** *Project settings → Service accounts → Generate new private key* → đặt tệp vào `.secrets\firebase-service-account.json` trên VPS (KHÔNG commit, không gửi qua chat), thêm vào `.env`:
 
-Trong ứng dụng: *Cài đặt → Thông báo → Gửi thông báo thử*.
+   ```
+   FCM_SERVICE_ACCOUNT_FILE=.secrets/firebase-service-account.json
+   # FCM_PROJECT_ID=...   (tuỳ chọn – mặc định lấy project_id trong tệp khoá)
+   ```
 
-**Theo dõi:** *Quản trị → Cài đặt hệ thống → Thông báo MobileGIS* hiển thị số kết nối, số thiết bị theo kênh và trạng thái giao 7 ngày.
+   Khởi động lại dịch vụ. *Quản trị → Cài đặt hệ thống → Thông báo MobileGIS* hiển thị “Đã cấu hình · dự án …”.
+
+**Lưu ý nâng cấp:** firebase_messaging 17 đánh dấu `getToken`/`onTokenRefresh` là deprecated (chuyển sang `register()`/`onRegistered` theo Firebase Installation ID). Ứng dụng vẫn dùng registration token vì máy chủ gửi tới `message.token` của FCM HTTP v1; khi chuyển cần đổi đồng thời `lib/core/push.dart` và `src/services/push/fcm.js`.
+
+**Kiểm thử:** `node scripts/test_push.cjs` (máy chủ đang chạy): Socket.IO + ack huỷ bản FCM trùng, hàng đợi FCM khi ứng dụng đóng, và FCM HTTP v1 với máy chủ Google OAuth/FCM giả lập (kiểm chữ ký JWT RS256, nội dung message, UNREGISTERED, 503). Trên điện thoại: *Cài đặt → Thông báo → Gửi thông báo thử* (đóng ứng dụng trong vài giây để thấy bản tin FCM).
+
+**Theo dõi:** *Quản trị → Cài đặt hệ thống → Thông báo MobileGIS*: số kết nối Socket.IO, trạng thái FCM, số thiết bị theo kênh, trạng thái giao 7 ngày.

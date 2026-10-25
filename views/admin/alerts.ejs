@@ -1,20 +1,28 @@
-<%- include('_top') %>
+<%- include('_top', { needsMap: tab === 'nhap-tay' }) %>
 <% const hsB = { new: 'b-red', assigned: 'b-orange', verifying: 'b-orange', confirmed: 'b-purple', rejected: 'b-gray', handling: 'b-red', closed: 'b-green' };
    const cB = { unverified: 'b-red', verifying: 'b-orange', confirmed: 'b-purple', rejected: 'b-gray', seasonal: 'b-yellow' };
    const canVerify = can('alerts.verify'), canApprove = can('alerts.approve');
-   let cands = candidates; if (filter.st) cands = cands.filter(c => c.status === filter.st); %>
+   let cands = candidates; if (filter.st) cands = cands.filter(c => c.status === filter.st);
+   const nManual = hotspots.filter(h => h.manual).length;
+   let hsList = hotspots; if (filter.nguon === 'tay') hsList = hotspots.filter(h => h.manual); if (filter.nguon === 'firms') hsList = hotspots.filter(h => !h.manual);
+   const canManual = can('alerts.manual'); %>
 <div class="adm-tabs">
-  <a href="?tab=diem-nong" class="<%= tab === 'diem-nong' ? 'on' : '' %>">Điểm nóng (FIRMS) · <%= hotspots.length %></a>
+  <a href="?tab=diem-nong" class="<%= tab === 'diem-nong' ? 'on' : '' %>">Điểm nóng / điểm cháy · <%= hotspots.length %><% if (nManual) { %> <span class="muted">(<%= nManual %> nhập tay)</span><% } %></a>
+  <% if (canManual) { %><a href="?tab=nhap-tay" class="<%= tab === 'nhap-tay' ? 'on' : '' %>"><%- ic('plus-lg') %> Nhập thủ công điểm cháy</a><% } %>
   <a href="?tab=nguy-co" class="<%= tab === 'nguy-co' ? 'on' : '' %>">Nguy cơ cháy (P/FWI) · <%= dangerAlerts.length %></a>
   <a href="?tab=bien-dong" class="<%= tab === 'bien-dong' ? 'on' : '' %>">Biến động rừng · <%= candidates.length %></a>
+  <a href="/canh-bao-chay?tab=lich-su#tra-cuu" target="_blank"><%- ic('clock-history') %> Lịch sử điểm nóng</a>
 </div>
 <% if (!canVerify && !canApprove) { %><div class="note info" style="margin-bottom:12px">Vai trò của bạn chỉ xem. Xác minh do cán bộ chuyên môn thực hiện; phê duyệt cảnh báo do cán bộ chuyên môn hoặc lãnh đạo được phân quyền.</div><% } %>
 
 <% if (tab === 'diem-nong') { %>
-<section class="card"><div class="card-h"><h2><%- ic('fire') %> Xác minh điểm nóng</h2><span class="more muted" style="font-weight:400">Mới phát hiện → Cần xác minh → Đang xác minh → Xác nhận/Không phải cháy rừng → Đang xử lý → Kết thúc</span></div>
-  <div class="card-b table-wrap"><% if (!hotspots.length) { %><div class="empty-state">Không có điểm nóng trong 7 ngày.</div><% } else { %>
+<section class="card"><div class="card-h"><h2><%- ic('fire') %> Xác minh điểm nóng</h2><form class="inline-form" style="margin-left:12px"><input type="hidden" name="tab" value="diem-nong"><select class="input" name="nguon" onchange="this.form.submit()"><option value="">Mọi nguồn</option><option value="firms" <%= filter.nguon === 'firms' ? 'selected' : '' %>>Tự động (NASA FIRMS)</option><option value="tay" <%= filter.nguon === 'tay' ? 'selected' : '' %>>Nhập thủ công</option></select></form>
+  <% if (canManual) { %><a class="btn btn-primary btn-sm" href="?tab=nhap-tay" style="margin-left:8px"><%- ic('plus-lg') %> Nhập điểm cháy</a><% } %><span class="more muted" style="font-weight:400">Mới phát hiện → Cần xác minh → Đang xác minh → Xác nhận/Không phải cháy rừng → Đang xử lý → Kết thúc</span></div>
+  <div class="card-b table-wrap"><p class="src" style="margin-bottom:8px">Danh sách gồm: điểm chưa xác minh trong 7 ngày; điểm đang xác minh, xác nhận cháy, đang xử lý cho đến khi đóng hồ sơ; điểm đã kết thúc hoặc “không phải cháy rừng” trong 7 ngày sau khi kết luận. Điểm cũ hơn: xem “Lịch sử điểm nóng”.</p>
+  <% if (!hsList.length) { %><div class="empty-state">Không có điểm nóng hoặc điểm cháy cần theo dõi.</div><% } else { %>
   <table class="tbl"><thead><tr><th>STT</th><th>Thời gian (VN)</th><th>Vị trí (xã)</th><th>Nguồn</th><th>Độ tin cậy</th><th>Lớp phủ</th><th>Trạng thái</th><th>Cập nhật</th></tr></thead><tbody>
-    <% const pgH = paginate(hotspots, query.trang, 15); pgH.items.forEach((h, i) => { %><tr><td><%= pgH.offset + i + 1 %></td><td><%= fmt.dateTime(h.utc) %></td><td><%= h.commune || 'Ngoài ranh' %><div class="src"><%= h.lat.toFixed(4) %>, <%= h.lon.toFixed(4) %></div></td><td><%= h.sensorLabel %></td><td><%= h.confidence %> · FRP <%= h.frp ?? '—' %></td>
+    <% const pgH = paginate(hsList, query.trang, 15); pgH.items.forEach((h, i) => { %><tr><td><%= pgH.offset + i + 1 %></td><td><%= fmt.dateTime(h.utc) %><% if (h.pinned) { %><div class="src">phát hiện <%= Math.floor((Date.now() - new Date(h.utc).getTime()) / 864e5) %> ngày trước · đang theo dõi</div><% } %></td><td><%= h.commune || 'Ngoài ranh' %><div class="src"><%= h.lat.toFixed(4) %>, <%= h.lon.toFixed(4) %></div></td><td><% if (h.manual) { %><span class="badge b-blue">Nhập tay</span> <b><%= h.manual.code %></b><div class="src"><%= h.sensorLabel.replace('Nhập thủ công – ', '') %> · <%= h.manual.created_by %><%= h.manual.report_code ? ' · từ ' + h.manual.report_code : '' %></div><% } else { %><%= h.sensorLabel %><% } %></td>
+      <td><% if (h.manual) { %><%= h.manual.area_ha !== null ? fmt.num(h.manual.area_ha, 1) + ' ha' : '—' %><div class="src" style="max-width:260px"><%= (h.manual.description || '').slice(0, 140) %></div><% } else { %><%= h.confidence %> · FRP <%= h.frp ?? '—' %><% } %></td>
       <td><%= h.context ? (h.context.landcover || '—') + (h.context.in_forest ? ' (trong rừng)' : '') : '—' %></td>
       <td><span class="badge <%= hsB[h.status] %>"><%= h.statusLabel %></span><% if (h.decision && h.decision.history) { %><div class="src"><%= h.decision.history.slice(-1)[0].by %> · <%= fmt.dateTime(h.decision.history.slice(-1)[0].at) %></div><% } %></td>
       <td><% if (canVerify) { %><form method="post" action="/quan-tri/canh-bao/diem-nong" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="ref" value="<%= h.id %>">
@@ -24,6 +32,40 @@
   </tbody></table><%- include('../partials/pager', { pg: pgH }) %><% } %></div></section>
 <% } %>
 
+<% if (tab === 'nhap-tay' && canManual) { const f = form || {}; const nowVN = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 16); %>
+<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)">
+  <form class="card" method="post" action="/quan-tri/canh-bao/nhap-tay">
+    <div class="card-h"><h2><%- ic('fire') %> Nhập thủ công điểm cháy</h2></div>
+    <div class="card-b">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <p class="note info" style="margin-bottom:10px">Dùng khi có tin báo cháy không đến từ vệ tinh (kiểm lâm, tổ chống cháy, người dân gọi điện…) hoặc vệ tinh bỏ sót. Điểm nhập tay đi chung danh sách, bản đồ và quy trình xác minh với điểm nóng FIRMS, được ghi rõ nguồn “Nhập thủ công”.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">
+        <label class="field"><span>Vĩ độ *</span><input class="input" name="lat" id="fp-lat" required inputmode="decimal" placeholder="14.6xxxx" value="<%= f.lat || '' %>"></label>
+        <label class="field"><span>Kinh độ *</span><input class="input" name="lon" id="fp-lon" required inputmode="decimal" placeholder="107.9xxxx" value="<%= f.lon || '' %>"></label>
+      </div>
+      <p class="src" style="margin:-4px 0 8px">Bấm trên bản đồ bên cạnh để lấy toạ độ (kéo ghim để chỉnh), hoặc nhập toạ độ GPS (WGS84).</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">
+        <label class="field"><span>Thời điểm phát hiện *</span><input class="input" type="datetime-local" name="observed_at" required max="<%= nowVN %>" value="<%= f.observed_at || nowVN %>"></label>
+        <label class="field"><span>Diện tích ước tính (ha)</span><input class="input" name="area_ha" inputmode="decimal" value="<%= f.area_ha || '' %>"></label>
+      </div>
+      <label class="field"><span>Nguồn tin *</span><select class="input" name="source_kind"><% Object.entries(SOURCES).forEach(([k, l]) => { %><option value="<%= k %>" <%= f.source_kind === k ? 'selected' : '' %>><%= l %></option><% }) %></select></label>
+      <label class="field"><span>Mô tả tình hình *</span><textarea class="input" name="description" rows="3" required minlength="5" placeholder="Địa danh, tiểu khu, loại rừng, hướng lan, người báo tin (không công khai)…"><%= f.description || '' %></textarea></label>
+      <label class="field"><span>Trạng thái ban đầu</span><select class="input" name="status" id="fp-status">
+        <option value="new">Mới phát hiện – chờ xác minh</option>
+        <% if (canVerify) { %><option value="assigned" <%= f.status === 'assigned' ? 'selected' : '' %>>Cần xác minh – giao cán bộ</option><option value="verifying" <%= f.status === 'verifying' ? 'selected' : '' %>>Đang xác minh</option><option value="confirmed" <%= f.status === 'confirmed' ? 'selected' : '' %>>Xác nhận cháy (đã kiểm tra hiện trường)</option><option value="handling" <%= f.status === 'handling' ? 'selected' : '' %>>Đang xử lý (đang chữa cháy)</option><% } %>
+      </select></label>
+      <% if (!canVerify) { %><p class="src" style="margin:-4px 0 8px">Vai trò của bạn nhập tin ở trạng thái “Mới phát hiện”; cán bộ chuyên môn xác minh trong tab Điểm nóng / điểm cháy.</p><% } %>
+      <label class="field" id="fp-assignee"><span>Giao cán bộ xác minh (MobileGIS)</span><select class="input" name="assignee"><option value="">—</option><% users.filter(u => u.role === 'specialist').forEach(u => { %><option <%= f.assignee === u.username ? 'selected' : '' %>><%= u.username %></option><% }) %></select></label>
+      <label class="field"><span>Ghi chú xử lý</span><input class="input" name="note" value="<%= f.note || '' %>"></label>
+      <div class="note warn" id="fp-warn" hidden style="margin:6px 0">“Xác nhận cháy” sẽ gửi thông báo <b>Đã xác minh cháy rừng</b> tới người dân và thiết bị theo dõi xã này trên MobileGIS.</div>
+      <button class="btn btn-primary" style="margin-top:8px"><%- ic('check-circle-fill') %> Lưu điểm cháy</button>
+      <a class="btn btn-outline" href="?tab=diem-nong" style="margin-top:8px">Huỷ</a>
+    </div>
+  </form>
+  <section class="card"><div class="card-h"><h2><%- ic('geo-alt-fill') %> Chọn vị trí</h2></div>
+    <div class="map-shell" style="height:600px;border-radius:0 0 10px 10px"><div id="fp-map" class="map"></div></div></section>
+</div>
+<% } %>
 <% if (tab === 'nguy-co') { %>
 <section class="card"><div class="card-h"><h2><%- ic('graph-up-arrow') %> Phê duyệt cảnh báo nguy cơ cháy (cấp III trở lên, 7 ngày tới)</h2></div>
   <div class="card-b table-wrap"><% if (!dangerAlerts.length) { %><div class="empty-state"><%- ic('check-circle-fill') %>Không có xã nào được dự báo đạt cấp III trở lên.</div><% } else { %>
@@ -44,4 +86,30 @@
   </tbody></table><%- include('../partials/pager', { pg: pgC }) %></div></section>
 <% } %>
 <%- include('_bottom') %>
+<% if (tab === 'nhap-tay' && canManual) { %>
+<%- include('../partials/mapjs') %>
+<script>
+(function () {
+  const lat = document.getElementById('fp-lat'); const lon = document.getElementById('fp-lon');
+  const st = document.getElementById('fp-status'); const warn = document.getElementById('fp-warn'); const asg = document.getElementById('fp-assignee');
+  const sync = () => { warn.hidden = st.value !== 'confirmed'; asg.style.display = ['new', 'assigned'].includes(st.value) ? '' : 'none'; };
+  st.addEventListener('change', sync); sync();
+  const v = KT.createMap('fp-map', { basemap: 'satellite', padding: 20 });
+  if (!v) return;
+  v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province());
+  let mk = null;
+  const set = (lo, la) => { lat.value = la.toFixed(6); lon.value = lo.toFixed(6); place(lo, la, false); };
+  function place(lo, la, fly) {
+    if (!Number.isFinite(lo) || !Number.isFinite(la) || !lo || !la) return;
+    if (!mk) mk = new mapboxgl.Marker({ color: '#e0322d', draggable: true }).setLngLat([lo, la]).addTo(v.map).on('dragend', () => { const q = mk.getLngLat(); set(q.lng, q.lat); });
+    else mk.setLngLat([lo, la]);
+    if (fly) v.map.flyTo({ center: [lo, la], zoom: Math.max(v.map.getZoom(), 11) });
+  }
+  v.map.on('click', (e) => set(e.lngLat.lng, e.lngLat.lat));
+  const fromInputs = () => place(Number(lon.value.replace(',', '.')), Number(lat.value.replace(',', '.')), true);
+  lat.addEventListener('change', fromInputs); lon.addEventListener('change', fromInputs);
+  v.map.on('load', fromInputs);
+})();
+</script>
+<% } %>
 </body></html>

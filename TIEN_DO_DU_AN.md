@@ -44,7 +44,15 @@ Người dùng chuyển phạm vi sang xây dựng website theo prototype. Đã 
 - Kiểm thử: `npm run check` đạt toàn bộ; kiểm tra tràn/đè giao diện ở 1280–1920 px; so sánh ảnh chụp với prototype P01–P07, P10, A01.
 - Còn hạn chế: FIRMS NRT vẫn là bản tải 15/10 (cần MAP_KEY để cập nhật tự động); P08/P09/P11 thiết kế đồng bộ vì không có prototype; chưa có PostGIS/MobileGIS.
 
-## Mốc 16/10/2026 (khuya) — Thông báo không Firebase
+## Mốc 19/10/2026 — Thông báo đẩy chuyển sang Firebase Cloud Messaging; điểm cháy nhập tay; phản ánh
+
+- **Thông báo đẩy:** theo yêu cầu, thay APNs trực tiếp + UnifiedPush/Web Push bằng **FCM HTTP v1** (Android + iOS, service account trên máy chủ, `firebase.json` cho bản build). PostgreSQL (hàng đợi, lịch sử) và Socket.IO (khi mở ứng dụng, chống trùng) giữ nguyên. Migration 008; `scripts/test_push.cjs` đạt 22/22.
+- **Điểm cháy nhập tay** (migration 007): đi chung danh sách/bản đồ/quy trình xác minh với FIRMS; tạo từ phản ánh “Cháy rừng”; cán bộ báo cháy bằng GPS trên MobileGIS = xác nhận cháy → thông báo người dân.
+- **Phản ánh:** quản trị/lãnh đạo cập nhật trạng thái, “Đánh dấu đã kiểm tra”, tab Bản đồ phản ánh; cán bộ/lãnh đạo nhận thông báo phản ánh mới.
+- **Web:** chọn năm bản đồ (2025 hiện trạng / 2023, 2014, 1991 lớp phủ) ở Tài nguyên rừng; danh sách nghi vấn ở Biến động rừng cuộn trong khung cao bằng bản đồ.
+- **App:** chừa vùng thanh điều hướng hệ thống cho mọi màn hình (Android 15 edge-to-edge) – `lib/app/frame.dart`, kiểm thử `test/safe_area_test.dart`.
+
+## Mốc 16/10/2026 (khuya) — Thông báo không Firebase (đã thay bằng FCM ngày 19/10)
 
 - **Thiết kế mới, thay Firebase:**
   - PostgreSQL lưu thông báo và trạng thái giao (migration 006);

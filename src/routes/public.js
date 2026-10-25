@@ -87,7 +87,7 @@ r.get('/bien-dong-rung', (req, res) => {
 });
 
 r.get('/canh-bao-chay', (req, res) => {
-  const hs = repo.hotspots();
+  const hs = repo.hotspots().map(repo.publicHotspot);
   res.render('public/fire', {
     title: 'Cảnh báo cháy rừng', nav: 'fire', hotspots: hs, firms: repo.firmsMeta(), danger: dangerSummary(), fireDanger: repo.fireDanger(),
     dangerAlerts: alerts.fireDangerAlerts(3), weather: weatherSummary(), history: repo.firmsHistory(), burned: repo.burnedHistory(),

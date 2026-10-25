@@ -12,11 +12,10 @@
       <tr><td>NASA FIRMS (Area API)</td><td><%= firms.enabled ? 'Đã cấu hình · mỗi ' + firms.interval_minutes + ' phút · ~10–15 giao dịch/lượt' : 'Chưa cấu hình FIRMS_MAP_KEY' %><%= firms.collected_at ? ' · lần cuối ' + fmt.dateTime(firms.collected_at) : '' %><%= firms.key ? ' · key đang dùng ' + firms.key.used + '/' + firms.key.limit + ' (' + firms.key.interval + ')' : '' %><%= firms.error ? ' · lỗi: ' + firms.error : '' %>
         <% if (firms.enabled && can('jobs.run')) { %><form method="post" action="/quan-tri/firms/cap-nhat" style="margin-top:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm">Cập nhật ngay</button></form><% } %></td></tr>
     </table><p class="src">Giá trị khóa không bao giờ hiển thị trên giao diện. Cấu hình trong tệp .env trên máy chủ.</p></div></section>
-  <section class="card"><div class="card-h"><h2><%- ic('bell-fill') %> Thông báo MobileGIS (không Firebase)</h2></div>
+  <section class="card"><div class="card-h"><h2><%- ic('bell-fill') %> Thông báo MobileGIS (Socket.IO + Firebase Cloud Messaging)</h2></div>
     <div class="card-b"><% if (!push) { %><div class="note">Cần PostgreSQL/PostGIS.</div><% } else { %><table class="kv">
       <tr><td>Socket.IO (ứng dụng đang mở)</td><td><b><%= realtime.connections %></b> kết nối · namespace <code>/mobile</code></td></tr>
-      <tr><td>Web Push / UnifiedPush (Android, trình duyệt)</td><td>Đã có khoá VAPID (tự sinh, lưu storage/.vapid.json hoặc biến VAPID_*)</td></tr>
-      <tr><td>APNs (iOS)</td><td><%= push.apns ? 'Đã cấu hình khoá .p8' : 'Chưa cấu hình – đặt APNS_KEY_FILE, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID' %></td></tr>
+      <tr><td>Firebase Cloud Messaging (Android, iOS – ứng dụng ở nền/đã đóng)</td><td><% if (push.fcm.configured) { %>Đã cấu hình · dự án <b><%= push.fcm.project_id %></b> · <%= push.fcm.client_email %><% } else { %><span style="color:var(--red)">Chưa cấu hình</span> – <%= push.fcm.reason %>. Đặt tệp khoá service account vào <code>.secrets\</code> và khai báo <code>FCM_SERVICE_ACCOUNT_FILE</code> trong .env; khi chưa có, thông báo chỉ giao khi ứng dụng đang mở.<% } %></td></tr>
       <tr><td>Thiết bị</td><td><%= push.devices.map(d => `${d.provider}: ${d.enabled}/${d.total}`).join(' · ') || '—' %></td></tr>
       <tr><td>Thông báo</td><td><%= push.notifications.total %> (24 giờ qua: <%= push.notifications.today %>)</td></tr>
       <tr><td>Giao 7 ngày</td><td><%= push.deliveries.map(d => `${d.channel} ${d.status}: ${d.n}`).join(' · ') || '—' %></td></tr>

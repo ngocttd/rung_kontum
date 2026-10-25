@@ -56,7 +56,7 @@ Bộ lập lịch trong `src/services/jobs.js` kiểm tra mỗi phút và chạy
 |---|---|---|
 | `update-forecast` | 3 giờ | Open-Meteo* → gắn nhãn điểm nóng → P Nesterov/FWI → PostGIS |
 | `update-era5` | 1 ngày | ERA5-Land qua GEE* → `prepare_forecast_inputs` → P/FWI → PostGIS |
-| `forest-change` | 1 tuần | Sentinel-2 tháng mới qua GEE* → biến động nghi vấn + dự báo mất rừng → ảnh mới nhất → PostGIS |
+| `forest-change` | 1 tháng (ngày 5, 02:00; có thể chọn 1 quý) | Sentinel-2 tháng mới qua GEE* → biến động nghi vấn + dự báo mất rừng → ảnh mới nhất → PostGIS |
 | `web-data` | chạy tay | lớp ảnh bản đồ, ranh giới, tile XYZ |
 
 Bước có dấu * là bước thu thập. Nếu bước này lỗi, luồng vẫn tính tiếp với dữ liệu đã có.
@@ -118,10 +118,10 @@ Hướng dẫn build và bảo trì cho đội mobile: [`mobile/README.md`](mobi
   - khi `NODE_ENV=production`, chỉ bật nếu đặt `MOBILE_DEMO_LOGIN=true`.
 - **Quản trị web:** trang *Nhiệm vụ hiện trường* (`/quan-tri/hien-truong`) dùng để giao nhiệm vụ, duyệt xác minh/khảo sát và xem xung đột đồng bộ. Phân công cán bộ ở trang Cảnh báo / Phản ánh sẽ tự tạo nhiệm vụ trong app.
 - **Kiểm thử:** `node scripts/test_mobile_api.cjs` (TC01–TC12 và đồng bộ web ↔ mobile). Dọn dữ liệu thử: `node scripts/purge_mobile_test.cjs`.
-- **Thông báo (không Firebase):**
+- **Thông báo:**
   - lưu trong PostgreSQL;
   - giao qua Socket.IO `/mobile` khi ứng dụng mở;
-  - giao qua APNs (iOS) hoặc UnifiedPush/Web Push (Android) khi ứng dụng ở nền.
+  - giao qua Firebase Cloud Messaging (Android, iOS) khi ứng dụng ở nền hoặc đã đóng.
 
   Cấu hình và luồng: mục 8 của `mobile/README.md`. Kiểm thử: `node scripts/test_push.cjs`.
 - **Bản xem thử trên web:** `cd mobile && flutter build web --base-href /mobile-app/` rồi mở `http://localhost:3000/mobile-app/`.

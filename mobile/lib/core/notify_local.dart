@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-/// Hiển thị thông báo trên thiết bị (khay hệ thống) cho bản tin nhận qua Socket.IO hoặc UnifiedPush.
-/// iOS: thông báo APNs do hệ điều hành tự hiển thị; plugin này chỉ dùng khi ứng dụng đang mở.
+/// Hiển thị thông báo trên thiết bị (khay hệ thống) cho bản tin nhận khi ứng dụng đang mở (Socket.IO, hoặc FCM khi socket chưa nối).
+/// Ứng dụng ở nền/đã đóng: hệ điều hành tự hiển thị bản tin FCM trên kênh Android cùng mã (canh_bao / chung).
 class LocalNotifs {
   LocalNotifs._();
   static final _plugin = FlutterLocalNotificationsPlugin();

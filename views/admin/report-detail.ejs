@@ -2,7 +2,7 @@
 <% const tone = { info: 'b-blue', warn: 'b-orange', danger: 'b-red', ok: 'b-green', muted: 'b-gray' }; %>
 <div class="grid" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)">
   <section class="card">
-    <div class="card-h"><h2><img src="/assets/markers/<%= x.marker %>.svg" width="22" alt=""> <%= x.code %> · <%= x.typeLabel %></h2><span class="badge <%= tone[x.statusTone] %>" style="margin-left:auto"><%= x.statusLabel %></span></div>
+    <div class="card-h"><h2><img src="/assets/markers/<%= x.marker %>.svg" width="22" alt=""> <%= x.code %> · <%= x.typeLabel %></h2><span class="badge <%= tone[x.statusTone] %>" style="margin-left:auto"><%= x.statusLabel %></span><span class="badge <%= x.reviewed_at ? 'b-green' : 'b-gray' %>" style="margin-left:6px"><%= x.reviewed_at ? 'Đã kiểm tra' : 'Chưa kiểm tra' %></span></div>
     <div class="card-b">
       <table class="kv"><tr><td>Thời gian gửi</td><td><%= fmt.dateTime(x.created_at) %></td></tr><tr><td>Thời điểm phát hiện</td><td><%= x.observed_at ? x.observed_at.replace('T', ' ') : '—' %></td></tr>
         <tr><td>Địa bàn</td><td><%= x.commune_name || 'Ngoài ranh 40 xã' %></td></tr><tr><td>Tọa độ</td><td><%= x.lat %>, <%= x.lon %> <% if (x.lat) { %>· <a href="/ban-do#<%= x.lon %>,<%= x.lat %>,14" target="_blank">mở bản đồ</a><% } %></td></tr>
@@ -15,6 +15,28 @@
     </div>
   </section>
   <div class="grid" style="align-content:start">
+    <section class="card"><div class="card-h"><h2><%- ic('check-circle-fill') %> Kiểm tra hồ sơ</h2></div>
+      <div class="card-b">
+        <% if (x.reviewed_at) { %><p>Đã kiểm tra bởi <b><%= x.reviewed_by %></b> lúc <%= fmt.dateTime(x.reviewed_at) %>.</p><% } else { %><p class="muted">Hồ sơ chưa được kiểm tra.</p><% } %>
+        <% if (can('reports.manage')) { %><form method="post" action="/quan-tri/phan-anh/<%= x.id %>/kiem-tra" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="reviewed" value="<%= x.reviewed_at ? '0' : '1' %>">
+          <button class="btn <%= x.reviewed_at ? 'btn-outline' : 'btn-primary' %> btn-sm"><%- ic('check-circle-fill') %> <%= x.reviewed_at ? 'Bỏ đánh dấu đã kiểm tra' : 'Đánh dấu đã kiểm tra' %></button></form><% } %>
+      </div></section>
+    <% if (x.type === 'chay-rung') { %>
+    <section class="card"><div class="card-h"><h2><%- ic('fire') %> Điểm cháy trong cảnh báo</h2></div>
+      <div class="card-b">
+        <% if (x.fire_point) { %>
+          <p>Đã gắn với điểm cháy <b><%= x.fire_point %></b><% if (fp) { %> – trạng thái <b><%= fp.statusLabel %></b><% } %>.</p>
+          <a class="btn btn-outline btn-sm" href="/quan-tri/canh-bao?tab=diem-nong&nguon=tay"><%- ic('fire') %> Xác minh / cập nhật trong Quản lý cảnh báo</a>
+        <% } else if (can('alerts.manual') && x.lat !== null && x.lat !== undefined) { %>
+          <p class="muted" style="margin-bottom:8px">Đưa phản ánh này vào danh sách điểm cháy (chung với điểm nóng FIRMS) để xác minh, theo dõi trên bản đồ và gửi thông báo khi xác nhận.</p>
+          <form method="post" action="/quan-tri/phan-anh/<%= x.id %>/diem-chay"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <label class="field"><span>Ghi chú</span><input class="input" name="note" placeholder="Ví dụ: đã gọi xác nhận với tổ chống cháy xã"></label>
+            <button class="btn btn-outline btn-sm" name="confirm" value="0"><%- ic('plus-lg') %> Tạo điểm cháy – chờ xác minh</button>
+            <% if (can('alerts.verify')) { %><button class="btn btn-primary btn-sm" name="confirm" value="1" onclick="return confirm('Xác nhận cháy sẽ gửi thông báo tới người dân trong xã qua MobileGIS. Tiếp tục?')"><%- ic('check-circle-fill') %> Xác nhận cháy và thông báo</button><% } %>
+          </form>
+        <% } else { %><p class="muted">Phản ánh chưa có toạ độ hoặc vai trò của bạn không nhập điểm cháy.</p><% } %>
+      </div></section>
+    <% } %>
     <% if (can('reports.manage')) { %>
     <form class="card" method="post">
       <div class="card-h"><h2><%- ic('clipboard-check-fill') %> Xử lý hồ sơ</h2></div>

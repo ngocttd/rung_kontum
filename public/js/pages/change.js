@@ -52,7 +52,7 @@
   KT.paginate(listEl);
 
   function showDetail(c) {
-    document.querySelectorAll('#cand-list .alert-item').forEach((x) => { x.style.background = x.dataset.id === c.id ? 'var(--forest-3)' : ''; if (x.dataset.id === c.id && listEl.showItem) listEl.showItem(x); });
+    document.querySelectorAll('#cand-list .alert-item').forEach((x) => { x.style.background = x.dataset.id === c.id ? 'var(--forest-3)' : ''; if (x.dataset.id === c.id && listEl.showItem) { listEl.showItem(x); x.scrollIntoView({ block: 'nearest' }); } });
     document.getElementById('detail-body').innerHTML = `<h3 style="font-size:15px;margin-bottom:8px">${KT.esc(c.id)}</h3>
       <table class="kv"><tr><td>Địa bàn</td><td>${KT.esc(c.commune_name || '—')}</td></tr><tr><td>Diện tích nghi vấn</td><td>${KT.num(c.area_ha)} ha</td></tr>
       <tr><td>Vị trí tâm</td><td>${c.lat}, ${c.lon}</td></tr><tr><td>Kỳ so sánh</td><td>${KT.esc(c.window)}</td></tr>

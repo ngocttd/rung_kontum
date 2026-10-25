@@ -88,6 +88,7 @@
     const parts = [];
     if (v.choropleth) parts.push(`<div>${KT.legendHtml(v.choropleth)}</div>`);
     P.overlays.forEach((o) => { if (v.defs[`ov-${o.id}`] && v.defs[`ov-${o.id}`].visible) parts.push(`<div style="margin-top:8px">${KT.overlayLegendHtml(o)}<div class="src">${KT.esc(o.source)}</div></div>`); });
+    if (v.defs.hotspots && v.defs.hotspots.visible) parts.push(`<div style="margin-top:8px">${KT.hotspotLegendHtml()}</div>`);
     if (v.defs.candidates.visible) parts.push('<div style="margin-top:8px"><h4>Biến động nghi vấn</h4><div class="row"><span class="sw" style="background:#ff3d7f"></span>Chưa xác minh</div><div class="row"><span class="sw" style="background:#b81725"></span>Xác nhận mất rừng</div><div class="row"><span class="sw" style="background:#7b8791"></span>Không phải mất rừng</div></div>');
     legend.innerHTML = parts.join('');
     legend.hidden = !parts.length;
@@ -125,9 +126,9 @@
     document.getElementById('info-hotspot').innerHTML = `<div style="display:grid;grid-template-columns:112px minmax(0,1fr);gap:10px">
       <div style="position:relative"><img src="/assets/items/wildfire-small.webp" alt="Ảnh minh họa" style="width:112px;height:96px;object-fit:cover;border-radius:8px;display:block"><span class="credit" style="top:auto;bottom:6px;right:6px">Ảnh minh họa</span></div>
       <table class="kv kv-tight" style="font-size:12.6px"><tr><td>Mã điểm nóng</td><td style="word-break:break-all">${KT.esc(String(p.id).slice(0, 26))}</td></tr><tr><td>Thời gian</td><td>${KT.dt(p.utc)}</td></tr>
-      <tr><td>Nguồn</td><td>${KT.esc(p.sensorLabel)} (NASA FIRMS)</td></tr><tr><td>Nhiệt độ sáng</td><td>${KT.num(p.brightness, 1)} K</td></tr>
+      <tr><td>Nguồn</td><td>${KT.esc(p.sensorLabel)}${String(p.sensor) === 'MANUAL' ? '' : ' (NASA FIRMS)'}</td></tr>${String(p.sensor) === 'MANUAL' ? '' : `<tr><td>Nhiệt độ sáng</td><td>${KT.num(p.brightness, 1)} K</td></tr>`}
       <tr><td>Độ tin cậy</td><td>${KT.esc(p.confidence)}</td></tr><tr><td>Vị trí</td><td>${ll}</td></tr><tr><td>Địa bàn</td><td>${KT.esc(p.commune || 'Ngoài ranh xã')}</td></tr></table></div>
-      <p class="src" style="margin:8px 0">${ctx ? `Lớp phủ: <b>${KT.esc(ctx.landcover || '—')}</b>${ctx.in_forest ? ' · trong vùng rừng' : ''} · ` : ''}FRP ${p.frp ?? '—'} MW · <b>${KT.esc(p.statusLabel)}</b> (chưa xác minh hiện trường)</p>
+      <p class="src" style="margin:8px 0">${ctx ? `Lớp phủ: <b>${KT.esc(ctx.landcover || '—')}</b>${ctx.in_forest ? ' · trong vùng rừng' : ''} · ` : ''}${String(p.sensor) === 'MANUAL' ? 'Nhập thủ công' : `FRP ${p.frp ?? '—'} MW`} · <b>${KT.esc(p.statusLabel)}</b>${['confirmed', 'handling', 'closed', 'rejected'].includes(p.status) ? '' : ' (chưa xác minh hiện trường)'}</p>
       <div class="hs-actions">
         <button class="btn btn-outline btn-sm" data-hs-act="sat">${KT.ic('image-fill')} Xem ảnh vệ tinh</button>
         <button class="btn btn-outline btn-sm" data-hs-act="zoom">${KT.ic('shield-fill-check')} Xem khu vực xung quanh</button>

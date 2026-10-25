@@ -71,7 +71,3 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
-// unifiedpush (giải mã Web Push) kéo tink bản JVM, flutter_secure_storage dùng tink-android: cùng lớp → giữ tink-android
-configurations.all {
-    exclude(group = "com.google.crypto.tink", module = "tink")
-}

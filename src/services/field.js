@@ -140,8 +140,17 @@ async function createReport(auth, body, clientUuid) {
     gps_accuracy: num(body.gps_accuracy), location_source: ['gps', 'manual', 'map'].includes(body.location_source) ? body.location_source : 'gps',
     photos: att.filter((a) => a.mime.startsWith('image/')).map((a) => a.key), videos: att.filter((a) => a.mime.startsWith('video/')).map((a) => a.key),
   };
-  const saved = store.update('reports', row.id, patch);
-  store.audit(u ? { username: u.username, role: u.role } : null, 'report.create', row.code, { source: 'mobile' });
+  let saved = store.update('reports', row.id, patch);
+  const who = u ? { username: u.username, role: u.role } : null;
+  store.audit(who, 'report.create', row.code, { source: 'mobile' });
+  // cán bộ có quyền xác minh báo cháy tại hiện trường (GPS) = xác nhận cháy: tạo điểm cháy "Xác nhận cháy"
+  // trong luồng cảnh báo → thông báo công khai tới người dân trong xã (notifier mục b)
+  if (saved.type === 'chay-rung' && who && can(who, 'alerts.verify') && saved.location_source === 'gps') {
+    try {
+      require('./firepoints').fromReport(who, saved, { confirm: true, note: `Cán bộ ${who.username} báo cháy tại hiện trường qua MobileGIS (${saved.code})` });
+      saved = store.get('reports', row.id);
+    } catch (e) { console.warn('[field] không tạo được điểm cháy từ', saved.code, e.message); }
+  }
   return { report: saved, duplicate: false };
 }
 function myReports(auth) {
@@ -162,7 +171,7 @@ const ASG_SELECT = `SELECT a.*, ST_Y(a.geom) AS lat, ST_X(a.geom) AS lon, u.user
 
 // where the alert is (for map + scope)
 function locate(kind, ref) {
-  if (kind === 'hotspot') { const h = repo.hotspots().find((x) => x.id === ref); return h && { lon: h.lon, lat: h.lat, commune: h.communeCode, title: `Xác minh điểm nóng ${h.sensorLabel}${h.commune ? ` tại ${h.commune}` : ''}` }; }
+  if (kind === 'hotspot') { const h = repo.hotspots({ staff: true }).find((x) => x.id === ref); return h && { lon: h.lon, lat: h.lat, commune: h.communeCode, title: `Xác minh ${h.manual ? `điểm cháy báo tin ${h.manual.code}` : `điểm nóng ${h.sensorLabel}`}${h.commune ? ` tại ${h.commune}` : ''}` }; }
   if (kind === 'candidate') {
     const f = repo.changeCandidates().features.find((x) => String(x.properties.id) === String(ref));
     if (!f) return null;
@@ -234,7 +243,7 @@ async function openAssignment(auth, id) {
   return { ...a, target, verifications: ver.rows };
 }
 function targetInfo(kind, ref) {
-  if (kind === 'hotspot') { const h = repo.hotspots().find((x) => x.id === ref); return h ? { ...h, decision: undefined } : null; }
+  if (kind === 'hotspot') { const h = repo.hotspots({ staff: true }).find((x) => x.id === ref); return h ? { ...h, decision: undefined } : null; }
   if (kind === 'candidate') { const f = repo.changeCandidates().features.find((x) => String(x.properties.id) === String(ref)); return f ? f.properties : null; }
   if (kind === 'report') { const r = store.find('reports', (x) => x.code === ref || x.id === ref); return r ? ownView(r) : null; }
   return null;
@@ -543,25 +552,21 @@ async function changes(auth, since) {
 }
 
 // ---------- devices & notifications ----------
-// Thiết bị + kênh push nền tảng: APNs (iOS, device token) hoặc Web Push (UnifiedPush trên Android / trình duyệt:
-// endpoint + khoá p256dh/auth). Không dùng Firebase.
+// Thiết bị + kênh push: Firebase Cloud Messaging (Android và iOS) – push_endpoint là FCM registration token.
 async function registerDevice(auth, b) {
   const id = /^[0-9a-f-]{36}$/i.test(String(b.device_id || '')) ? b.device_id : null;
   need(id, 400, 'VALIDATION', 'device_id không hợp lệ.');
   if (!db.enabled) return { id };
   const communes = (Array.isArray(b.subscribed_communes) ? b.subscribed_communes : []).map(String).slice(0, 40);
-  let provider = null; let endpoint = null; let keys = null; let env = null;
-  if (b.push_provider === 'apns') {
-    need(/^[0-9a-f]{64,200}$/i.test(String(b.push_endpoint || '')), 400, 'VALIDATION', 'APNs device token không hợp lệ.');
-    provider = 'apns'; endpoint = String(b.push_endpoint).toLowerCase(); env = b.push_env === 'sandbox' ? 'sandbox' : 'production';
-  } else if (b.push_provider === 'webpush') {
-    const devLocal = require('../config').env !== 'production' && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(String(b.push_endpoint || '')); // dịch vụ push giả lập khi kiểm thử
-    need(devLocal || /^https:\/\/\S{8,1000}$/.test(String(b.push_endpoint || '')), 400, 'VALIDATION', 'Endpoint Web Push phải là URL https.');
-    need(b.push_keys && b.push_keys.p256dh && b.push_keys.auth, 400, 'VALIDATION', 'Thiếu khoá p256dh/auth của Web Push.');
-    provider = 'webpush'; endpoint = String(b.push_endpoint); keys = { p256dh: String(b.push_keys.p256dh), auth: String(b.push_keys.auth) };
+  let provider = null; let endpoint = null; const keys = null; const env = null;
+  if (b.push_provider === 'fcm') {
+    need(/^[\w:.-]{100,4096}$/.test(String(b.push_endpoint || '')), 400, 'VALIDATION', 'FCM registration token không hợp lệ.');
+    provider = 'fcm'; endpoint = String(b.push_endpoint);
+  } else if (b.push_provider && b.push_provider !== 'none') {
+    need(false, 400, 'VALIDATION', 'Kênh push không hỗ trợ (chỉ dùng fcm).');
   }
   const clearPush = b.push_provider === null || b.push_provider === 'none';
-  // đăng ký ở nền (UnifiedPush cấp endpoint mới khi ứng dụng đóng, không có token) giữ nguyên liên kết người dùng;
+  // đăng ký ở nền (FCM làm mới token khi ứng dụng đóng, không có access token) giữ nguyên liên kết người dùng;
   // đăng xuất gỡ liên kết ở mobile-auth.logout
   await db.query(`INSERT INTO mobile.mobile_devices (id, user_id, platform, app_version, subscribed_communes, push_provider, push_endpoint, push_keys, push_env, last_seen_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())

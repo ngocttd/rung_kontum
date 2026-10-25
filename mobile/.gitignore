@@ -49,3 +49,4 @@ app.*.map.json
 
 # bản build phát hành để bàn giao (không commit)
 /release/
+firebase.json

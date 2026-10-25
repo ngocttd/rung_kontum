@@ -85,8 +85,8 @@
     const ctx = h.context;
     hsBody.innerHTML = `<div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px">
       <div style="position:relative"><img src="/assets/items/smoke-report-small.webp" alt="Ảnh minh họa" style="width:150px;height:140px;object-fit:cover;border-radius:8px;display:block"><span class="credit" style="top:auto;bottom:6px;right:6px">Ảnh minh họa</span></div>
-      <table class="kv compact-kv"><tr><td>Mã điểm nóng</td><td>${KT.esc(h.id.split('-').slice(0, 5).join('-'))}</td></tr><tr><td>Thời gian</td><td>${KT.dt(h.utc)}</td></tr>
-      <tr><td>Nguồn vệ tinh</td><td>${KT.esc(h.sensorLabel)}</td></tr><tr><td>Độ tin cậy · FRP</td><td>${KT.esc(h.confidence)} · ${h.frp ?? '—'} MW</td></tr>
+      <table class="kv compact-kv"><tr><td>${h.manual ? 'Mã điểm cháy' : 'Mã điểm nóng'}</td><td>${KT.esc(h.manual ? h.manual.code : h.id.split('-').slice(0, 5).join('-'))}</td></tr><tr><td>Thời gian</td><td>${KT.dt(h.utc)}</td></tr>
+      <tr><td>Nguồn</td><td>${KT.esc(h.sensorLabel)}</td></tr>${h.manual ? `<tr><td>Diện tích ước tính</td><td>${h.manual.area_ha !== null ? `${KT.num(h.manual.area_ha, 1)} ha` : '—'}</td></tr>` : `<tr><td>Độ tin cậy · FRP</td><td>${KT.esc(h.confidence)} · ${h.frp ?? '—'} MW</td></tr>`}
       <tr><td>Vị trí</td><td>${h.lat.toFixed(4)}, ${h.lon.toFixed(4)}</td></tr><tr><td>Địa bàn</td><td>${KT.esc(h.commune || 'Ngoài ranh xã')}</td></tr>
       <tr><td>Lớp phủ</td><td>${ctx ? `${KT.esc(ctx.landcover || '—')}${ctx.in_forest ? ' (trong rừng)' : ''}` : '—'} · <b style="color:#c0261f">${KT.esc(h.statusLabel)}</b></td></tr></table></div>
       <div class="hs-actions" style="margin-top:10px"><button class="btn btn-outline btn-sm" data-fly>${KT.ic('geo-alt-fill')} Xem vị trí trên bản đồ</button><a class="btn btn-outline btn-sm" href="/ban-do?lop=s2-latest#${h.lon},${h.lat},13">${KT.ic('image-fill')} Xem ảnh vệ tinh</a><a class="btn btn-outline btn-sm" href="/phan-anh?lat=${h.lat}&lon=${h.lon}#gui">${KT.ic('clock-history')} Báo hiện trường</a></div>`;
@@ -129,6 +129,67 @@
   document.querySelectorAll('[data-ov]').forEach((c) => c.addEventListener('change', () => v.setVisible(`ov-${c.dataset.ov}`, c.checked)));
   document.querySelectorAll('input[name=bm]').forEach((r) => r.addEventListener('change', () => v.setBasemap(r.value)));
   document.querySelector('[data-act=home]').addEventListener('click', () => v.fitAOI());
+
+  // ---------- tra cứu lịch sử điểm nóng (PostGIS) ----------
+  (function archive() {
+    const form = document.getElementById('ar-form');
+    if (!form) return;
+    const ymd = (d) => new Date(d.getTime() + 7 * 3600e3).toISOString().slice(0, 10);
+    form.from.value = ymd(new Date(Date.now() - 30 * 864e5)); form.to.value = ymd(new Date());
+    const ICON = (s) => ({ confirmed: 'fire-confirmed', handling: 'fire-confirmed', verifying: 'fire-investigating', assigned: 'fire-investigating', rejected: 'fire-rejected', closed: 'fire-resolved' }[s] || 'hotspot-unverified');
+    let av = null; let markers = [];
+    const qs = () => new URLSearchParams([...new FormData(form)].filter(([, v]) => v)).toString();
+    const csv = document.getElementById('ar-csv');
+    const syncCsv = () => { csv.href = `/api/public/fire/hotspots/archive?${qs()}&format=csv`; };
+    form.addEventListener('change', syncCsv); syncCsv();
+    async function load() {
+      const tb = document.querySelector('#ar-table tbody');
+      tb.innerHTML = '<tr><td colspan="4" class="muted">Đang tải…</td></tr>';
+      let j;
+      try { j = await KT.getJSON(`/api/public/fire/hotspots/archive?${qs()}`); } catch (e) { tb.innerHTML = '<tr><td colspan="4" class="muted">Không tải được dữ liệu lịch sử (cần cơ sở dữ liệu PostGIS).</td></tr>'; return; }
+      const fs = j.features;
+      document.getElementById('ar-count').textContent = `${KT.num(fs.length)} điểm${fs.length >= j.limit ? ` (giới hạn ${KT.num(j.limit)} – thu hẹp điều kiện hoặc tải CSV)` : ''}`;
+      tb.innerHTML = fs.length ? fs.map((f, i) => { const p = f.properties; return `<tr data-i="${i}" style="cursor:pointer"><td>${KT.dt(p.utc)}</td><td>${p.sensor === 'MANUAL' ? 'Nhập thủ công' : KT.esc(p.sensor)}${p.frp ? ` · FRP ${p.frp}` : ''}</td><td>${KT.esc(p.commune || 'Ngoài ranh xã')}</td><td><img src="/assets/markers/${ICON(p.status)}.png" width="14" alt=""> ${KT.esc(p.statusLabel)}</td></tr>`; }).join('')
+        : '<tr><td colspan="4" class="muted">Không có điểm nào phù hợp.</td></tr>';
+      if (!av) {
+        av = KT.createMap('ar-map', { basemap: 'satellite', padding: 20 });
+        if (!av) return;
+        av.define('communes', KT.layers.communes(av)).define('province', KT.layers.province());
+        document.getElementById('ar-legend').innerHTML = KT.hotspotLegendHtml();
+        await new Promise((r) => (av.map.loaded() ? r() : av.map.once('load', r)));
+      }
+      markers.forEach((m) => m.remove());
+      markers = fs.map((f) => {
+        const p = f.properties; const el = document.createElement('img');
+        el.src = `/assets/markers/${ICON(p.status)}.png`; el.style.cssText = 'width:22px;cursor:pointer';
+        return new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(f.geometry.coordinates)
+          .setPopup(new mapboxgl.Popup({ offset: 14 }).setHTML(`<div class="pop"><h4>${p.sensor === 'MANUAL' ? 'Điểm cháy nhập tay' : 'Điểm nóng ' + KT.esc(p.sensor)}</h4><table>
+            <tr><td>Thời điểm</td><td>${KT.dt(p.utc)}</td></tr><tr><td>Địa bàn</td><td>${KT.esc(p.commune || 'Ngoài ranh xã')}</td></tr>
+            ${p.sensor === 'MANUAL' ? `<tr><td>Diện tích ước tính</td><td>${p.area_ha !== null ? KT.num(p.area_ha, 1) + ' ha' : '—'}</td></tr>` : `<tr><td>Độ tin cậy · FRP</td><td>${KT.esc(p.confidence || '—')} · ${p.frp ?? '—'} MW</td></tr><tr><td>Lớp phủ</td><td>${KT.esc(p.landcover || '—')}${p.in_forest ? ' · trong rừng' : ''}</td></tr>`}
+            <tr><td>Trạng thái</td><td><b>${KT.esc(p.statusLabel)}</b></td></tr></table></div>`)).addTo(av.map);
+      });
+      if (fs.length) { const bb = new mapboxgl.LngLatBounds(); fs.forEach((f) => bb.extend(f.geometry.coordinates)); av.map.fitBounds(bb, { padding: 50, maxZoom: 11 }); } else av.fitAOI();
+      tb.querySelectorAll('tr[data-i]').forEach((tr) => tr.addEventListener('click', () => { const m = markers[Number(tr.dataset.i)]; av.map.flyTo({ center: m.getLngLat(), zoom: 12 }); if (!m.getPopup().isOpen()) m.togglePopup(); }));
+    }
+    form.addEventListener('submit', (e) => { e.preventDefault(); load(); });
+    let loaded = false;
+    const open = () => { if (!loaded) { loaded = true; load(); } };
+    document.querySelector('[data-tabs="fire"]').addEventListener('tabchange', (e) => { if (e.detail === 'lich-su') setTimeout(open, 50); });
+    if (new URLSearchParams(location.search).get('tab') === 'lich-su') open();
+  }());
+
+  // dữ liệu điểm nóng mới (xác minh trên web/MobileGIS, điểm nhập tay, FIRMS) → cập nhật nhãn trạng thái tại chỗ
+  document.addEventListener('kt:hotspots', (e) => {
+    const byId = new Map(e.detail.features.map((f) => [f.properties.id, f.properties]));
+    let changed = false;
+    P.hotspots.forEach((h) => { const n = byId.get(h.id); if (n && n.status !== h.status) { h.status = n.status; h.statusLabel = n.statusLabel; changed = true; } });
+    document.querySelectorAll('[data-hs-status]').forEach((b) => {
+      const n = byId.get(b.dataset.hsStatus); if (!n) return;
+      b.textContent = n.statusLabel; b.className = `badge ${(P.hsBadge || {})[n.status] || 'b-gray'}`;
+    });
+    if (changed && P.hotspots.length) showHotspot(hsIndex, false);
+    if (byId.size !== P.hotspots.length) { const note = document.getElementById('hs-live-note'); if (note) note.hidden = false; }
+  });
 
   map.on('click', (e) => {
     const hs = map.queryRenderedFeatures(e.point, { layers: ['hotspots'].filter((l) => map.getLayer(l)) })[0];

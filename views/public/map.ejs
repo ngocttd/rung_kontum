@@ -60,7 +60,7 @@
 
         <div class="lt-sec sec-fire" data-lt-group="theme"><%- ic('fire') %> CẢNH BÁO CHÁY RỪNG</div>
         <details class="lt-group" open data-lt-group="theme"><summary>Điểm nóng và nguy cơ cháy</summary>
-          <%- vec('hotspots', 'Điểm nóng cháy (FIRMS)', mk('hotspot-unverified'), true, firms.source) %>
+          <%- vec('hotspots', 'Điểm nóng / điểm cháy (FIRMS + nhập tay)', mk('hotspot-unverified'), true, firms.source) %>
           <%- choro('danger', 'Cấp nguy cơ cháy theo ngày', sym('risk-5'), 'Cấp dự báo cháy theo chỉ số P Nesterov – theo ngày chọn ở khung bên phải') %>
           <%- choro('danger7', 'Cấp cao nhất 7 ngày tới', sym('risk-4'), 'Cấp cao nhất trong 7 ngày tới') %>
         </details>

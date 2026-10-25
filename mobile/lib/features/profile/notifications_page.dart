@@ -12,7 +12,7 @@ import '../../widgets/common.dart';
 /// Không phát cảnh báo khẩn cấp từ điểm nóng chưa xác minh (đặc tả mục 9).
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({super.key});
-  static const icons = {'fire_danger': Icons.local_fire_department, 'fire_confirmed': Icons.whatshot, 'report': Icons.campaign_outlined, 'assignment': Icons.assignment_outlined};
+  static const icons = {'fire_danger': Icons.local_fire_department, 'fire_confirmed': Icons.whatshot, 'report': Icons.campaign_outlined, 'assignment': Icons.assignment_outlined, 'report_new': Icons.campaign, 'fire_report': Icons.local_fire_department_outlined};
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

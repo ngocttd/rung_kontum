@@ -83,15 +83,38 @@ function forestSummary() {
 
 // ---------- hotspots (NASA FIRMS snapshot, 7 ngày) ----------
 const SENSORS = { MODIS: 'MODIS (Terra/Aqua)', SUOMI_VIIRS: 'VIIRS S-NPP', J1_VIIRS: 'VIIRS NOAA-20', J2_VIIRS: 'VIIRS NOAA-21' };
+// sensor 'MANUAL' = điểm cháy nhập thủ công (không có tệp FIRMS)
 const HOTSPOT_STATUS = {
   new: 'Mới phát hiện', assigned: 'Cần xác minh', verifying: 'Đang xác minh', confirmed: 'Xác nhận cháy',
   rejected: 'Không phải cháy rừng', handling: 'Đang xử lý', closed: 'Kết thúc',
 };
 
-function hotspots() {
+// Quy tắc hiển thị trên bản đồ hiện hành (chung cho FIRMS và điểm nhập tay); dữ liệu KHÔNG bị xoá:
+//  - Mới phát hiện (chưa xác minh): 7 ngày kể từ lúc phát hiện;
+//  - Cần xác minh / Đang xác minh / Xác nhận cháy / Đang xử lý: hiện cho đến khi đóng hồ sơ, dù đã quá 7 ngày;
+//  - Kết thúc: hiện thêm 7 ngày kể từ lúc đóng;
+//  - Không phải cháy rừng: ẩn ngay trên bản đồ công khai (cán bộ vẫn thấy 7 ngày trong danh sách xác minh).
+// Quá hạn → chỉ còn trong lịch sử: PostGIS fire.hotspots (mọi điểm FIRMS từng tải), fire.manual_points, ops.decisions;
+// tra cứu ở /canh-bao-chay?tab=lich-su (API /api/public/fire/hotspots/archive).
+const RETENTION = { new_days: 7, closed_days: 7, rejected_staff_days: 7 };
+const OPEN_STATUSES = new Set(['assigned', 'verifying', 'confirmed', 'handling']);
+const DAY = 864e5;
+const decidedAt = (d) => (d && d.history && d.history.length ? d.history[d.history.length - 1].at : d && d.updated_at) || null;
+function onMap(status, utc, d, staff) {
+  const age = (t) => Date.now() - new Date(t).getTime();
+  if (OPEN_STATUSES.has(status)) return true;
+  if (status === 'closed') return age(decidedAt(d) || utc) <= RETENTION.closed_days * DAY;
+  if (status === 'rejected') return staff && age(decidedAt(d) || utc) <= RETENTION.rejected_staff_days * DAY;
+  return age(utc) <= RETENTION.new_days * DAY; // new
+}
+const SNAP_KEYS = ['lon', 'lat', 'sensor', 'satellite', 'utc', 'confidence', 'frp', 'brightness', 'daynight', 'version', 'context'];
+
+// opts.staff: danh sách cho cán bộ (gồm điểm "Không phải cháy rừng" mới kết luận)
+function hotspots({ staff = false } = {}) {
   const dir = P('collected', 'firms');
   const ctx = readJson(P('web', 'hotspot-context.json')) || {};
   const out = [];
+  const seen = new Set();
   for (const key of Object.keys(SENSORS)) {
     const fc = readJson(path.join(dir, `${key}-kon-tum-7d.geojson`));
     if (!fc) continue;
@@ -101,19 +124,81 @@ function hotspots() {
       const hh = p.acq_time.padStart(4, '0');
       const utc = `${p.acq_date}T${hh.slice(0, 2)}:${hh.slice(2)}:00Z`;
       const id = `${key}-${p.acq_date}-${hh}-${Number(lat).toFixed(4)}-${Number(lon).toFixed(4)}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
       const c = communeAt(lon, lat);
       const d = store.getDecision('hotspot', id);
-      out.push({
+      const h = {
         id, lon, lat, sensor: key, sensorLabel: SENSORS[key], satellite: p.satellite, utc,
         confidence: p.confidence, frp: p.frp ? Number(p.frp) : null, brightness: Number(p.bright_ti4 || p.brightness),
         daynight: p.daynight, version: p.version, commune: c ? c.fullName : null, communeCode: c ? c.code : null,
         context: ctx[id] || null,
         status: d ? d.status : 'new', statusLabel: HOTSPOT_STATUS[d ? d.status : 'new'], decision: d,
-      });
+      };
+      // đã có quyết định → lưu ảnh chụp thuộc tính để còn hiện tiếp khi điểm rời cửa sổ 7 ngày của tệp FIRMS
+      if (d && !d.snapshot) store.update('decisions', d.id, { snapshot: Object.fromEntries(SNAP_KEYS.map((k) => [k, h[k] ?? null])) });
+      if (onMap(h.status, utc, d, staff)) out.push(h);
     }
+  }
+  // điểm FIRMS đã quá 7 ngày nhưng hồ sơ còn mở (hoặc mới đóng): dựng lại từ ảnh chụp đã lưu
+  for (const d of store.filter('decisions', (x) => x.kind === 'hotspot' && x.snapshot && !String(x.ref_id).startsWith('man-') && !seen.has(x.ref_id))) {
+    const sn = d.snapshot;
+    if (!sn || !Number.isFinite(sn.lon) || !onMap(d.status, sn.utc, d, staff)) continue;
+    const c = communeAt(sn.lon, sn.lat);
+    seen.add(d.ref_id);
+    out.push({
+      ...sn, id: d.ref_id, sensorLabel: SENSORS[sn.sensor] || sn.sensor, commune: c ? c.fullName : null, communeCode: c ? c.code : null,
+      status: d.status, statusLabel: HOTSPOT_STATUS[d.status], decision: d, pinned: true,
+    });
+  }
+  // điểm cháy nhập thủ công (src/services/firepoints.js): cùng danh sách, quy trình xác minh và quy tắc hiển thị với FIRMS
+  for (const m of store.all('fire_points')) {
+    const utc = new Date(m.observed_at).toISOString();
+    const id = `man-${m.code}`;
+    const d = store.getDecision('hotspot', id);
+    const status = d ? d.status : 'new';
+    if (!onMap(status, utc, d, staff)) continue;
+    out.push({
+      id, lon: m.lon, lat: m.lat, sensor: 'MANUAL', sensorLabel: `Nhập thủ công – ${MANUAL_SOURCES[m.source_kind] || 'nguồn khác'}`, satellite: null, utc,
+      confidence: 'nhập tay', frp: null, brightness: null, daynight: null, version: null,
+      commune: m.commune_name || null, communeCode: m.commune_code || null, context: null,
+      manual: { code: m.code, source_kind: m.source_kind, area_ha: m.area_ha === null || m.area_ha === undefined ? null : Number(m.area_ha), report_code: m.report_code || null, created_by: m.created_by, description: m.description },
+      status, statusLabel: HOTSPOT_STATUS[status], decision: d, pinned: Date.now() - new Date(utc).getTime() > RETENTION.new_days * DAY,
+    });
   }
   return out.sort((a, b) => b.utc.localeCompare(a.utc));
 }
+
+// Quyết định có từ trước (chưa có ảnh chụp) mà điểm đã rời tệp 7 ngày: lấy lại thuộc tính từ PostGIS fire.hotspots (chạy lúc khởi động)
+async function backfillHotspotSnapshots() {
+  const db = require('../db/pool');
+  if (!db.enabled) return 0;
+  const need = store.filter('decisions', (x) => x.kind === 'hotspot' && !x.snapshot && !String(x.ref_id).startsWith('man-'));
+  if (!need.length) return 0;
+  const r = await db.query(`SELECT id, sensor, satellite, acq_utc, confidence, frp, brightness, daynight, version, in_forest, landcover, ST_X(geom) lon, ST_Y(geom) lat
+    FROM fire.hotspots WHERE id = ANY($1)`, [need.map((x) => x.ref_id)]);
+  const byId = new Map(r.rows.map((x) => [x.id, x]));
+  let n = 0;
+  for (const d of need) {
+    const h = byId.get(d.ref_id);
+    if (!h) continue;
+    store.update('decisions', d.id, { snapshot: {
+      lon: h.lon, lat: h.lat, sensor: h.sensor, satellite: h.satellite, utc: new Date(h.acq_utc).toISOString(), confidence: h.confidence,
+      frp: h.frp === null ? null : Number(h.frp), brightness: h.brightness === null ? null : Number(h.brightness), daynight: h.daynight, version: h.version,
+      context: h.landcover || h.in_forest !== null ? { landcover: h.landcover, in_forest: h.in_forest } : null,
+    } });
+    n += 1;
+  }
+  return n;
+}
+
+// bản công khai: bỏ quyết định nội bộ, mô tả và người nhập của điểm nhập tay
+function publicHotspot(h) {
+  const { decision, ...rest } = h; // eslint-disable-line no-unused-vars
+  if (rest.manual) rest.manual = { code: rest.manual.code, source_kind: rest.manual.source_kind, area_ha: rest.manual.area_ha };
+  return rest;
+}
+const MANUAL_SOURCES = { 'kiem-lam': 'kiểm lâm/cán bộ', 'chong-chay': 'tổ chống cháy/xã', 'nguoi-dan': 'người dân báo tin', 'phan-anh': 'phản ánh hiện trường', khac: 'nguồn khác' };
 
 function firmsMeta() {
   const cs = readJson(P('collected', 'collection-status.json'));
@@ -135,6 +220,7 @@ function firmsHistory() {
   // NRT snapshot (VIIRS/MODIS, last 7 days) is a different product: kept as its own series, never summed into MODIS history.
   const nrtMonthly = {}; const nrtByCommune = {};
   for (const hs of hotspots()) {
+    if (hs.sensor === 'MANUAL' || hs.pinned) continue; // điểm nhập tay / điểm cũ đang theo dõi không thuộc ảnh chụp FIRMS NRT 7 ngày
     const m = new Date(new Date(hs.utc).getTime() + 7 * 3600e3).toISOString().slice(0, 7);
     nrtMonthly[m] = (nrtMonthly[m] || 0) + 1;
     if (hs.communeCode) nrtByCommune[hs.communeCode] = (nrtByCommune[hs.communeCode] || 0) + 1;
@@ -282,7 +368,7 @@ function fileExists(p) { try { return fs.statSync(p).isFile(); } catch { return 
 
 module.exports = {
   communeFeatures, province, communeAt, officialStats, communes, communeByCode, forestSummary, landcover,
-  hotspots, firmsMeta, firmsHistory, burnedHistory, HOTSPOT_STATUS, SENSORS,
+  hotspots, publicHotspot, backfillHotspotSnapshots, RETENTION, firmsMeta, firmsHistory, burnedHistory, HOTSPOT_STATUS, SENSORS,
   forestChange, landcoverHistory, fieldSamples, changeCandidates, CANDIDATE_STATUS, fireDanger,
   weatherSnapshot, dailyForecast, climateMonthly, openMeteo, ndviSeries,
   overlays, photos, readiness, documents, documentFile, DOC_CATEGORIES, customLayers, dataFreshness, fileExists,

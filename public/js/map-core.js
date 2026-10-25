@@ -12,6 +12,34 @@
     'timber-transport', 'wildlife', 'report-other', 'report-photo', 'gps', 'survey'];
   const cache = {};
   KT.fetchCached = (url) => (cache[url] = cache[url] || KT.getJSON(url));
+  KT.fetchFresh = async (url) => {
+    const r = await fetch(url, { cache: 'no-cache', headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error(`${url}: ${r.status}`);
+    const j = await r.json(); cache[url] = Promise.resolve(j); return j;
+  };
+
+  // Đồng bộ trực tiếp: máy chủ phát "changed" (Socket.IO /mobile, chung với MobileGIS) khi trạng thái xác minh,
+  // điểm cháy nhập tay hay điểm nóng FIRMS mới thay đổi → bản đồ làm mới. Dự phòng: kiểm tra lại 2 phút/lần và khi quay lại tab.
+  const liveSubs = [];
+  let liveSock = null;
+  KT.onLive = (collections, fn) => {
+    liveSubs.push({ collections: new Set(collections), fn });
+    if (!liveSock && window.io) {
+      try {
+        liveSock = window.io('/mobile', { path: '/socket.io', transports: ['websocket', 'polling'] });
+        liveSock.on('changed', (c) => liveSubs.forEach((s) => { if (s.collections.has(c.collection)) s.fn(c); }));
+        liveSock.on('connect', () => { if (liveSock.wasConnected) liveSubs.forEach((s) => s.fn({ collection: 'reconnect' })); liveSock.wasConnected = true; });
+      } catch (e) { /* không có socket → chỉ dùng kiểm tra định kỳ */ }
+    }
+  };
+  const fallbackSubs = [];
+  KT.onRefresh = (fn) => {
+    fallbackSubs.push(fn);
+    if (fallbackSubs.length === 1) {
+      setInterval(() => { if (!document.hidden) fallbackSubs.forEach((f) => f()); }, 120e3);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) fallbackSubs.forEach((f) => f()); });
+    }
+  };
 
   const HOTSPOT_ICON = ['match', ['get', 'status'], 'confirmed', 'fire-confirmed', 'handling', 'fire-confirmed', 'verifying', 'fire-investigating', 'assigned', 'fire-investigating',
     'rejected', 'fire-rejected', 'closed', 'fire-resolved', 'hotspot-unverified'];
@@ -176,6 +204,21 @@
           const data = await KT.fetchCached('/api/public/fire/hotspots');
           if (!map.getSource('hotspots')) map.addSource('hotspots', { type: 'geojson', data });
           if (!map.getLayer('hotspots-glow')) map.addLayer({ id: 'hotspots-glow', type: 'circle', source: 'hotspots', paint: { 'circle-radius': 16, 'circle-color': '#ff5a1f', 'circle-opacity': 0.25, 'circle-blur': 0.6 } });
+          if (!map.hotspotsLive) {
+            map.hotspotsLive = true;
+            let busy = false;
+            const reload = async () => {
+              if (busy) return; busy = true;
+              try {
+                const fresh = await KT.fetchFresh('/api/public/fire/hotspots');
+                const src = map.getSource('hotspots');
+                if (src) src.setData(fresh);
+                document.dispatchEvent(new CustomEvent('kt:hotspots', { detail: fresh }));
+              } catch (e) { /* giữ dữ liệu cũ */ } finally { busy = false; }
+            };
+            KT.onLive(['alerts', 'reconnect'], reload);
+            KT.onRefresh(reload);
+          }
           if (!map.getLayer('hotspots')) map.addLayer({ id: 'hotspots', type: 'symbol', source: 'hotspots', layout: { 'icon-image': HOTSPOT_ICON, 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-size': 1 } });
         },
       };
@@ -250,15 +293,18 @@
   }
 
   // ---------- popups ----------
+  KT.HOTSPOT_LEGEND = [['hotspot-unverified', 'Điểm nóng chưa xác minh'], ['fire-investigating', 'Đang xác minh'], ['fire-confirmed', 'Xác nhận cháy / đang xử lý'], ['fire-rejected', 'Không phải cháy rừng'], ['fire-resolved', 'Đã kết thúc']];
+  KT.hotspotLegendHtml = () => `<h4>Điểm nóng / điểm cháy</h4>${KT.HOTSPOT_LEGEND.map(([k, l]) => `<div class="row"><img src="/assets/markers/${k}.png" width="16" alt=""> ${l}</div>`).join('')}`;
   KT.hotspotHtml = (p) => {
     const ctx = typeof p.context === 'string' ? JSON.parse(p.context) : p.context;
-    return `<div class="pop"><h4>${KT.ic('fire')} Điểm nóng vệ tinh</h4><table>
-    <tr><td>Thời gian</td><td>${KT.dt(p.utc)} (giờ VN)</td></tr><tr><td>Cảm biến</td><td>${KT.esc(p.sensorLabel)}</td></tr>
-    <tr><td>Độ tin cậy</td><td>${KT.esc(p.confidence)}</td></tr><tr><td>FRP</td><td>${p.frp ?? '—'} MW</td></tr>
+    const man = typeof p.manual === 'string' ? JSON.parse(p.manual) : p.manual;
+    return `<div class="pop"><h4>${KT.ic('fire')} ${man ? `Điểm cháy báo tin ${KT.esc(man.code)}` : 'Điểm nóng vệ tinh'}</h4><table>
+    <tr><td>Thời gian</td><td>${KT.dt(p.utc)} (giờ VN)</td></tr><tr><td>${man ? 'Nguồn' : 'Cảm biến'}</td><td>${KT.esc(p.sensorLabel)}</td></tr>
+    ${man ? `<tr><td>Diện tích ước tính</td><td>${man.area_ha !== null && man.area_ha !== undefined ? `${KT.num(man.area_ha, 1)} ha` : '—'}</td></tr>` : `<tr><td>Độ tin cậy</td><td>${KT.esc(p.confidence)}</td></tr><tr><td>FRP</td><td>${p.frp ?? '—'} MW</td></tr>`}
     <tr><td>Vị trí</td><td>${Number(p.lat).toFixed(4)}, ${Number(p.lon).toFixed(4)}</td></tr><tr><td>Địa bàn</td><td>${KT.esc(p.commune || 'Ngoài ranh xã')}</td></tr>
     ${ctx ? `<tr><td>Lớp phủ</td><td>${KT.esc(ctx.landcover || '—')}${ctx.in_forest ? ' · trong rừng' : ''}</td></tr>` : ''}
     <tr><td>Trạng thái</td><td><b>${KT.esc(p.statusLabel)}</b></td></tr></table>
-    <p class="src" style="margin:6px 0 0">Phát hiện nhiệt chưa xác minh hiện trường.</p></div>`;
+    <p class="src" style="margin:6px 0 0">${['confirmed', 'handling', 'closed'].includes(p.status) ? 'Đã xác minh hiện trường.' : p.status === 'rejected' ? 'Đã kiểm tra: không phải cháy rừng.' : man ? 'Tin báo nhập thủ công, chưa xác minh hiện trường.' : 'Phát hiện nhiệt chưa xác minh hiện trường.'}</p></div>`;
   };
   KT.communeHtml = (p) => `<div class="pop"><h4>${KT.esc(p.fullName)}</h4><table>
     <tr><td>Có rừng 2025</td><td>${KT.num(p.forest_ha)} ha</td></tr><tr><td>Che phủ công bố</td><td>${KT.num(p.cover, 2)}%</td></tr>

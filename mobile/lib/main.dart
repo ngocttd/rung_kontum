@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/config.dart';
+import 'app/frame.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
 import 'core/notify_local.dart';
@@ -14,10 +16,17 @@ import 'core/session.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('vi');
+  // Android 15+ luôn vẽ tràn dưới thanh điều hướng (edge-to-edge): biểu tượng điều hướng màu tối trên nền trắng của ứng dụng
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    systemNavigationBarColor: Colors.white,
+    systemNavigationBarIconBrightness: Brightness.dark,
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarContrastEnforced: false,
+  ));
   final prefs = await SharedPreferences.getInstance();
-  // thông báo không Firebase: hiển thị cục bộ + callback UnifiedPush (Android) đăng ký sớm
+  // thông báo: hiển thị cục bộ (Socket.IO) + Firebase Cloud Messaging (khởi tạo sớm để nhận bản tin/chạm thông báo)
   await LocalNotifs.init();
-  await PushService.initCallbacks();
+  await PushService.init();
   runApp(ProviderScope(
     overrides: [prefsProvider.overrideWithValue(prefs)],
     // không tự gọi lại API khi lỗi; màn hình có nút "Thử lại"
@@ -62,7 +71,8 @@ class MobileGisApp extends ConsumerWidget {
       locale: const Locale('vi'),
       supportedLocales: const [Locale('vi'), Locale('en')],
       localizationsDelegates: const [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
-      builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)), child: child!),
+      // chừa vùng thanh điều hướng hệ thống cho mọi màn hình (lib/app/frame.dart)
+      builder: (context, child) => AppFrame(textScale: scale, child: child!),
     );
   }
 }

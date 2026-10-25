@@ -106,6 +106,7 @@ class Realtime extends Notifier<RealtimeState> {
         ref.invalidate(pendingVerificationsProvider);
       case 'fire_danger':
       case 'fire_confirmed':
+      case 'fire_report':
         ref.invalidate(homeProvider);
         ref.invalidate(hotspotsProvider);
         ref.invalidate(fireAlertsProvider);

@@ -1,11 +1,10 @@
-// Kiểm thử thông báo không Firebase: PostgreSQL + Socket.IO + push theo nền tảng (Web Push/UnifiedPush, APNs).
+// Kiểm thử thông báo: PostgreSQL (nguồn sự thật, hàng đợi) + Socket.IO (ứng dụng đang mở) + Firebase Cloud Messaging (nền/đã đóng).
 // Chạy khi máy chủ đang chạy (mặc định http://localhost:3000):  node scripts/test_push.cjs [BASE_URL]
-//  - Web Push: dịch vụ push giả lập nhận bản tin, GIẢI MÃ bằng khoá riêng của thuê bao (RFC 8291) để chứng minh mã hoá đúng;
-//  - Socket.IO: nhận thông báo tức thời, xác nhận (ack) → bản push đang chờ bị huỷ (không báo trùng);
-//  - APNs: máy chủ HTTP/2 giả lập kiểm tra chữ ký JWT ES256, apns-topic, mã 410 → thiết bị bị ngừng gửi.
+//  - Socket.IO: nhận thông báo tức thời, xác nhận (ack) → bản FCM đang chờ bị huỷ (không báo trùng);
+//  - ứng dụng đóng: bản giao FCM được xử lý (máy chủ chưa cấu hình FCM → "failed" có lý do, không thử lại vô hạn);
+//  - FCM HTTP v1: máy chủ Google OAuth + FCM giả lập kiểm tra JWT RS256, access token, nội dung message, UNREGISTERED → ngừng gửi.
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const http = require('http');
-const http2 = require('http2');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
@@ -23,50 +22,30 @@ const call = async (method, url, { token, body } = {}) => {
   return { status: r.status, j };
 };
 const waitFor = async (fn, ms = 15000) => { const t = Date.now(); while (Date.now() - t < ms) { const v = await fn(); if (v) return v; await sleep(300); } return null; };
-
-// ---------- giải mã Web Push aes128gcm (RFC 8188 / 8291) ----------
-const hmac = (k, d) => crypto.createHmac('sha256', k).update(d).digest();
-function decryptWebPush(body, uaPrivate, uaPublic, authSecret) {
-  const salt = body.subarray(0, 16); const idlen = body[20]; const asPublic = body.subarray(21, 21 + idlen); const ct = body.subarray(21 + idlen);
-  const ecdh = crypto.createECDH('prime256v1'); ecdh.setPrivateKey(uaPrivate);
-  const secret = ecdh.computeSecret(asPublic);
-  const ikm = hmac(hmac(authSecret, secret), Buffer.concat([Buffer.from('WebPush: info\0'), uaPublic, asPublic, Buffer.from([1])]));
-  const prk = hmac(salt, ikm);
-  const cek = hmac(prk, Buffer.concat([Buffer.from('Content-Encoding: aes128gcm\0'), Buffer.from([1])])).subarray(0, 16);
-  const nonce = hmac(prk, Buffer.concat([Buffer.from('Content-Encoding: nonce\0'), Buffer.from([1])])).subarray(0, 12);
-  const d = crypto.createDecipheriv('aes-128-gcm', cek, nonce); d.setAuthTag(ct.subarray(ct.length - 16));
-  const plain = Buffer.concat([d.update(ct.subarray(0, ct.length - 16)), d.final()]);
-  let end = plain.length - 1; while (end > 0 && plain[end] === 0) end -= 1; // bỏ đệm, ký tự phân cách 0x02
-  return JSON.parse(plain.subarray(0, end).toString());
-}
+const fakeToken = () => `${crypto.randomBytes(11).toString('base64url')}:APA91b${crypto.randomBytes(110).toString('base64url')}`;
 
 (async () => {
   const admin = new Client({ host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5432), user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME || 'rung_kontum' });
   await admin.connect();
   const cleanup = { reports: [], devices: [], sockets: [] };
-  let mock; let h2;
+  let mock;
   try {
-    // ---------- dịch vụ Web Push giả lập ----------
-    const received = [];
-    mock = http.createServer((req, res) => { const ch = []; req.on('data', (c) => ch.push(c)); req.on('end', () => { received.push({ headers: req.headers, body: Buffer.concat(ch), path: req.url }); res.writeHead(201); res.end(); }); });
-    await new Promise((r) => mock.listen(0, '127.0.0.1', r));
-    const ecdh = crypto.createECDH('prime256v1'); ecdh.generateKeys();
-    const uaPub = ecdh.getPublicKey(); const uaPriv = ecdh.getPrivateKey(); const authSecret = crypto.randomBytes(16);
-
     const boot = (await call('GET', '/api/mobile/bootstrap')).j;
-    ok(boot.push && boot.push.webpush_vapid_public_key && boot.realtime && boot.realtime.namespace === '/mobile', 'Bootstrap công bố khoá VAPID và Socket.IO (không Firebase)');
+    ok(boot.push && boot.push.provider === 'fcm' && typeof boot.push.configured === 'boolean' && boot.realtime && boot.realtime.namespace === '/mobile', `Bootstrap: push qua FCM (máy chủ ${boot.push && boot.push.configured ? 'đã' : 'chưa'} cấu hình) + Socket.IO`);
 
     const login = async (role) => (await call('POST', '/api/mobile/auth/demo', { body: { role } })).j;
     const dan = await login('citizen'); const cb = await login('specialist'); const ld = await login('leader');
     const devDan = crypto.randomUUID(); const devCb = crypto.randomUUID();
     cleanup.devices.push(devDan, devCb);
 
-    // đăng ký thiết bị: người dân dùng Web Push (UnifiedPush), cán bộ dùng APNs (chưa cấu hình khoá → thất bại có lý do)
-    const regDan = await call('POST', '/api/mobile/devices', { token: dan.access_token, body: { device_id: devDan, platform: 'android', app_version: 'test', push_provider: 'webpush', push_endpoint: `http://127.0.0.1:${mock.address().port}/up/${devDan}`, push_keys: { p256dh: uaPub.toString('base64url'), auth: authSecret.toString('base64url') } } });
-    ok(regDan.status === 200 && regDan.j.push_provider === 'webpush', 'Đăng ký thiết bị Android với endpoint UnifiedPush/Web Push');
-    const badApns = await call('POST', '/api/mobile/devices', { token: cb.access_token, body: { device_id: devCb, platform: 'iOS', push_provider: 'apns', push_endpoint: 'xyz' } });
-    ok(badApns.status === 400, 'Từ chối APNs token sai định dạng');
-    await call('POST', '/api/mobile/devices', { token: cb.access_token, body: { device_id: devCb, platform: 'iOS', push_provider: 'apns', push_endpoint: crypto.randomBytes(32).toString('hex'), push_env: 'sandbox' } });
+    // đăng ký thiết bị bằng FCM registration token (Android, iOS)
+    const regDan = await call('POST', '/api/mobile/devices', { token: dan.access_token, body: { device_id: devDan, platform: 'android', app_version: 'test', push_provider: 'fcm', push_endpoint: fakeToken() } });
+    ok(regDan.status === 200 && regDan.j.push_provider === 'fcm' && regDan.j.push_enabled, 'Đăng ký thiết bị Android bằng FCM token');
+    const badTok = await call('POST', '/api/mobile/devices', { token: cb.access_token, body: { device_id: devCb, platform: 'iOS', push_provider: 'fcm', push_endpoint: 'xyz' } });
+    ok(badTok.status === 400, 'Từ chối FCM token sai định dạng');
+    const oldCh = await call('POST', '/api/mobile/devices', { token: cb.access_token, body: { device_id: devCb, platform: 'iOS', push_provider: 'webpush', push_endpoint: 'https://example.org/x' } });
+    ok(oldCh.status === 400, 'Từ chối kênh push cũ (webpush/apns)');
+    await call('POST', '/api/mobile/devices', { token: cb.access_token, body: { device_id: devCb, platform: 'iOS', push_provider: 'fcm', push_endpoint: fakeToken() } });
 
     // ---------- Socket.IO ----------
     const inbox = { dan: [], cb: [] };
@@ -93,26 +72,22 @@ function decryptWebPush(body, uaPrivate, uaPublic, authSecret) {
     ok(got1 && /Đang xác minh/.test(got1.title), `Socket.IO giao thông báo tức thời: “${got1 && got1.title}”`);
     await sleep(5500);
     const d1 = (await admin.query(`SELECT d.channel, d.status FROM mobile.notification_deliveries d JOIN mobile.notifications n ON n.id = d.notification_id WHERE n.id = $1 AND d.device_id = $2`, [got1 && got1.id, devDan])).rows;
-    if (process.env.DEBUG_PUSH) console.log('  deliveries:', JSON.stringify(d1), 'webpush received:', received.length);
-    ok(d1.some((x) => x.channel === 'socket' && x.status === 'sent') && d1.some((x) => x.channel === 'webpush' && x.status === 'skipped') && received.length === 0, 'Đã giao qua socket → bản Web Push đang chờ được huỷ (không báo trùng)');
+    if (process.env.DEBUG_PUSH) console.log('  deliveries:', JSON.stringify(d1));
+    ok(d1.some((x) => x.channel === 'socket' && x.status === 'sent') && d1.some((x) => x.channel === 'fcm' && x.status === 'skipped'), 'Đã giao qua socket → bản FCM đang chờ được huỷ (không báo trùng)');
 
-    // người dân đóng ứng dụng → lãnh đạo duyệt → thông báo đi bằng Web Push, giải mã được
+    // người dân đóng ứng dụng → lãnh đạo duyệt → thông báo vào hàng đợi FCM và được bộ gửi xử lý
     sDan.close();
     await sleep(500);
+    const since = new Date();
     await call('POST', `/api/mobile/verifications/${ver.j.verification.id}/review`, { token: ld.access_token, body: { decision: 'approved', note: 'Đồng ý (kiểm thử thông báo)' } });
-    const push = await waitFor(() => received.find((x) => x.path === `/up/${devDan}`), 25000);
-    ok(push && push.headers['content-encoding'] === 'aes128gcm' && /vapid t=/.test(push.headers.authorization || ''), 'Ứng dụng ở nền: gửi Web Push mã hoá aes128gcm + chữ ký VAPID');
-    let payload = null; try { payload = decryptWebPush(push.body, uaPriv, uaPub, authSecret); } catch (e) { console.error(e.message); }
-    ok(payload && payload.kind === 'report' && payload.title.includes(rep.j.report.code), `Thiết bị giải mã được nội dung: “${payload && payload.title}”`);
+    const fcmRow = await waitFor(async () => (await admin.query(`SELECT d.status, d.last_error FROM mobile.notification_deliveries d JOIN mobile.notifications n ON n.id = d.notification_id
+      WHERE d.device_id = $1 AND d.channel = 'fcm' AND d.status <> 'pending' AND n.created_at >= $2 ORDER BY d.created_at DESC LIMIT 1`, [devDan, since])).rows[0], 25000);
+    ok(fcmRow && (boot.push.configured ? ['sent', 'gone', 'failed'].includes(fcmRow.status) : fcmRow.status === 'failed' && /chưa được cấu hình/.test(fcmRow.last_error || '')),
+      `Ứng dụng đóng: bản giao FCM được xử lý (${fcmRow ? `${fcmRow.status}${fcmRow.last_error ? ` – ${fcmRow.last_error}` : ''}` : 'không thấy'})`);
 
     // cán bộ xác minh nhận kết quả duyệt qua socket
     const got2 = await waitFor(() => inbox.cb.find((n) => n.kind === 'verification'));
     ok(got2 && /được duyệt/.test(got2.title), 'Cán bộ nhận thông báo kết quả duyệt qua Socket.IO');
-
-    // thiết bị iOS của cán bộ: APNs chưa cấu hình khoá → bản ghi giao thất bại có lý do, không thử lại vô hạn
-    await sleep(1500);
-    const iosRows = (await admin.query("SELECT status, last_error FROM mobile.notification_deliveries WHERE device_id = $1 AND channel = 'apns'", [devCb])).rows;
-    ok(iosRows.every((r) => r.status === 'skipped' || (r.status === 'failed' && /chưa được cấu hình/.test(r.last_error || ''))) , 'APNs chưa cấu hình: đánh dấu thất bại có lý do (hoặc đã giao qua socket)');
 
     // danh sách thông báo + đã đọc
     const feed = await call('GET', '/api/mobile/notifications', { token: dan.access_token });
@@ -128,31 +103,49 @@ function decryptWebPush(body, uaPrivate, uaPublic, authSecret) {
     const changed = await new Promise((resolve) => { sCb.once('changed', (c) => resolve(c)); setTimeout(() => resolve(null), 8000); call('POST', '/api/mobile/reports', { token: dan.access_token, body: { client_uuid: crypto.randomUUID(), type: 'khac', description: 'Thay đổi dữ liệu (kiểm thử thông báo)', lat: loc[1], lon: loc[0] } }).then((r) => cleanup.reports.push(r.j.report.code)); });
     ok(changed && changed.collection === 'reports', 'Socket.IO phát sự kiện “changed” khi dữ liệu thay đổi (đồng bộ web ↔ mobile)');
 
-    // ---------- APNs: máy chủ HTTP/2 giả lập ----------
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'apns-'));
-    const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
-    fs.writeFileSync(path.join(tmp, 'AuthKey_TEST.p8'), privateKey.export({ type: 'pkcs8', format: 'pem' }));
-    let mode = 200; const seen = [];
-    h2 = http2.createServer();
-    h2.on('stream', (stream, headers) => {
-      let body = ''; stream.on('data', (c) => { body += c; });
-      stream.on('end', () => {
-        const [h, p, sig] = String(headers.authorization || '').replace('bearer ', '').split('.');
-        const valid = crypto.verify('sha256', Buffer.from(`${h}.${p}`), { key: publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(sig || '', 'base64url'));
-        seen.push({ path: headers[':path'], topic: headers['apns-topic'], valid, body: JSON.parse(body || '{}') });
-        stream.respond({ ':status': mode, 'content-type': 'application/json' });
-        stream.end(mode === 200 ? '' : JSON.stringify({ reason: 'Unregistered' }));
+    // ---------- FCM HTTP v1: Google OAuth + FCM giả lập ----------
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fcm-'));
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    let mode = 200; const seen = { oauth: [], send: [] };
+    mock = http.createServer((req, res) => {
+      const ch = []; req.on('data', (c) => ch.push(c));
+      req.on('end', () => {
+        const body = Buffer.concat(ch).toString();
+        if (req.url === '/token') {
+          const jwt = new URLSearchParams(body).get('assertion') || '';
+          const [h, p, sig] = jwt.split('.');
+          const valid = crypto.verify('sha256', Buffer.from(`${h}.${p}`), publicKey, Buffer.from(sig || '', 'base64url'));
+          seen.oauth.push({ valid, claims: JSON.parse(Buffer.from(p || '', 'base64url').toString() || '{}') });
+          res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ access_token: 'ya29.test-token', expires_in: 3599, token_type: 'Bearer' }));
+          return;
+        }
+        seen.send.push({ path: req.url, auth: req.headers.authorization, body: JSON.parse(body || '{}') });
+        if (mode === 200) { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ name: 'projects/kontum-test/messages/1' })); return; }
+        const err = mode === 404 ? { code: 404, status: 'NOT_FOUND', message: 'Requested entity was not found.', details: [{ '@type': 'type.googleapis.com/google.firebase.fcm.v1.FcmError', errorCode: 'UNREGISTERED' }] } : { code: 503, status: 'UNAVAILABLE', message: 'try later' };
+        res.writeHead(mode, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: err }));
       });
     });
-    await new Promise((r) => h2.listen(0, '127.0.0.1', r));
-    Object.assign(process.env, { APNS_KEY_FILE: path.join(tmp, 'AuthKey_TEST.p8'), APNS_KEY_ID: 'TESTKEY123', APNS_TEAM_ID: 'TEAM123456', APNS_BUNDLE_ID: 'vn.gov.kontum.kontumMobilegis', APNS_HOST: `http://127.0.0.1:${h2.address().port}` });
-    const apns = require('../src/services/push/apns');
-    const token = crypto.randomBytes(32).toString('hex');
-    const r1 = await apns.send(token, { id: crypto.randomUUID(), kind: 'fire_danger', title: 'Cảnh báo cháy rừng Cấp IV', body: 'Kiểm thử', priority: 'high', data: { screen: 'fire' } });
-    ok(r1.ok && seen[0].valid && seen[0].path === `/3/device/${token}` && seen[0].topic === 'vn.gov.kontum.kontumMobilegis' && seen[0].body.aps.alert.title === 'Cảnh báo cháy rừng Cấp IV', 'APNs: HTTP/2, JWT ES256 hợp lệ, đúng topic và nội dung');
-    mode = 410;
-    const r2 = await apns.send(token, { id: crypto.randomUUID(), kind: 'report', title: 'x' });
-    ok(!r2.ok && r2.gone, 'APNs 410 Unregistered → đánh dấu thiết bị ngừng nhận');
+    await new Promise((r) => mock.listen(0, '127.0.0.1', r));
+    const mb = `http://127.0.0.1:${mock.address().port}`;
+    fs.writeFileSync(path.join(tmp, 'sa.json'), JSON.stringify({ type: 'service_account', project_id: 'kontum-test', private_key_id: 'kid1', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }), client_email: 'fcm@kontum-test.iam.gserviceaccount.com', token_uri: `${mb}/token` }));
+    Object.assign(process.env, { FCM_SERVICE_ACCOUNT_FILE: path.join(tmp, 'sa.json'), FCM_ENDPOINT: mb });
+    delete process.env.FCM_PROJECT_ID; delete process.env.FCM_TOKEN_URI;
+    const fcm = require('../src/services/push/fcm');
+    const tok = fakeToken();
+    const r1 = await fcm.send(tok, { id: crypto.randomUUID(), source_ref: 'fd:test', kind: 'fire_danger', title: 'Cảnh báo cháy rừng Cấp IV', body: 'Kiểm thử', priority: 'high', data: { screen: 'fire', commune: '23284' } });
+    const m = seen.send[0] && seen.send[0].body.message;
+    ok(r1.ok && seen.oauth[0] && seen.oauth[0].valid && seen.oauth[0].claims.scope === 'https://www.googleapis.com/auth/firebase.messaging' && seen.oauth[0].claims.iss === 'fcm@kontum-test.iam.gserviceaccount.com', 'FCM: JWT RS256 hợp lệ đổi lấy access token OAuth2 (phạm vi firebase.messaging)');
+    ok(seen.send[0] && seen.send[0].path === '/v1/projects/kontum-test/messages:send' && seen.send[0].auth === 'Bearer ya29.test-token', 'FCM: gọi HTTP v1 messages:send của đúng dự án, kèm access token');
+    ok(m && m.token === tok && m.notification.title === 'Cảnh báo cháy rừng Cấp IV' && m.android.priority === 'HIGH' && m.android.notification.channel_id === 'canh_bao' && m.apns.headers['apns-priority'] === '10'
+      && Object.values(m.data).every((v) => typeof v === 'string') && JSON.parse(m.data.link).screen === 'fire', 'FCM: nội dung message (notification, kênh Android, APNs, data dạng chuỗi)');
+    await fcm.send(tok, { id: crypto.randomUUID(), kind: 'report', title: 'x' });
+    ok(seen.oauth.length === 1 && seen.send.length === 2, 'FCM: dùng lại access token đã lưu đệm');
+    mode = 404;
+    const r2 = await fcm.send(tok, { id: crypto.randomUUID(), kind: 'report', title: 'x' });
+    ok(!r2.ok && r2.gone, 'FCM 404 UNREGISTERED → đánh dấu thiết bị ngừng nhận');
+    mode = 503;
+    const r3 = await fcm.send(tok, { id: crypto.randomUUID(), kind: 'report', title: 'x' });
+    ok(!r3.ok && r3.retry && !r3.gone, 'FCM 503 → thử lại sau (backoff)');
     fs.rmSync(tmp, { recursive: true, force: true });
 
     // quy tắc người nhận (công khai theo xã đăng ký / vai trò + địa bàn)
@@ -163,14 +156,14 @@ function decryptWebPush(body, uaPrivate, uaPublic, authSecret) {
     ok(matches(task, { role: 'specialist', scope: 'A' }) && matches(task, { role: 'specialist', scope: null }) && !matches(task, { role: 'specialist', scope: 'B' }) && !matches(task, { role: 'citizen' }), 'Nhiệm vụ chưa giao chỉ tới cán bộ phụ trách xã');
   } catch (e) { console.error(e); failures += 1; } finally {
     for (const s of cleanup.sockets) s.close();
-    if (mock) mock.close(); if (h2) h2.close();
+    if (mock) mock.close();
     // dọn dữ liệu thử (tài khoản quản trị DB vì bảng xác minh bất biến)
     await admin.query("DELETE FROM mobile.notifications WHERE data->>'code' = ANY($1) OR source_ref LIKE ANY($2)", [cleanup.reports, cleanup.reports.map((c) => `pa:${c}:%`)]).catch(() => {});
     await admin.query("DELETE FROM mobile.notifications WHERE kind = 'verification' AND body LIKE '%kiểm thử thông báo%'").catch(() => {});
     await admin.query('DELETE FROM mobile.mobile_devices WHERE id = ANY($1)', [cleanup.devices]).catch(() => {});
     await admin.end();
     await require('./purge_mobile_test.cjs')().catch((e) => console.warn('Dọn dữ liệu thử lỗi:', e.message));
-    console.log(failures ? `\n${failures} kiểm tra lỗi` : '\nTất cả kiểm tra thông báo (Socket.IO + PostgreSQL + push nền tảng) đạt');
+    console.log(failures ? `\n${failures} kiểm tra lỗi` : '\nTất cả kiểm tra thông báo (Socket.IO + PostgreSQL + Firebase Cloud Messaging) đạt');
     process.exit(failures ? 1 : 0);
   }
 })();

@@ -13,6 +13,7 @@ const { readJson } = require('../data/files');
 const alerts = require('../services/alerts');
 const content = require('../services/content');
 const reports = require('../services/reports');
+const firepoints = require('../services/firepoints');
 const jobs = require('../services/jobs');
 const weatherSvc = require('../services/weather');
 const firmsSvc = require('../services/firms');
@@ -209,10 +210,11 @@ r.get('/api/jobs/:id', requirePerm('dashboard.view'), (req, res) => res.json(sto
 r.get('/canh-bao', requirePerm('dashboard.view'), (req, res) => {
   res.render('admin/alerts', {
     title: 'Quản lý cảnh báo', section: 'alerts', tab: req.query.tab || 'diem-nong',
-    hotspots: repo.hotspots(), dangerAlerts: alerts.fireDangerAlerts(3), candidates: repo.changeCandidates().features.map((f) => f.properties).sort((a, b) => b.area_ha - a.area_ha),
+    hotspots: repo.hotspots({ staff: true }), dangerAlerts: alerts.fireDangerAlerts(3), candidates: repo.changeCandidates().features.map((f) => f.properties).sort((a, b) => b.area_ha - a.area_ha),
     HS: repo.HOTSPOT_STATUS, CS: repo.CANDIDATE_STATUS, DS: alerts.DANGER_STATUS, users: store.all('users').filter((u) => u.active),
-    filter: req.query,
+    filter: req.query, SOURCES: firepoints.SOURCES, form: req.session.fpForm || {},
   });
+  delete req.session.fpForm;
 });
 // web → MobileGIS: assigning an officer on the web also creates the field task in their app (once per open object)
 async function ensureFieldTask(req, kind, ref, username) {
@@ -233,6 +235,20 @@ r.post('/canh-bao/diem-nong', requirePerm('alerts.verify'), async (req, res, nex
     flash(req, 'ok', task && task.code ? `Đã cập nhật và giao nhiệm vụ ${task.code} trên MobileGIS cho ${assignee}.` : `Đã cập nhật trạng thái điểm nóng.${task && task.skipped ? ` (${task.skipped})` : ''}`);
     return back(req, res, '/quan-tri/canh-bao');
   } catch (e) { return next(e); }
+});
+// nhập tay điểm cháy: đi chung danh sách/quy trình xác minh với FIRMS
+r.post('/canh-bao/nhap-tay', requirePerm('alerts.manual'), async (req, res, next) => {
+  try {
+    const canVerify = can(me(req), 'alerts.verify');
+    const out = firepoints.create(me(req), req.body, { canVerify });
+    const task = out.status === 'assigned' && req.body.assignee ? await ensureFieldTask(req, 'hotspot', out.ref, req.body.assignee) : null;
+    if (task && task.code) store.setDecision('hotspot', out.ref, { status: 'assigned', note: String(req.body.note || '').slice(0, 1000) || 'Nhập thủ công, giao xác minh', assignee: req.body.assignee }, me(req));
+    flash(req, 'ok', `Đã nhập điểm cháy ${out.row.code} (${repo.HOTSPOT_STATUS[out.status]}).${out.status === 'confirmed' ? ' Thông báo cháy đã xác minh sẽ gửi tới người dân trong xã qua MobileGIS.' : ' Điểm đã vào danh sách xác minh cùng điểm nóng FIRMS.'}${task && task.code ? ` Đã giao nhiệm vụ ${task.code}.` : ''}`);
+    return res.redirect('/quan-tri/canh-bao?tab=diem-nong');
+  } catch (e) {
+    if (e instanceof firepoints.InputError) { req.session.fpForm = req.body; flash(req, 'error', e.message); return res.redirect('/quan-tri/canh-bao?tab=nhap-tay'); }
+    return next(e);
+  }
 });
 r.post('/canh-bao/bien-dong', requirePerm('alerts.verify'), (req, res) => {
   const { ref, status, note } = req.body;
@@ -314,13 +330,21 @@ r.get('/phan-anh', requirePerm('reports.view'), (req, res) => {
   let list = store.all('reports').slice().reverse().map(reports.decorate);
   if (req.query.trang_thai) list = list.filter((x) => x.status === req.query.trang_thai);
   if (req.query.loai) list = list.filter((x) => x.type === req.query.loai);
-  res.render('admin/reports', { title: 'Quản lý phản ánh hiện trường', section: 'reports', list, types: reports.TYPES, statuses: reports.STATUS, filter: req.query });
+  if (req.query.kiem_tra === 'chua') list = list.filter((x) => !x.reviewed_at);
+  if (req.query.kiem_tra === 'roi') list = list.filter((x) => x.reviewed_at);
+  const view = req.query.xem === 'ban-do' ? 'map' : 'list';
+  const points = view === 'map' ? list.filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lon)).map((x) => ({
+    id: x.id, code: x.code, type: x.type, typeLabel: x.typeLabel, marker: x.marker, status: x.status, statusLabel: x.statusLabel, statusTone: x.statusTone,
+    lat: x.lat, lon: x.lon, commune: x.commune_name, created_at: x.created_at, reviewed: Boolean(x.reviewed_at), description: String(x.description || '').slice(0, 160),
+  })) : [];
+  res.render('admin/reports', { title: 'Quản lý phản ánh hiện trường', section: 'reports', list, types: reports.TYPES, statuses: reports.STATUS, filter: req.query, view, points, needsMap: view === 'map' });
 });
 r.get('/phan-anh/:id', requirePerm('reports.view'), (req, res, next) => {
   const x = store.get('reports', req.params.id);
   if (!x) return next();
   store.audit(me(req), 'report.view', x.code);
-  return res.render('admin/report-detail', { title: `Phản ánh ${x.code}`, section: 'reports', x: reports.decorate(x), statuses: reports.STATUS, users: store.all('users').filter((u) => u.active && u.role === 'specialist') });
+  const fp = x.fire_point ? repo.hotspots().find((h) => h.manual && h.manual.code === x.fire_point) : null;
+  return res.render('admin/report-detail', { title: `Phản ánh ${x.code}`, section: 'reports', x: reports.decorate(x), statuses: reports.STATUS, users: store.all('users').filter((u) => u.active && u.role === 'specialist'), fp, HS: repo.HOTSPOT_STATUS });
 });
 r.post('/phan-anh/:id', requirePerm('reports.manage'), async (req, res, next) => {
   const x = store.get('reports', req.params.id);
@@ -338,6 +362,32 @@ r.post('/phan-anh/:id', requirePerm('reports.manage'), async (req, res, next) =>
   store.audit(me(req), 'report.update', x.code, { status: patch.status, public: patch.public });
   const task = patch.assigned_to && patch.assigned_to !== prevAssignee ? await ensureFieldTask(req, 'report', x.code, patch.assigned_to) : null;
   flash(req, 'ok', `Đã cập nhật hồ sơ phản ánh.${task && task.code ? ` Đã giao nhiệm vụ xác minh ${task.code} trên MobileGIS.` : ''}`);
+  return res.redirect(`/quan-tri/phan-anh/${x.id}`);
+});
+
+// đánh dấu đã kiểm tra / bỏ đánh dấu (người kiểm duyệt: quản trị, lãnh đạo, cán bộ)
+r.post('/phan-anh/:id/kiem-tra', requirePerm('reports.manage'), (req, res, next) => {
+  const x = store.get('reports', req.params.id);
+  if (!x) return next();
+  const on = req.body.reviewed !== '0';
+  const note = on ? 'Đã kiểm tra hồ sơ' : 'Bỏ đánh dấu đã kiểm tra';
+  store.update('reports', x.id, { reviewed_at: on ? store.now() : null, reviewed_by: on ? me(req).username : null, timeline: [...x.timeline, { at: store.now(), status: x.status, note, by: me(req).username }] });
+  store.audit(me(req), on ? 'report.reviewed' : 'report.unreviewed', x.code);
+  flash(req, 'ok', on ? `Đã đánh dấu ${x.code} là đã kiểm tra.` : `Đã bỏ đánh dấu kiểm tra ${x.code}.`);
+  return back(req, res, `/quan-tri/phan-anh/${x.id}`);
+});
+// phản ánh "Cháy rừng" → điểm cháy trong luồng cảnh báo (xác nhận ngay nếu cán bộ có quyền xác minh chọn)
+r.post('/phan-anh/:id/diem-chay', requirePerm('alerts.manual'), (req, res, next) => {
+  const x = store.get('reports', req.params.id);
+  if (!x) return next();
+  try {
+    const confirm = req.body.confirm === '1' && can(me(req), 'alerts.verify');
+    const out = firepoints.fromReport(me(req), x, { confirm, note: String(req.body.note || '').slice(0, 1000) || null });
+    flash(req, 'ok', `Đã tạo điểm cháy ${out.row.code} từ phản ánh ${x.code}${confirm ? ' – đã xác nhận cháy, người dân trong xã sẽ nhận thông báo.' : ' – chờ xác minh trong Quản lý cảnh báo.'}`);
+  } catch (e) {
+    if (!(e instanceof firepoints.InputError)) return next(e);
+    flash(req, 'error', e.message);
+  }
   return res.redirect(`/quan-tri/phan-anh/${x.id}`);
 });
 

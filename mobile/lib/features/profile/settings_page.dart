@@ -130,7 +130,7 @@ class SettingsPage extends ConsumerWidget {
 }
 
 
-/// Trạng thái kênh thông báo: Socket.IO (khi mở) + push theo nền tảng (APNs / UnifiedPush) – không Firebase.
+/// Trạng thái kênh thông báo: Socket.IO (khi mở) + Firebase Cloud Messaging (nền/đã đóng).
 class _PushCard extends ConsumerWidget {
   const _PushCard();
   @override
@@ -155,25 +155,8 @@ class _PushCard extends ConsumerWidget {
         ),
         if (push.message != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: NoticeBox(push.message!, warn: !push.registered)),
         Wrap(spacing: 8, runSpacing: 6, children: [
-          if (push.channel == PushChannel.unifiedpush || push.channel == PushChannel.apns)
+          if (push.channel == PushChannel.fcm)
             OutlinedButton.icon(onPressed: () => ref.read(pushProvider.notifier).enable(interactive: true), icon: const Icon(Icons.notifications_active_outlined), label: const Text('Bật / đăng ký lại')),
-          if (push.channel == PushChannel.unifiedpush)
-            OutlinedButton.icon(
-              icon: const Icon(Icons.hub_outlined),
-              label: const Text('Chọn ứng dụng phân phối'),
-              onPressed: () async {
-                final list = await ref.read(pushProvider.notifier).distributors();
-                if (!context.mounted) return;
-                final picked = await showDialog<String>(
-                  context: context,
-                  builder: (_) => SimpleDialog(title: const Text('Ứng dụng phân phối UnifiedPush'), children: [
-                    if (list.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Chưa cài ứng dụng phân phối. Cài “ntfy” (Google Play/F-Droid) rồi quay lại – không cần tài khoản Google.')),
-                    for (final d in list) SimpleDialogOption(onPressed: () => Navigator.pop(context, d), child: Text(d)),
-                  ]),
-                );
-                if (picked != null) await ref.read(pushProvider.notifier).useDistributor(picked);
-              },
-            ),
           if (signed)
             OutlinedButton.icon(
               icon: const Icon(Icons.send_outlined),
@@ -189,7 +172,7 @@ class _PushCard extends ConsumerWidget {
             ),
           if (push.registered) TextButton(onPressed: () => ref.read(pushProvider.notifier).disable(), child: const Text('Tắt push')),
         ]),
-        const SourceNote('Không dùng Firebase. iOS nhận qua APNs của Apple; Android qua UnifiedPush (chuẩn mở, cần ứng dụng phân phối như ntfy); khi ứng dụng mở nhận trực tiếp qua Socket.IO. Lịch sử thông báo lưu trên máy chủ (PostgreSQL).'),
+        const SourceNote('Khi ứng dụng ở nền hoặc đã đóng: Firebase Cloud Messaging (Android, iOS). Khi ứng dụng mở: nhận trực tiếp qua Socket.IO, không báo trùng. Lịch sử thông báo lưu trên máy chủ (PostgreSQL).'),
       ]),
     );
   }

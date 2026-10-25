@@ -1,17 +1,16 @@
-// Thông báo MobileGIS (không Firebase):
+// Thông báo MobileGIS:
 //  1. Nguồn sự thật: bảng mobile.notifications (PostgreSQL). Thông báo được sinh từ sự kiện nghiệp vụ đã chốt –
-//     cảnh báo cháy đã phê duyệt, cháy đã xác minh, hồ sơ phản ánh đổi trạng thái, nhiệm vụ mới/trả lại, kết quả duyệt
-//     xác minh. KHÔNG sinh từ điểm nóng chưa xác minh (đặc tả mục 9). source_ref UNIQUE chống trùng giữa nhiều tiến trình.
+//     cảnh báo cháy đã phê duyệt, cháy đã xác minh, hồ sơ phản ánh đổi trạng thái, phản ánh/tin báo cháy mới (cán bộ),
+//     nhiệm vụ mới/trả lại, kết quả duyệt xác minh. KHÔNG sinh từ điểm nóng chưa xác minh (đặc tả mục 9). source_ref UNIQUE chống trùng giữa nhiều tiến trình.
 //  2. Giao tức thời qua Socket.IO (src/services/realtime.js) khi ứng dụng đang mở.
-//  3. Push nền tảng khi ứng dụng ở nền/đã đóng: APNs (iOS), Web Push/UnifiedPush (Android, trình duyệt).
+//  3. Firebase Cloud Messaging (src/services/push/fcm.js) khi ứng dụng ở nền/đã đóng – Android và iOS.
 //     Bản ghi push chờ GRACE_MS; nếu Socket.IO đã giao được thì bỏ qua (không báo trùng).
 const crypto = require('crypto');
 const db = require('../db/pool');
 const store = require('../data/store');
 const repo = require('../data/repo');
 const reports = require('./reports');
-const apns = require('./push/apns');
-const webpush = require('./push/webpush');
+const fcm = require('./push/fcm');
 
 const GRACE_MS = 4000;
 const MAX_ATTEMPTS = 6;
@@ -74,7 +73,9 @@ async function scan() {
   if (!db.enabled || scanning) return 0;
   scanning = true;
   let created = 0;
-  const add = async (n) => { if (await create(n)) created += 1; };
+  const add = async (n) => {
+    try { if (await create(n)) created += 1; } catch (e) { console.warn('[notifier] không tạo được thông báo', n.source_ref, e.message); }
+  };
   try {
     // a) cảnh báo nguy cơ cháy đã phê duyệt (công khai theo xã)
     const alerts = require('./alerts');
@@ -92,7 +93,8 @@ async function scan() {
     for (const h of repo.hotspots()) {
       if (h.status !== 'confirmed' || !h.decision || !recent(h.decision.updated_at)) continue;
       await add({
-        source_ref: `hs:${h.id}:confirmed`, kind: 'fire_confirmed', title: `Đã xác minh cháy rừng tại ${h.commune || 'khu vực'}`, body: (h.decision.note || '').slice(0, 300),
+        source_ref: `hs:${h.id}:confirmed`, kind: 'fire_confirmed', title: `Đã xác minh cháy rừng tại ${h.commune || 'khu vực'}`,
+        body: [h.manual && h.manual.area_ha ? `Diện tích ước tính ${h.manual.area_ha} ha.` : '', 'Tránh xa khu vực, không đốt lửa trong rừng; báo ngay cho kiểm lâm hoặc chính quyền xã nếu thấy cháy lan.'].filter(Boolean).join(' '),
         data: { screen: 'hotspot', id: h.id, commune: h.communeCode, lat: h.lat, lon: h.lon }, target_communes: h.communeCode ? [h.communeCode] : null, is_public: true, priority: 'high',
       });
     }
@@ -124,6 +126,24 @@ async function scan() {
         data: { screen: 'task', id: x.assignment_id }, target_user: x.verifier_id,
       });
     }
+    // f) phản ánh hiện trường mới → cán bộ phụ trách xã + lãnh đạo (để tiếp nhận, kiểm tra)
+    for (const r of store.filter('reports', (x) => x.status === 'received' && recent(x.created_at))) {
+      const fire = r.type === 'chay-rung';
+      await add({
+        source_ref: `pa-new:${r.code}`, kind: 'report_new', title: `${fire ? 'Tin báo cháy rừng' : 'Phản ánh mới'} ${r.code}${r.commune_name ? ` – ${r.commune_name}` : ''}`,
+        body: String(r.description || '').slice(0, 200), data: { screen: fire ? 'fire' : 'notifications', code: r.code, lat: r.lat, lon: r.lon },
+        target_roles: ['specialist', 'leader'], target_communes: r.commune_code ? [r.commune_code] : null, priority: fire ? 'high' : 'normal',
+      });
+    }
+    // g) điểm cháy nhập tay chờ xác minh → cán bộ phụ trách xã (điểm từ phản ánh đã báo ở mục f)
+    for (const h of repo.hotspots()) {
+      if (!h.manual || h.manual.report_code || h.status !== 'new' || !recent(h.utc)) continue;
+      await add({
+        source_ref: `ch-new:${h.manual.code}`, kind: 'fire_report', title: `Tin báo cháy ${h.manual.code} cần xác minh${h.commune ? ` – ${h.commune}` : ''}`,
+        body: h.sensorLabel, data: { screen: 'hotspot', id: h.id, commune: h.communeCode, lat: h.lat, lon: h.lon },
+        target_roles: ['specialist'], target_communes: h.communeCode ? [h.communeCode] : null, priority: 'high',
+      });
+    }
   } catch (e) {
     console.warn('[notifier] quét lỗi:', e.message);
   } finally { scanning = false; }
@@ -143,17 +163,16 @@ async function dispatch() {
         ORDER BY next_attempt_at LIMIT 50 FOR UPDATE SKIP LOCKED)
       RETURNING x.id, x.notification_id, x.device_id, x.channel, x.attempts`);
     for (const c of claimed.rows) {
-      const q = await db.query(`SELECT n.*, d.push_endpoint, d.push_keys, d.push_env, d.push_enabled FROM mobile.notifications n, mobile.mobile_devices d WHERE n.id = $1 AND d.id = $2`, [c.notification_id, c.device_id]);
+      const q = await db.query(`SELECT n.*, d.push_endpoint, d.push_provider, d.push_enabled FROM mobile.notifications n, mobile.mobile_devices d WHERE n.id = $1 AND d.id = $2`, [c.notification_id, c.device_id]);
       const row = q.rows[0];
       if (!row || !row.push_enabled) { await setStatus(c.id, 'gone', 'Thiết bị đã tắt push'); continue; }
       if (row.expires_at && new Date(row.expires_at) < new Date()) { await setStatus(c.id, 'skipped', 'Thông báo đã hết hạn'); continue; }
-      const res = c.channel === 'apns'
-        ? await apns.send(row.push_endpoint, row, { env: row.push_env })
-        : await webpush.send({ endpoint: row.push_endpoint, keys: row.push_keys || {} }, row);
+      if (c.channel !== 'fcm' || row.push_provider !== 'fcm' || !row.push_endpoint) { await setStatus(c.id, 'gone', 'Thiết bị chưa đăng ký FCM'); continue; }
+      const res = await fcm.send(row.push_endpoint, row);
       if (res.ok) { await setStatus(c.id, 'sent'); n += 1; } else if (res.gone) {
         await setStatus(c.id, 'gone', res.reason);
         await db.query('UPDATE mobile.mobile_devices SET push_enabled = false, push_failed_at = now() WHERE id = $1', [c.device_id]);
-      } else if (c.attempts >= MAX_ATTEMPTS || /chưa được cấu hình/.test(res.reason || '')) {
+      } else if (!res.retry || c.attempts >= MAX_ATTEMPTS) { // lỗi không thử lại được (chưa cấu hình, yêu cầu sai) hoặc hết lượt
         await setStatus(c.id, 'failed', res.reason);
       } else {
         await db.query('UPDATE mobile.notification_deliveries SET last_error = $2 WHERE id = $1', [c.id, String(res.reason || res.status || '').slice(0, 500)]);
@@ -201,14 +220,14 @@ async function stats() {
     db.query("SELECT channel, status, count(*)::int n FROM mobile.notification_deliveries WHERE created_at > now() - interval '7 days' GROUP BY 1, 2 ORDER BY 1, 2"),
     db.query("SELECT coalesce(push_provider, 'chỉ Socket.IO') provider, count(*) FILTER (WHERE push_enabled)::int enabled, count(*)::int total FROM mobile.mobile_devices GROUP BY 1"),
   ]);
-  return { notifications: n.rows[0], deliveries: d.rows, devices: dev.rows, apns: apns.configured(), webpush_public_key: webpush.publicKey() };
+  return { notifications: n.rows[0], deliveries: d.rows, devices: dev.rows, fcm: fcm.status() };
 }
 
 // ---------- vòng chạy ----------
 let timers = [];
 function start() {
   if (!db.enabled) return;
-  webpush.publicKey(); // sinh khoá VAPID nếu chưa có
+  if (!fcm.configured()) console.warn('[notifier] FCM chưa cấu hình – thông báo chỉ giao qua Socket.IO khi ứng dụng mở. Xem mobile/README.md mục 8.');
   let pending = null;
   const kick = () => { clearTimeout(pending); pending = setTimeout(() => scan().catch(() => {}), 800); };
   db.listen('store_changed', kick); // web/mobile/tiến trình khác thay đổi dữ liệu → quét ngay

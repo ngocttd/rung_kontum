@@ -81,9 +81,9 @@ r.get('/bootstrap', optionalAuth, (req, res) => {
     permissions: req.auth ? auth.permissionsOf(req.auth.role) : [],
     roles: ROLES,
     features: { demo_login: auth.demoEnabled(), register: true, offline: true, push: true },
-    // thông báo: Socket.IO khi ứng dụng mở + push theo nền tảng (APNs / Web Push qua UnifiedPush) – không Firebase
+    // thông báo: Socket.IO khi ứng dụng mở + Firebase Cloud Messaging khi ở nền/đã đóng
     realtime: { path: '/socket.io', namespace: '/mobile' },
-    push: { webpush_vapid_public_key: require('../services/push/webpush').publicKey(), apns: require('../services/push/apns').configured() },
+    push: { provider: 'fcm', configured: require('../services/push/fcm').configured() },
     demo_roles: auth.demoEnabled() ? auth.demoRoles() : [],
     map: {
       mapbox_token: config.mapboxToken || null, // public pk token, URL-restricted in the Mapbox account
@@ -166,7 +166,7 @@ r.get('/fire/hotspots', (req, res) => {
     type: 'FeatureCollection', meta: repo.firmsMeta(),
     features: repo.hotspots().map((h) => ({
       type: 'Feature', geometry: { type: 'Point', coordinates: [h.lon, h.lat] },
-      properties: { ...h, decision: undefined, verified: ['confirmed', 'rejected'].includes(h.status), verification_label: ['confirmed', 'rejected', 'closed', 'handling'].includes(h.status) ? h.statusLabel : 'Chưa xác minh' },
+      properties: { ...repo.publicHotspot(h), verified: ['confirmed', 'rejected'].includes(h.status), verification_label: ['confirmed', 'rejected', 'closed', 'handling'].includes(h.status) ? h.statusLabel : 'Chưa xác minh' },
     })),
   });
 });

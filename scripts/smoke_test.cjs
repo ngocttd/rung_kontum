@@ -113,6 +113,85 @@ const csrfOf = (html) => (html.match(/name="_csrf" value="([a-f0-9]+)"/) || [])[
     r = await post(leader, '/quan-tri/canh-bao/nguy-co', { ref: 'FD-test', status: 'approved' }, lTok);
     ok(r.status === 302, 'Lãnh đạo được phê duyệt công bố cảnh báo');
     ok(store.all('audit').some((a) => a.action === 'hotspot.status') && store.all('audit').some((a) => a.action === 'auth.login'), 'Nhật ký ghi nhận thao tác');
+
+    // ---------- phản ánh: quản trị/lãnh đạo cập nhật, đánh dấu đã kiểm tra, bản đồ phản ánh ----------
+    const aTok = csrfOf((await admin('/quan-tri/phan-anh')).text);
+    r = await post(admin, `/quan-tri/phan-anh/${rep.id}`, { status: 'processing', note: 'Quản trị cập nhật' }, aTok);
+    ok(r.status === 302 && store.get('reports', rep.id).status === 'processing', 'Quản trị cập nhật trạng thái phản ánh');
+    r = await post(leader, `/quan-tri/phan-anh/${rep.id}/kiem-tra`, {}, lTok);
+    ok(r.status === 302 && store.get('reports', rep.id).reviewed_by === 'lanhdao', 'Lãnh đạo đánh dấu phản ánh đã kiểm tra');
+    r = await admin('/quan-tri/phan-anh?kiem_tra=roi');
+    ok(r.status === 200 && r.text.includes(code) && r.text.includes('Đã kiểm tra'), 'Lọc phản ánh đã kiểm tra');
+    r = await admin('/quan-tri/phan-anh?xem=ban-do');
+    ok(r.status === 200 && r.text.includes('id="map"') && r.text.includes(code) && !/href="\/ban-do\?lop=/.test(r.text), 'Tab Bản đồ phản ánh hiển thị điểm phản ánh (không dẫn sang trang bản đồ chung)');
+
+    // ---------- điểm cháy nhập tay: chung luồng với FIRMS ----------
+    const sTok2 = csrfOf((await spec('/quan-tri/canh-bao?tab=nhap-tay')).text);
+    ok(Boolean(sTok2), 'Tab Nhập thủ công điểm cháy mở được');
+    const nowVN = new Date(Date.now() + 7 * 3600e3 - 3600e3).toISOString().slice(0, 16);
+    r = await post(spec, '/quan-tri/canh-bao/nhap-tay', { lat: '14.70', lon: '107.95', observed_at: nowVN, source_kind: 'chong-chay', area_ha: '1,5', description: 'Tổ chống cháy xã báo cháy thảm cỏ dưới tán rừng, SĐT 0911111111', status: 'confirmed' }, sTok2);
+    let mp = store.all('fire_points').slice(-1)[0];
+    ok(r.status === 302 && mp && mp.area_ha === 1.5, 'Cán bộ nhập tay điểm cháy');
+    const pubHs = JSON.parse((await anon('/api/public/fire/hotspots')).text).features.find((f) => f.properties.id === `man-${mp.code}`);
+    ok(pubHs && pubHs.properties.sensor === 'MANUAL' && pubHs.properties.status === 'confirmed', 'Điểm nhập tay hiện chung danh sách điểm nóng, trạng thái Xác nhận cháy');
+    ok(pubHs && !JSON.stringify(pubHs.properties).includes('0911111111') && !pubHs.properties.manual.created_by, 'API công khai không lộ mô tả/người nhập điểm cháy');
+    ok((await spec('/quan-tri/canh-bao?nguon=tay')).text.includes(mp.code), 'Lọc nguồn Nhập thủ công trong quản lý cảnh báo');
+    r = await post(leader, '/quan-tri/canh-bao/nhap-tay', { lat: '14.5', lon: '108.0', observed_at: nowVN, source_kind: 'nguoi-dan', description: 'Người dân gọi báo có khói', status: 'confirmed' }, lTok);
+    mp = store.all('fire_points').slice(-1)[0];
+    ok(r.status === 302 && store.getDecision('hotspot', `man-${mp.code}`).status === 'new', 'Lãnh đạo nhập tin báo: chỉ ở trạng thái Mới phát hiện');
+    const before = store.all('fire_points').length;
+    r = await post(spec, '/quan-tri/canh-bao/nhap-tay', { lat: '21.0', lon: '105.8', observed_at: nowVN, source_kind: 'khac', description: 'ngoài vùng' }, sTok2);
+    ok(r.status === 302 && /nhap-tay/.test(r.location) && store.all('fire_points').length === before, 'Từ chối toạ độ ngoài Kon Tum');
+    r = await post(spec, `/quan-tri/canh-bao/diem-nong`, { ref: `man-${mp.code}`, status: 'rejected', note: 'đốt rác' }, sTok);
+    ok(store.getDecision('hotspot', `man-${mp.code}`).status === 'rejected', 'Xác minh điểm nhập tay bằng cùng quy trình điểm nóng');
+
+    // phản ánh "Cháy rừng" → điểm cháy
+    const fireRep = store.insert('reports', { code: store.nextCode('PA'), type: 'chay-rung', description: 'Khói lớn trên sườn đồi', lat: 14.66, lon: 107.88, status: 'received', photos: [], public: false, public_photos: false, reporter: {}, timeline: [{ at: store.now(), status: 'received', by: 'system' }] });
+    r = await post(spec, `/quan-tri/phan-anh/${fireRep.id}/diem-chay`, { confirm: '1', note: 'Đã gọi xác nhận' }, sTok);
+    const linked = store.get('reports', fireRep.id).fire_point;
+    ok(r.status === 302 && linked && store.getDecision('hotspot', `man-${linked}`).status === 'confirmed', 'Tạo điểm cháy từ phản ánh và xác nhận cháy');
+    r = await post(spec, `/quan-tri/phan-anh/${fireRep.id}/diem-chay`, { confirm: '1' }, sTok);
+    ok(store.all('fire_points').filter((x) => x.report_code === fireRep.code).length === 1, 'Không tạo trùng điểm cháy cho một phản ánh');
+    // MobileGIS: cán bộ báo cháy bằng GPS = xác nhận cháy; người dân báo cháy = chỉ hồ sơ chờ xử lý
+    const field = require('../src/services/field');
+    const cbU = store.find('users', (u) => u.username === 'canbo');
+    const ctr = { lat: 14.62, lon: 107.98 };
+    const sRep = (await field.createReport({ sub: cbU.id, role: 'specialist' }, { type: 'chay-rung', description: 'Cán bộ phát hiện cháy tại hiện trường (kiểm thử)', ...ctr, location_source: 'gps', gps_accuracy: 6 })).report;
+    ok(sRep.fire_point && store.getDecision('hotspot', `man-${sRep.fire_point}`).status === 'confirmed', 'MobileGIS: cán bộ báo cháy bằng GPS → điểm cháy Xác nhận cháy');
+    const cRep = (await field.createReport(null, { type: 'chay-rung', description: 'Người dân thấy khói (kiểm thử)', ...ctr, location_source: 'gps' })).report;
+    ok(!cRep.fire_point, 'MobileGIS: người dân báo cháy không tự thành sự kiện đã xác minh');
+    const mRep = (await field.createReport({ sub: cbU.id, role: 'specialist' }, { type: 'chay-rung', description: 'Cán bộ chọn vị trí trên bản đồ (kiểm thử)', ...ctr, location_source: 'map' })).report;
+    ok(!mRep.fire_point, 'MobileGIS: vị trí chọn trên bản đồ (không GPS) không tự xác nhận cháy');
+    // ---------- quy tắc hiển thị theo thời gian (bản đồ hiện hành ↔ lịch sử) ----------
+    const repoR = require('../src/data/repo');
+    const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString();
+    const onPub = (id) => repoR.hotspots().some((h) => h.id === id);
+    const onStaff = (id) => repoR.hotspots({ staff: true }).some((h) => h.id === id);
+    const mkOld = (n) => store.insert('fire_points', { code: store.nextCode('CH'), observed_at: daysAgo(n), source_kind: 'kiem-lam', description: 'điểm cũ (kiểm thử)', lat: 14.6, lon: 107.9, commune_code: null, commune_name: null, created_by: 'canbo' });
+    const decide = (ref, status, atDaysAgo) => { store.setDecision('hotspot', ref, { status }, { username: 'canbo', role: 'specialist' }); const d = store.getDecision('hotspot', ref); d.history[d.history.length - 1].at = daysAgo(atDaysAgo); };
+    const o1 = `man-${mkOld(10).code}`;
+    ok(!onPub(o1), 'Chưa xác minh quá 7 ngày → ẩn khỏi bản đồ');
+    decide(o1, 'confirmed', 9);
+    ok(onPub(o1) && repoR.hotspots().find((h) => h.id === o1).pinned, 'Xác nhận cháy → vẫn hiện dù đã quá 7 ngày (đang theo dõi)');
+    decide(o1, 'handling', 1);
+    ok(onPub(o1), 'Đang xử lý → vẫn hiện');
+    decide(o1, 'closed', 2);
+    ok(onPub(o1), 'Kết thúc 2 ngày trước → còn hiện (≤ 7 ngày sau khi đóng)');
+    decide(o1, 'closed', 8);
+    ok(!onPub(o1), 'Kết thúc 8 ngày trước → chỉ còn trong lịch sử');
+    const o2 = `man-${mkOld(1).code}`;
+    decide(o2, 'rejected', 0);
+    ok(!onPub(o2) && onStaff(o2), '“Không phải cháy rừng” → ẩn ngay trên bản đồ công khai, cán bộ vẫn thấy trong danh sách xác minh');
+    decide(o2, 'rejected', 8);
+    ok(!onStaff(o2), '“Không phải cháy rừng” quá 7 ngày → cán bộ cũng chỉ xem trong lịch sử');
+    // điểm FIRMS đã rời tệp 7 ngày nhưng hồ sơ còn mở → dựng lại từ ảnh chụp lưu trong quyết định
+    const fref = 'J1_VIIRS-2026-09-01-0600-14.5000-107.9000';
+    store.setDecision('hotspot', fref, { status: 'handling', note: 'kiểm thử' }, { username: 'canbo', role: 'specialist' });
+    store.update('decisions', store.getDecision('hotspot', fref).id, { snapshot: { lon: 107.9, lat: 14.5, sensor: 'J1_VIIRS', satellite: 'N20', utc: '2026-09-01T06:00:00Z', confidence: 'nominal', frp: 4.2, brightness: 330, daynight: 'D', version: '2.0NRT', context: null } });
+    const pinned = repoR.hotspots().find((h) => h.id === fref);
+    ok(pinned && pinned.pinned && pinned.sensorLabel === 'VIIRS NOAA-20' && pinned.status === 'handling', 'Điểm FIRMS cũ đang xử lý vẫn hiện trên bản đồ (từ ảnh chụp thuộc tính)');
+    ok(JSON.parse((await anon('/api/public/fire/hotspots')).text).features.some((f) => f.properties.id === fref), 'API bản đồ công khai trả điểm đang theo dõi');
+    for (const p of ['/canh-bao-chay', '/ban-do', '/tai-nguyen-rung', '/bien-dong-rung']) { const res = await anon(p); ok(res.status === 200, `GET ${p} sau khi có điểm nhập tay → ${res.status}`); }
   } catch (e) {
     console.error(e); failures += 1;
   } finally {

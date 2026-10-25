@@ -1,154 +1,161 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:unifiedpush/unifiedpush.dart';
 
 import '../app/config.dart';
+import '../app/firebase_config.dart';
 import 'notify_local.dart';
+import 'realtime.dart';
 import 'session.dart';
 
-/// Push theo nền tảng thiết bị – KHÔNG dùng Firebase:
-///  - Android: UnifiedPush (chuẩn mở) qua ứng dụng phân phối do người dùng chọn (ntfy, NextPush, Sunup…);
-///    máy chủ gửi Web Push mã hoá đầu-cuối (RFC 8291) ký VAPID; thư viện unifiedpush giải mã trên máy.
-///  - iOS: APNs – token thiết bị lấy qua kênh native `vn.gov.kontum/apns` (ios/Runner/AppDelegate.swift).
-///  - Web: chỉ Socket.IO khi trang đang mở.
-/// Khi ứng dụng đang mở, Socket.IO giao trước; máy chủ không gửi push trùng.
-enum PushChannel { none, unifiedpush, apns, socketOnly }
+/// Thông báo đẩy qua Firebase Cloud Messaging (Android và iOS):
+///  - ứng dụng ở nền/đã đóng: hệ điều hành hiển thị bản tin FCM (máy chủ gửi kèm phần notification);
+///  - ứng dụng đang mở: Socket.IO giao trước và máy chủ huỷ bản FCM đang chờ (không báo trùng); nếu socket
+///    chưa kết nối mà FCM tới, ứng dụng tự hiện thông báo cục bộ;
+///  - chạm vào thông báo → mở đúng màn hình (LocalNotifs.tapped);
+///  - token FCM gửi lên máy chủ (POST /api/mobile/devices, push_provider = fcm) và cập nhật khi Firebase làm mới.
+/// Cấu hình Firebase: lib/app/firebase_config.dart (dart-define). Bản web: chỉ Socket.IO.
+enum PushChannel { none, fcm, socketOnly }
 
 class PushState {
-  const PushState({this.channel = PushChannel.none, this.registered = false, this.distributor, this.message});
+  const PushState({this.channel = PushChannel.none, this.registered = false, this.message});
   final PushChannel channel;
   final bool registered;
-  final String? distributor;
   final String? message;
   String get label => switch (channel) {
-        PushChannel.apns => registered ? 'APNs (Apple) – đã đăng ký' : 'APNs (Apple) – chưa đăng ký',
-        PushChannel.unifiedpush => registered ? 'UnifiedPush${distributor != null ? ' qua ${distributor!.split('.').last}' : ''} – đã đăng ký' : 'UnifiedPush – chưa đăng ký',
+        PushChannel.fcm => registered ? 'Firebase Cloud Messaging – đã đăng ký' : 'Firebase Cloud Messaging – chưa đăng ký',
         PushChannel.socketOnly => 'Chỉ khi ứng dụng mở (Socket.IO)',
         PushChannel.none => 'Chưa bật',
       };
 }
 
-const _apns = MethodChannel('vn.gov.kontum/apns');
-bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-bool get _isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+bool _firebaseReady = false;
 
-// ---------- callback UnifiedPush: có thể chạy khi ứng dụng đã đóng (engine nền) → không dùng Riverpod ----------
+/// Bản tin FCM khi ứng dụng ở nền: hệ điều hành đã hiển thị phần notification → không cần làm gì thêm.
 @pragma('vm:entry-point')
-Future<void> _onNewEndpoint(PushEndpoint e, String instance) async {
-  final p = await SharedPreferences.getInstance();
-  final keys = e.pubKeySet == null ? null : {'p256dh': e.pubKeySet!.pubKey, 'auth': e.pubKeySet!.auth};
-  await p.setString('push_provider', 'webpush');
-  await p.setString('push_endpoint', e.url);
-  if (keys != null) await p.setString('push_keys', jsonEncode(keys));
-  await _postDevice(p, {'push_provider': 'webpush', 'push_endpoint': e.url, 'push_keys': keys});
-}
+Future<void> _onBackgroundMessage(RemoteMessage m) async {}
 
-@pragma('vm:entry-point')
-Future<void> _onMessage(PushMessage m, String instance) async {
+Map<String, dynamic> _payloadOf(RemoteMessage m) {
+  final d = Map<String, dynamic>.from(m.data);
+  Map<String, dynamic> link = const {};
   try {
-    final n = (jsonDecode(utf8.decode(m.content)) as Map).cast<String, dynamic>();
-    await LocalNotifs.show({...n, 'link': n['data']});
-  } catch (_) {
-    await LocalNotifs.show({'title': 'MobileGIS Kon Tum', 'body': 'Có thông báo mới'});
-  }
+    if (d['link'] is String) link = (jsonDecode(d['link'] as String) as Map).cast<String, dynamic>();
+  } catch (_) {}
+  return {'id': d['id'], 'kind': d['kind'], 'priority': d['priority'], ...link};
 }
 
-@pragma('vm:entry-point')
-Future<void> _onUnregistered(String instance) async {
+/// Gửi token khi không có phiên Riverpod (Firebase làm mới token lúc khởi động). Không kèm access token:
+/// máy chủ giữ nguyên liên kết người dùng của thiết bị.
+Future<void> _postToken(String token) async {
   final p = await SharedPreferences.getInstance();
-  for (final k in ['push_provider', 'push_endpoint', 'push_keys']) {
-    await p.remove(k);
-  }
-  await _postDevice(p, {'push_provider': 'none'});
-}
-
-/// Gửi thông tin thiết bị khi không có phiên Riverpod (nền). Không kèm token: máy chủ giữ nguyên liên kết người dùng.
-Future<void> _postDevice(SharedPreferences p, Map<String, dynamic> extra) async {
-  final base = p.getString('server_url') ?? AppConfig.defaultApiBase;
+  await p.setString('push_provider', 'fcm');
+  await p.setString('push_endpoint', token);
   final id = p.getString('device_id');
   if (id == null) return;
   try {
-    await Dio(BaseOptions(connectTimeout: const Duration(seconds: 10))).post('$base/api/mobile/devices', data: {
-      'device_id': id, 'platform': defaultTargetPlatform.name, 'app_version': '1.0.0',
-      'subscribed_communes': p.getStringList('subscribed_communes') ?? const [], ...extra,
+    await Dio(BaseOptions(connectTimeout: const Duration(seconds: 10))).post('${p.getString('server_url') ?? AppConfig.defaultApiBase}/api/mobile/devices', data: {
+      'device_id': id, 'platform': defaultTargetPlatform.name, 'app_version': '1.0.0', 'push_provider': 'fcm', 'push_endpoint': token,
+      'subscribed_communes': p.getStringList('subscribed_communes') ?? const [],
     });
-  } catch (_) {/* gửi lại ở lần mở ứng dụng sau (session._registerDevice) */}
+  } catch (_) {/* gửi lại ở lần mở ứng dụng sau (PushService.enable) */}
 }
 
 class PushService extends Notifier<PushState> {
   @override
   PushState build() {
     final p = ref.read(prefsProvider);
-    final provider = p.getString('push_provider');
-    return PushState(
-      channel: kIsWeb ? PushChannel.socketOnly : _isIOS ? PushChannel.apns : _isAndroid ? PushChannel.unifiedpush : PushChannel.socketOnly,
-      registered: provider != null && p.getString('push_endpoint') != null,
-    );
+    if (kIsWeb || !FirebaseConfig.available) {
+      return PushState(channel: PushChannel.socketOnly, message: kIsWeb ? null : 'Bản build chưa có cấu hình Firebase – chỉ nhận thông báo khi ứng dụng mở.');
+    }
+    return PushState(channel: PushChannel.fcm, registered: p.getString('push_provider') == 'fcm' && p.getString('push_endpoint') != null);
   }
 
-  /// Gọi trong main(): đăng ký callback UnifiedPush trước khi có sự kiện (kể cả khi được đánh thức ở nền).
-  static Future<void> initCallbacks() async {
-    if (!_isAndroid) return;
+  /// Gọi trong main(): khởi tạo Firebase và các callback trước khi có bản tin.
+  static Future<void> init() async {
+    final opts = FirebaseConfig.options;
+    if (opts == null) return;
     try {
-      await UnifiedPush.initialize(onNewEndpoint: _onNewEndpoint, onMessage: _onMessage, onUnregistered: _onUnregistered, onRegistrationFailed: (r, i) {});
-    } catch (_) {}
-  }
-
-  /// Bật nhận thông báo đẩy cho thiết bị (sau khi có cấu hình bootstrap).
-  Future<void> enable({bool interactive = false}) async {
-    if (kIsWeb) return;
-    final vapid = ((ref.read(sessionProvider).bootstrap['push'] as Map?)?['webpush_vapid_public_key']) as String?;
-    try {
-      if (_isAndroid) {
-        await LocalNotifs.requestPermission();
-        final ok = await UnifiedPush.tryUseCurrentOrDefaultDistributor();
-        if (!ok) {
-          state = PushState(channel: PushChannel.unifiedpush, message: 'Chưa có ứng dụng phân phối UnifiedPush (ví dụ ntfy). Khi ứng dụng đang mở vẫn nhận qua Socket.IO.');
-          return;
-        }
-        await UnifiedPush.register(vapid: vapid);
-        state = PushState(channel: PushChannel.unifiedpush, registered: true, distributor: await UnifiedPush.getDistributor());
-      } else if (_isIOS) {
-        final token = await _apns.invokeMethod<String>('requestToken');
-        if (token == null) return;
-        final p = ref.read(prefsProvider);
-        await p.setString('push_provider', 'apns');
-        await p.setString('push_endpoint', token);
-        await p.setString('push_env', kReleaseMode ? 'production' : 'sandbox');
-        await ref.read(apiProvider).post('/api/mobile/devices', {
-          'device_id': ref.read(deviceIdProvider), 'platform': 'iOS', 'app_version': '1.0.0', 'push_provider': 'apns', 'push_endpoint': token,
-          'push_env': kReleaseMode ? 'production' : 'sandbox', 'subscribed_communes': p.getStringList('subscribed_communes') ?? const [],
-        });
-        state = const PushState(channel: PushChannel.apns, registered: true);
-      }
-    } on PlatformException catch (e) {
-      state = PushState(channel: state.channel, message: e.code == 'DENIED' ? 'Bạn chưa cho phép thông báo – bật trong Cài đặt của iOS.' : 'Không đăng ký được thông báo: ${e.message}');
+      await Firebase.initializeApp(options: opts);
+      FirebaseMessaging.onBackgroundMessage(_onBackgroundMessage);
+      // iOS: ứng dụng đang mở thì để ứng dụng tự quyết hiển thị (tránh trùng với Socket.IO)
+      await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(alert: false, badge: true, sound: false);
+      // Dùng FCM registration token (đích `message.token` của HTTP v1 mà máy chủ đang gửi). firebase_messaging 17
+      // đánh dấu deprecated để chuyển sang register()/onRegistered (Installation ID) – đổi cả hai phía khi nâng cấp.
+      // ignore: deprecated_member_use
+      FirebaseMessaging.instance.onTokenRefresh.listen(_postToken);
+      // chạm thông báo khi ứng dụng ở nền / đã đóng
+      FirebaseMessaging.onMessageOpenedApp.listen((m) => LocalNotifs.tapped.value = _payloadOf(m));
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) LocalNotifs.tapped.value = _payloadOf(initial);
+      _firebaseReady = true;
     } catch (e) {
-      state = PushState(channel: state.channel, message: 'Không đăng ký được thông báo: $e');
+      debugPrint('[push] Không khởi tạo được Firebase: $e');
     }
   }
 
-  Future<List<String>> distributors() async => _isAndroid ? UnifiedPush.getDistributors() : const [];
+  StreamSubscription<RemoteMessage>? _fg;
 
-  Future<void> useDistributor(String d) async {
-    await UnifiedPush.saveDistributor(d);
-    await enable(interactive: true);
+  /// Bật nhận thông báo đẩy cho thiết bị (xin quyền, lấy token FCM, gửi lên máy chủ).
+  Future<void> enable({bool interactive = false}) async {
+    if (kIsWeb || !FirebaseConfig.available) return;
+    if (!_firebaseReady) {
+      state = const PushState(channel: PushChannel.fcm, message: 'Firebase chưa khởi tạo được – kiểm tra cấu hình bản build.');
+      return;
+    }
+    try {
+      final fm = FirebaseMessaging.instance;
+      final perm = await fm.requestPermission(alert: true, badge: true, sound: true);
+      if (perm.authorizationStatus == AuthorizationStatus.denied) {
+        state = const PushState(channel: PushChannel.fcm, message: 'Bạn chưa cho phép thông báo – bật trong Cài đặt của điện thoại.');
+        return;
+      }
+      await LocalNotifs.init();
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        // iOS cần APNs token trước khi có FCM token (Firebase chuyển tiếp qua APNs)
+        for (var i = 0; i < 10 && await fm.getAPNSToken() == null; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+      }
+      // ignore: deprecated_member_use
+      final token = await fm.getToken();
+      if (token == null) {
+        state = const PushState(channel: PushChannel.fcm, message: 'Chưa nhận được token FCM – thử lại khi có mạng.');
+        return;
+      }
+      final p = ref.read(prefsProvider);
+      await p.setString('push_provider', 'fcm');
+      await p.setString('push_endpoint', token);
+      await ref.read(apiProvider).post('/api/mobile/devices', {
+        'device_id': ref.read(deviceIdProvider), 'platform': defaultTargetPlatform.name, 'app_version': '1.0.0', 'push_provider': 'fcm', 'push_endpoint': token,
+        'subscribed_communes': p.getStringList('subscribed_communes') ?? const [],
+      });
+      // ứng dụng đang mở: Socket.IO giao trước; nếu socket chưa kết nối thì tự hiện bản tin FCM
+      _fg ??= FirebaseMessaging.onMessage.listen((m) {
+        if (ref.read(realtimeProvider).connected) return;
+        LocalNotifs.show({'id': m.data['id'], 'kind': m.data['kind'], 'priority': m.data['priority'], 'title': m.notification?.title, 'body': m.notification?.body, 'link': _payloadOf(m)});
+      });
+      state = const PushState(channel: PushChannel.fcm, registered: true);
+    } catch (e) {
+      state = PushState(channel: PushChannel.fcm, message: 'Không đăng ký được thông báo: $e');
+    }
   }
 
-  /// Tắt push nền tảng (vẫn nhận qua Socket.IO khi mở ứng dụng).
+  /// Tắt push (vẫn nhận qua Socket.IO khi mở ứng dụng).
   Future<void> disable() async {
-    if (_isAndroid) {
+    if (_firebaseReady) {
       try {
-        await UnifiedPush.unregister();
+        // ignore: deprecated_member_use
+        await FirebaseMessaging.instance.deleteToken();
       } catch (_) {}
     }
     final p = ref.read(prefsProvider);
-    for (final k in ['push_provider', 'push_endpoint', 'push_keys', 'push_env']) {
+    for (final k in ['push_provider', 'push_endpoint']) {
       await p.remove(k);
     }
     try {

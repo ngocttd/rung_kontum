@@ -15,8 +15,11 @@ const PERMISSIONS = {
   'data.manage': ['admin', 'specialist'],
   'alerts.verify': ['specialist'],
   'alerts.approve': ['specialist', 'leader'],
+  // nhập tay điểm cháy (tin báo); chỉ người có alerts.verify mới nhập ở trạng thái "Xác nhận cháy"
+  'alerts.manual': ['admin', 'leader', 'specialist'],
   'reports.view': ['admin', 'leader', 'specialist'],
-  'reports.manage': ['specialist'],
+  // cập nhật trạng thái, phân công, phản hồi và đánh dấu "đã kiểm tra" hồ sơ phản ánh
+  'reports.manage': ['admin', 'leader', 'specialist'],
   'news.manage': ['admin', 'specialist'],
   'news.publish': ['admin', 'specialist'],
   'docs.manage': ['admin', 'specialist'],

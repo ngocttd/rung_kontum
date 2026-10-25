@@ -31,12 +31,16 @@
       <div class="ov-body">
         <div class="overview-map map-shell"><div id="overview-map" class="map"></div><a class="ov-full" href="/ban-do"><%- ic('fullscreen') %> Xem bản đồ đầy đủ</a></div>
         <ul class="ov-legend">
-          <li><img src="/assets/markers/hotspot-unverified.png" alt=""> Điểm nóng (7 ngày)</li>
-          <li><span class="sw" style="background:var(--r4)"></span> Nguy cơ cháy cao (≥ cấp III)</li>
-          <li><span class="sw" style="border:2px solid #fff;background:transparent"></span> Ranh giới vùng</li>
-          <li><span class="sw" style="background:var(--r1)"></span> Nguy cơ thấp</li>
-          <li><span class="sw" style="background:var(--r2)"></span> Nguy cơ trung bình</li>
-          <li><span class="sw" style="background:#006b38;border:1px dashed #fff"></span> Ranh xã</li>
+          <li class="ov-h">Nguy cơ cháy hôm nay (chỉ số P)</li>
+          <li><span class="sw" style="background:var(--r1)"></span> Cấp I – Thấp</li>
+          <li><span class="sw" style="background:var(--r2)"></span> Cấp II – Trung bình</li>
+          <li><span class="sw" style="background:var(--r3)"></span> Cấp III – Cao</li>
+          <li><span class="sw" style="background:var(--r4)"></span> Cấp IV–V – Nguy hiểm, cực kỳ nguy hiểm</li>
+          <li class="ov-h">Điểm nóng (FIRMS 7 ngày) / điểm cháy</li>
+          <li><img src="/assets/markers/hotspot-unverified.png" alt=""> Chưa xác minh</li>
+          <li><img src="/assets/markers/fire-investigating.png" alt=""> Đang xác minh</li>
+          <li><img src="/assets/markers/fire-confirmed.png" alt=""> Xác nhận cháy</li>
+          <li><img src="/assets/markers/fire-rejected.png" alt=""> Không phải cháy rừng</li>
         </ul>
       </div>
     </div>
@@ -46,7 +50,7 @@
 <section class="kpi-strip home-kpi">
   <div class="kpi" title="<%= summary.scope %>"><%- cicon('forest') %><div><strong><%= fmt.num(summary.established_forest_ha) %> <small>ha</small></strong><span>Diện tích có rừng</span><span class="sub">40 xã · số liệu 31/12/2025 (QĐ 1047)</span></div></div>
   <div class="kpi"><%- cicon('plantation') %><div><strong><%= fmt.num(summary.cover_percent_computed, 1) %>%</strong><span>Tỷ lệ có rừng / diện tích tự nhiên</span><span class="sub">tính từ tổng 40 xã</span></div></div>
-  <div class="kpi"><%- cicon('fire') %><div><strong><%= hotspots.length %></strong><span>Điểm nóng vệ tinh (7 ngày)</span><span class="sub">chưa xác minh · cập nhật <%= fmt.dateTime(firms.collected_at) %></span></div></div>
+  <div class="kpi"><%- cicon('fire') %><div><strong><%= hotspots.length %></strong><span>Điểm nóng vệ tinh (7 ngày)</span><span class="sub"><%= hotspots.filter(h => ['new','assigned','verifying'].includes(h.status)).length %> chưa xác minh · <%= hotspots.filter(h => ['confirmed','handling','closed'].includes(h.status)).length %> xác nhận cháy · cập nhật <%= fmt.dateTime(firms.collected_at) %></span></div></div>
   <div class="kpi"><%- cicon('temperature') %><div><strong><%= fmt.num(weather.temp, 0) %>°C</strong><span>Nhiệt độ TB · độ ẩm <%= fmt.num(weather.humidity, 0) %>%</span><span class="sub"><%= weather.points %> điểm · <%= fmt.dateTime(weather.dt) %></span></div></div>
   <div class="kpi"><%- cicon('report') %><div><strong><%= reportCounts.total %></strong><span>Phản ánh hiện trường</span><span class="sub"><%= reportCounts.open %> đang xử lý</span></div></div>
 </section>
@@ -166,7 +170,7 @@
 <%- include('../partials/mapjs') %>
 <script>
 (function () {
-  const v = KT.createMap('overview-map', { basemap: 'satellite', interactive: true, cooperative: true, choropleth: 'danger7', padding: 10 });
+  const v = KT.createMap('overview-map', { basemap: 'satellite', interactive: true, cooperative: true, choropleth: 'danger', padding: 10 });
   if (!v) return;
   v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province()).define('hotspots', KT.layers.hotspots());
   v.map.on('click', 'communes-fill', (e) => new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(KT.communeHtml(e.features[0].properties)).addTo(v.map));

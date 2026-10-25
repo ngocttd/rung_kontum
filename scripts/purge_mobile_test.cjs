@@ -16,6 +16,14 @@ async function purge() {
     await c.query("DELETE FROM mobile.field_surveys WHERE surveyor_id = ANY($1) OR notes LIKE '%kiểm thử%'", [ids]);
     await c.query("DELETE FROM mobile.field_assignments WHERE instructions LIKE '%kiểm thử%' OR assignee_id = ANY($1) OR (kind = 'report' AND ref_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ops.reports r WHERE r.code = ref_id))", [ids]);
     await c.query('DELETE FROM mobile.mobile_sync_events WHERE user_id = ANY($1)', [ids]);
+    // điểm cháy tạo từ phản ánh kiểm thử (cán bộ báo cháy bằng GPS) và quyết định/thông báo đi kèm
+    if ((await c.query("SELECT to_regclass('fire.manual_points') AS t")).rows[0].t) {
+      const fp = (await c.query("DELETE FROM fire.manual_points WHERE description LIKE '%kiểm thử%' OR report_code IN (SELECT code FROM ops.reports WHERE description LIKE '%kiểm thử%') RETURNING code")).rows.map((x) => `man-${x.code}`);
+      if (fp.length) {
+        await c.query("DELETE FROM ops.decisions WHERE kind = 'hotspot' AND ref_id = ANY($1)", [fp]);
+        await c.query("DELETE FROM mobile.notifications WHERE source_ref = ANY($1)", [fp.map((x) => `hs:${x}:confirmed`)]);
+      }
+    }
     const r = await c.query("DELETE FROM ops.reports WHERE description LIKE '%kiểm thử%' OR description LIKE 'Thử dùng lại%'");
     await c.query('DELETE FROM mobile.refresh_tokens WHERE user_id = ANY($1)', [ids]);
     await c.query('DELETE FROM identity.users WHERE id = ANY($1)', [ids]);

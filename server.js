@@ -84,6 +84,8 @@ const store = require('./src/data/store');
 app.ready = store.init().then((st) => {
   console.log(`Kho dữ liệu: ${st.backend === 'pg' ? 'PostgreSQL/PostGIS' : 'JSON (storage/)'}`);
   content.seed();
+  // điểm nóng đã có quyết định nhưng chưa có ảnh chụp thuộc tính (bản cũ) → lấy từ PostGIS để còn hiện khi hồ sơ chưa đóng
+  require('./src/data/repo').backfillHotspotSnapshots().then((n) => { if (n) console.log(`Bổ sung ảnh chụp cho ${n} điểm nóng đang theo dõi`); }).catch((e) => console.warn('[hotspots] backfill:', e.message));
 });
 
 if (require.main === module) {

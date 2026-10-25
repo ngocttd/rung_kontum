@@ -10,7 +10,8 @@ const r = express.Router();
 const pub = express.Router();
 r.use('/public', pub);
 
-pub.use((req, res, next) => { res.set('Cache-Control', 'public, max-age=300'); next(); });
+// dữ liệu nghiệp vụ (trạng thái xác minh, nguy cơ cháy…) đổi bất kỳ lúc nào: luôn kiểm tra lại với máy chủ (ETag → 304 khi không đổi)
+pub.use((req, res, next) => { res.set('Cache-Control', 'no-cache'); next(); });
 
 pub.get('/map/layers', (req, res) => {
   res.json({
@@ -80,30 +81,57 @@ pub.get('/fire/hotspots', (req, res) => {
   const meta = repo.firmsMeta();
   res.json({
     type: 'FeatureCollection', meta,
-    features: repo.hotspots().map((h) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [h.lon, h.lat] }, properties: { ...h, decision: undefined } })),
+    features: repo.hotspots().map((h) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [h.lon, h.lat] }, properties: repo.publicHotspot(h) })),
   });
 });
-// Hotspot archive (PostGIS): every FIRMS detection ever collected, filterable by time, commune and bbox.
+// Lịch sử điểm nóng / điểm cháy (PostGIS): mọi điểm FIRMS từng tải + điểm nhập tay, kể cả đã rời bản đồ hiện hành.
+// Lọc: from, to (YYYY-MM-DD, giờ VN), xa (mã xã), trang_thai, nguon (firms|tay), bbox; format=csv để tải về.
+const HS_LABEL = { new: 'Mới phát hiện', assigned: 'Cần xác minh', verifying: 'Đang xác minh', confirmed: 'Xác nhận cháy', rejected: 'Không phải cháy rừng', handling: 'Đang xử lý', closed: 'Kết thúc' };
 pub.get('/fire/hotspots/archive', async (req, res, next) => {
   const db = require('../db/pool');
   if (!db.enabled) return res.status(503).json({ error: 'Chưa kết nối cơ sở dữ liệu' });
   try {
     const where = []; const vals = [];
-    const add = (sql, v) => { vals.push(v); where.push(sql.replace('?', `$${vals.length}`)); };
-    if (req.query.from) add('h.acq_utc >= ?::date', req.query.from);
-    if (req.query.to) add("h.acq_utc < (?::date + interval '1 day')", req.query.to);
-    if (req.query.xa) add('h.commune_code = ?', req.query.xa);
+    const add = (sql, v) => { vals.push(v); where.push(sql.replace(/\?/g, `$${vals.length}`)); };
+    const day = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null);
+    if (day(req.query.from)) add("t >= (?::date - interval '7 hours')", day(req.query.from));
+    if (day(req.query.to)) add("t < (?::date + interval '17 hours')", day(req.query.to));
+    if (req.query.xa) add('commune_code = ?', String(req.query.xa));
+    if (HS_LABEL[req.query.trang_thai]) add('status = ?', req.query.trang_thai);
+    if (req.query.nguon === 'firms') where.push("sensor <> 'MANUAL'");
+    if (req.query.nguon === 'tay') where.push("sensor = 'MANUAL'");
     if (req.query.bbox) {
       const b = String(req.query.bbox).split(',').map(Number);
-      if (b.length === 4 && b.every(Number.isFinite)) { vals.push(...b); const n = vals.length; where.push(`h.geom && ST_MakeEnvelope($${n - 3}, $${n - 2}, $${n - 1}, $${n}, 4326)`); }
+      if (b.length === 4 && b.every(Number.isFinite)) { vals.push(...b); const n = vals.length; where.push(`geom && ST_MakeEnvelope($${n - 3}, $${n - 2}, $${n - 1}, $${n}, 4326)`); }
     }
-    const limit = Math.min(5000, Number(req.query.limit) || 1000);
-    const r = await db.query(`SELECT h.id, h.sensor, h.acq_utc, h.confidence, h.frp, h.commune_code, a.full_name AS commune, h.in_forest, h.landcover, ST_AsGeoJSON(h.geom)::json AS g,
-        COALESCE(d.status, 'new') AS status
-      FROM fire.hotspots h LEFT JOIN spatial.admin_units a ON a.code = h.commune_code AND a.clipped AND a.level = 'commune'
-      LEFT JOIN ops.decisions d ON d.kind = 'hotspot' AND d.ref_id = h.id
-      ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY h.acq_utc DESC LIMIT ${limit}`, vals);
-    return res.json({ type: 'FeatureCollection', source: 'PostGIS fire.hotspots (NASA FIRMS NRT, tích luỹ)', features: r.rows.map(({ g, ...p }) => ({ type: 'Feature', geometry: g, properties: p })) });
+    const csv = req.query.format === 'csv';
+    const limit = Math.min(csv ? 20000 : 5000, Number(req.query.limit) || (csv ? 20000 : 2000));
+    const r = await db.query(`WITH u AS (
+        SELECT h.id, h.sensor, h.acq_utc AS t, h.confidence, h.frp, h.commune_code, h.in_forest, h.landcover, NULL::numeric AS area_ha, NULL::text AS source_kind, h.geom
+          FROM fire.hotspots h
+        UNION ALL
+        SELECT 'man-' || m.code, 'MANUAL', m.observed_at, NULL, NULL, m.commune_code, NULL, NULL, m.area_ha, m.source_kind, m.geom
+          FROM fire.manual_points m
+      ), s AS (
+        SELECT u.*, COALESCE(d.status, 'new') AS status, d.updated_at AS decided_at FROM u LEFT JOIN ops.decisions d ON d.kind = 'hotspot' AND d.ref_id = u.id
+      )
+      SELECT s.id, s.sensor, s.t AS utc, s.confidence, s.frp, s.commune_code, a.full_name AS commune, s.in_forest, s.landcover, s.area_ha, s.source_kind,
+        s.status, s.decided_at, ST_X(s.geom) AS lon, ST_Y(s.geom) AS lat
+      FROM s LEFT JOIN spatial.admin_units a ON a.code = s.commune_code AND a.clipped AND a.level = 'commune'
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY s.t DESC LIMIT ${limit}`, vals);
+    const rows = r.rows.map((x) => ({ ...x, utc: new Date(x.utc).toISOString(), statusLabel: HS_LABEL[x.status] || x.status, frp: x.frp === null ? null : Number(x.frp), area_ha: x.area_ha === null ? null : Number(x.area_ha) }));
+    if (csv) {
+      const q = (v) => (v === null || v === undefined ? '' : /[",\n;]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+      const vn = (iso) => new Date(new Date(iso).getTime() + 7 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+      const head = ['Mã', 'Thời điểm (giờ VN)', 'Nguồn', 'Độ tin cậy', 'FRP (MW)', 'Diện tích ước tính (ha)', 'Vĩ độ', 'Kinh độ', 'Xã/phường', 'Lớp phủ', 'Trong rừng', 'Trạng thái'];
+      const lines = rows.map((x) => [x.id, vn(x.utc), x.sensor === 'MANUAL' ? 'Nhập thủ công' : x.sensor, x.confidence, x.frp, x.area_ha, x.lat.toFixed(5), x.lon.toFixed(5), x.commune, x.landcover,
+        x.in_forest === null ? '' : x.in_forest ? 'có' : 'không', x.statusLabel].map(q).join(','));
+      res.set('Content-Type', 'text/csv; charset=utf-8');
+      res.set('Content-Disposition', `attachment; filename="lich-su-diem-nong-${new Date().toISOString().slice(0, 10)}.csv"`);
+      return res.send(`\ufeff${head.join(',')}\n${lines.join('\n')}\n`);
+    }
+    return res.json({ type: 'FeatureCollection', source: 'PostGIS fire.hotspots (NASA FIRMS NRT, tích luỹ) + fire.manual_points', total: rows.length, limit,
+      features: rows.map(({ lon, lat, ...p }) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: p })) });
   } catch (e) { return next(e); }
 });
 
@@ -113,6 +141,7 @@ pub.get('/fire/danger', (req, res) => {
   const { communes, ...rest } = fd;
   return res.json({ ...rest, communes: req.query.code ? communes.filter((c) => c.code === req.query.code) : communes.map(({ recent, ...c }) => c) }); // eslint-disable-line no-unused-vars
 });
+
 pub.get('/fire/history', (req, res) => res.json({ hotspots: repo.firmsHistory(), burned: (({ points, ...b }) => b)(repo.burnedHistory() || { points: [] }) })); // eslint-disable-line no-unused-vars
 pub.get('/alerts', (req, res) => res.json(alerts.feed({ limit: Number(req.query.limit) || 20 })));
 

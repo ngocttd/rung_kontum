@@ -77,6 +77,7 @@ async function refresh({ force = false } = {}) {
       await new Promise((r) => setTimeout(r, 1500)); // spread requests
     }
     Object.assign(st, { collected_at: new Date().toISOString(), added, ok: true, error: null, bbox: [W, S, E, N], transactions_per_run: '10–15' });
+    if (added) require('./realtime').broadcast('alerts'); // điểm nóng mới → bản đồ web/app làm mới ngay
     failures = 0; backoffUntil = 0;
     const toDb = () => { if (db.enabled) require('../db/sync').run(['hotspots']).catch((e) => console.warn('[firms] lưu DB lỗi:', e.message)); };
     if (added) spawn(config.python, ['tag_hotspots.py'], { cwd: paths.scripts, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }).on('close', toDb).on('error', toDb);

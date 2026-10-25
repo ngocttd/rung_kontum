@@ -115,7 +115,7 @@ class _ShellState extends ConsumerState<_Shell> {
   @override
   void initState() {
     super.initState();
-    // thông báo: Socket.IO khi mở ứng dụng + push nền tảng (APNs / UnifiedPush) – không Firebase
+    // thông báo: Socket.IO khi mở ứng dụng + Firebase Cloud Messaging khi ở nền/đã đóng
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(realtimeProvider.notifier).connect();
       ref.read(pushProvider.notifier).enable();

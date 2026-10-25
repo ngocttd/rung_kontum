@@ -1,16 +1,65 @@
-<%- include('_top') %>
-<% const tone = { info: 'b-blue', warn: 'b-orange', danger: 'b-red', ok: 'b-green', muted: 'b-gray' }; %>
-<div class="adm-tabs"><a class="on" href="/quan-tri/phan-anh">Danh sách phản ánh</a><a href="/ban-do?lop=" target="_blank">Bản đồ phản ánh</a><a href="/phan-anh" target="_blank">Trang công khai</a></div>
+<%- include('_top', { needsMap: view === 'map' }) %>
+<% const tone = { info: 'b-blue', warn: 'b-orange', danger: 'b-red', ok: 'b-green', muted: 'b-gray' };
+   const qs = (extra) => { const o = { ...filter, ...extra }; delete o.trang; return '?' + Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&'); };
+   const unreviewed = list.filter(x => !x.reviewed_at).length; %>
+<div class="adm-tabs"><a class="<%= view === 'list' ? 'on' : '' %>" href="<%= qs({ xem: '' }) %>">Danh sách phản ánh</a><a class="<%= view === 'map' ? 'on' : '' %>" href="<%= qs({ xem: 'ban-do' }) %>">Bản đồ phản ánh</a><a href="/phan-anh" target="_blank">Trang công khai</a></div>
 <section class="card">
-  <div class="card-h"><h2><%- ic('megaphone-fill') %> Phản ánh hiện trường</h2></div>
+  <div class="card-h"><h2><%- ic('megaphone-fill') %> Phản ánh hiện trường</h2><span class="more muted" style="font-weight:400"><%= list.length %> hồ sơ · <%= unreviewed %> chưa kiểm tra</span></div>
   <div class="card-b">
-    <form class="filters"><label>Trạng thái<select class="input" name="trang_thai"><option value="">Tất cả</option><% Object.entries(statuses).forEach(([k, s]) => { %><option value="<%= k %>" <%= filter.trang_thai === k ? 'selected' : '' %>><%= s.label %></option><% }) %></select></label>
-      <label>Loại phản ánh<select class="input" name="loai"><option value="">Tất cả</option><% Object.entries(types).forEach(([k, t]) => { %><option value="<%= k %>" <%= filter.loai === k ? 'selected' : '' %>><%= t.label %></option><% }) %></select></label><button class="btn btn-outline btn-sm"><%- ic('search') %> Tìm kiếm</button></form>
+    <form class="filters"><% if (view === 'map') { %><input type="hidden" name="xem" value="ban-do"><% } %>
+      <label>Trạng thái<select class="input" name="trang_thai"><option value="">Tất cả</option><% Object.entries(statuses).forEach(([k, s]) => { %><option value="<%= k %>" <%= filter.trang_thai === k ? 'selected' : '' %>><%= s.label %></option><% }) %></select></label>
+      <label>Loại phản ánh<select class="input" name="loai"><option value="">Tất cả</option><% Object.entries(types).forEach(([k, t]) => { %><option value="<%= k %>" <%= filter.loai === k ? 'selected' : '' %>><%= t.label %></option><% }) %></select></label>
+      <label>Kiểm tra<select class="input" name="kiem_tra"><option value="">Tất cả</option><option value="chua" <%= filter.kiem_tra === 'chua' ? 'selected' : '' %>>Chưa kiểm tra</option><option value="roi" <%= filter.kiem_tra === 'roi' ? 'selected' : '' %>>Đã kiểm tra</option></select></label>
+      <button class="btn btn-outline btn-sm"><%- ic('search') %> Tìm kiếm</button></form>
+    <% if (view === 'map') { %>
+      <div class="grid" style="grid-template-columns:minmax(0,1fr) 300px;gap:12px">
+        <div class="map-shell" style="height:620px"><div id="map" class="map"></div><div class="legend" id="legend"></div></div>
+        <div style="max-height:620px;overflow:auto" id="rp-list">
+          <% if (!points.length) { %><div class="empty-state">Không có phản ánh có toạ độ phù hợp bộ lọc.</div><% } %>
+          <% points.forEach(x => { %><div class="alert-item" data-id="<%= x.id %>" style="cursor:pointer"><img class="ai-ic" src="/assets/markers/<%= x.marker %>.svg" alt=""><div class="ai-b"><span class="ai-t"><%= x.code %> · <%= x.typeLabel %></span><span class="ai-d"><%= x.commune || 'Ngoài ranh' %> · <%= fmt.dateTime(x.created_at) %></span><div class="meta"><span class="badge <%= tone[x.statusTone] %>"><%= x.statusLabel %></span><span class="badge <%= x.reviewed ? 'b-green' : 'b-gray' %>"><%= x.reviewed ? 'Đã kiểm tra' : 'Chưa kiểm tra' %></span></div></div></div><% }) %>
+        </div>
+      </div>
+      <p class="src" style="margin-top:8px">Vị trí chính xác (chỉ cán bộ xem). Màu viền theo trạng thái xử lý; bấm điểm để xem tóm tắt và mở hồ sơ.</p>
+    <% } else { %>
     <div class="table-wrap"><% if (!list.length) { %><div class="empty-state"><%- ic('clipboard-check-fill') %>Chưa có phản ánh nào.</div><% } else { %>
-    <table class="tbl"><thead><tr><th>Mã</th><th>Thời gian</th><th>Loại phản ánh</th><th>Vị trí</th><th>Người gửi</th><th>Phân công</th><th>Công khai</th><th>Trạng thái</th><th></th></tr></thead><tbody>
-      <% const pg = paginate(list, query.trang, 15); pg.items.forEach(x => { %><tr><td><%= x.code %></td><td><%= fmt.dateTime(x.created_at) %></td><td><img src="/assets/markers/<%= x.marker %>.svg" width="16" alt=""> <%= x.typeLabel %></td><td><%= x.commune_name || '—' %></td><td><%= x.reporter.name || 'Ẩn danh' %></td><td><%= x.assigned_to || '—' %></td><td><%= x.public ? 'Có' : 'Không' %></td><td><span class="badge <%= tone[x.statusTone] %>"><%= x.statusLabel %></span></td><td><a class="btn btn-outline btn-sm" href="/quan-tri/phan-anh/<%= x.id %>">Xem</a></td></tr><% }) %>
+    <table class="tbl"><thead><tr><th>Mã</th><th>Thời gian</th><th>Loại phản ánh</th><th>Vị trí</th><th>Người gửi</th><th>Phân công</th><th>Công khai</th><th>Trạng thái</th><th>Kiểm tra</th><th></th></tr></thead><tbody>
+      <% const pg = paginate(list, query.trang, 15); pg.items.forEach(x => { %><tr><td><%= x.code %></td><td><%= fmt.dateTime(x.created_at) %></td><td><img src="/assets/markers/<%= x.marker %>.svg" width="16" alt=""> <%= x.typeLabel %><% if (x.fire_point) { %><div class="src">→ điểm cháy <%= x.fire_point %></div><% } %></td><td><%= x.commune_name || '—' %></td><td><%= x.reporter.name || 'Ẩn danh' %></td><td><%= x.assigned_to || '—' %></td><td><%= x.public ? 'Có' : 'Không' %></td><td><span class="badge <%= tone[x.statusTone] %>"><%= x.statusLabel %></span></td>
+        <td><% if (x.reviewed_at) { %><span class="badge b-green">Đã kiểm tra</span><div class="src"><%= x.reviewed_by %> · <%= fmt.dateTime(x.reviewed_at) %></div><% } else if (can('reports.manage')) { %><form method="post" action="/quan-tri/phan-anh/<%= x.id %>/kiem-tra" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm"><%- ic('check-circle-fill') %> Đánh dấu đã kiểm tra</button></form><% } else { %><span class="badge b-gray">Chưa kiểm tra</span><% } %></td>
+        <td><a class="btn btn-outline btn-sm" href="/quan-tri/phan-anh/<%= x.id %>"><%= can('reports.manage') ? 'Xử lý' : 'Xem' %></a></td></tr><% }) %>
     </tbody></table><%- include('../partials/pager', { pg: pg }) %><% } %></div>
+    <% } %>
   </div>
 </section>
 <%- include('_bottom') %>
+<% if (view === 'map') { %>
+<%- include('../partials/mapjs') %>
+<script>
+(function () {
+  const pts = <%- JSON.stringify(points).replace(/</g, '\\u003c') %>;
+  const ST = { info: '#2563eb', warn: '#ea8a0c', danger: '#dc2626', ok: '#16a34a', muted: '#6b7280' };
+  const v = KT.createMap('map', { basemap: 'satellite', padding: 30 });
+  if (!v) return;
+  v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province());
+  const esc = KT.esc; const markers = {};
+  document.getElementById('legend').innerHTML = '<b>Trạng thái</b>' + <%- JSON.stringify(Object.values(statuses).map(s => [s.label, s.tone])) %>.map(([l, t]) => `<div><span class="dot" style="background:${ST[t]}"></span> ${esc(l)}</div>`).join('');
+  const bb = new mapboxgl.LngLatBounds();
+  pts.forEach((p) => {
+    const el = document.createElement('div');
+    el.style.cssText = `width:30px;height:30px;border-radius:50%;background:#fff url(/assets/markers/${p.marker}.svg) center/22px no-repeat;border:3px solid ${ST[p.statusTone]};box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer`;
+    el.title = `${p.code} · ${p.typeLabel}`;
+    const pop = new mapboxgl.Popup({ offset: 16 }).setHTML(`<div class="pop"><h4>${esc(p.code)} · ${esc(p.typeLabel)}</h4><table>
+      <tr><td>Thời gian</td><td>${KT.dt(p.created_at)}</td></tr><tr><td>Địa bàn</td><td>${esc(p.commune || 'Ngoài ranh')}</td></tr>
+      <tr><td>Trạng thái</td><td><b>${esc(p.statusLabel)}</b></td></tr><tr><td>Kiểm tra</td><td>${p.reviewed ? 'Đã kiểm tra' : 'Chưa kiểm tra'}</td></tr></table>
+      <p style="margin:6px 0">${esc(p.description)}</p><a class="btn btn-primary btn-sm" href="/quan-tri/phan-anh/${p.id}">Mở hồ sơ</a></div>`);
+    markers[p.id] = new mapboxgl.Marker({ element: el }).setLngLat([p.lon, p.lat]).setPopup(pop).addTo(v.map);
+    bb.extend([p.lon, p.lat]);
+  });
+  if (pts.length) v.map.once('load', () => v.map.fitBounds(bb, { padding: 60, maxZoom: 12 }));
+  document.querySelectorAll('#rp-list [data-id]').forEach((it) => it.addEventListener('click', () => {
+    const m = markers[it.dataset.id]; if (!m) return;
+    v.map.flyTo({ center: m.getLngLat(), zoom: 13 }); if (!m.getPopup().isOpen()) m.togglePopup();
+  }));
+})();
+</script>
+<% } %>
 </body></html>

@@ -11,14 +11,15 @@ const notifier = require('./notifier');
 
 let io = null;
 const TABLES = {
-  'ops.reports': 'reports', 'ops.decisions': 'alerts', 'ops.articles': 'news', 'ops.documents': 'documents', 'spatial.map_layers': 'layers',
+  'ops.reports': 'reports', 'ops.decisions': 'alerts', 'fire.manual_points': 'alerts', 'ops.articles': 'news', 'ops.documents': 'documents', 'spatial.map_layers': 'layers',
   'mobile.field_assignments': 'assignments', 'mobile.field_surveys': 'surveys', 'mobile.incident_verifications': 'verifications', 'mobile.verification_reviews': 'verifications',
 };
 // những thay đổi chỉ cán bộ cần biết
 const STAFF_ONLY = new Set(['assignments', 'surveys', 'verifications']);
 
 function attach(httpServer) {
-  io = new Server(httpServer, { path: '/socket.io', serveClient: false, cors: process.env.MOBILE_CORS_ORIGIN ? { origin: process.env.MOBILE_CORS_ORIGIN } : undefined, pingInterval: 25000, pingTimeout: 20000 });
+  // serveClient: trang web công khai dùng /socket.io/socket.io.min.js để làm mới bản đồ khi dữ liệu đổi
+  io = new Server(httpServer, { path: '/socket.io', serveClient: true, cors: process.env.MOBILE_CORS_ORIGIN ? { origin: process.env.MOBILE_CORS_ORIGIN } : undefined, pingInterval: 25000, pingTimeout: 20000 });
   const nsp = io.of('/mobile');
 
   nsp.use(async (socket, next) => {
@@ -62,6 +63,9 @@ function attach(httpServer) {
   return io;
 }
 
+// dữ liệu không nằm trong bảng có trigger (vd. tệp FIRMS mới tải) → báo cho mọi kết nối làm mới
+function broadcast(collection) { if (io) io.of('/mobile').emit('changed', { collection, at: new Date().toISOString() }); }
+
 // gửi một thông báo tới các kết nối phù hợp trong tiến trình này, chờ xác nhận
 async function deliver(id) {
   if (!io) return;
@@ -82,4 +86,4 @@ async function deliver(id) {
 
 const stats = async () => (io ? { connections: (await io.of('/mobile').fetchSockets()).length } : { connections: 0 });
 
-module.exports = { attach, deliver, stats };
+module.exports = { attach, deliver, stats, broadcast };
