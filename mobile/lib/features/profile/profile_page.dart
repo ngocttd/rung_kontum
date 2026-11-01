@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../app/config.dart';
 import '../../app/theme.dart';
+import '../../core/external_link.dart';
 import '../../core/api.dart';
 import '../../core/data.dart';
 import '../../core/outbox.dart';
@@ -66,6 +68,10 @@ class ProfilePage extends ConsumerWidget {
             item(Icons.menu_book_outlined, 'Hướng dẫn sử dụng', () => launchUrl(Uri.parse(ref.read(apiProvider).url('/huong-dan/mobile')), mode: LaunchMode.externalApplication)),
             item(Icons.support_agent, 'Hỗ trợ – đường dây nóng', () => _support(context, s)),
             item(Icons.info_outline, 'Về ứng dụng', () => _about(context)),
+            if (AppConfig.privacyPolicyUrl.isNotEmpty)
+              item(Icons.privacy_tip_outlined, 'Chính sách quyền riêng tư', () => openAccountLink(context, AppConfig.privacyPolicyUrl)),
+            if (u != null && AppConfig.accountDeletionUrl.isNotEmpty)
+              item(Icons.person_remove_outlined, 'Xóa tài khoản', () => openAccountLink(context, AppConfig.accountDeletionUrl), color: AppColors.fire),
           ]),
         ),
         const SizedBox(height: 14),

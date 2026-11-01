@@ -110,14 +110,16 @@ class _Shell extends ConsumerStatefulWidget {
   ConsumerState<_Shell> createState() => _ShellState();
 }
 
-class _ShellState extends ConsumerState<_Shell> {
+class _ShellState extends ConsumerState<_Shell> with WidgetsBindingObserver {
   StatefulNavigationShell get shell => widget.shell;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // thông báo: Socket.IO khi mở ứng dụng + Firebase Cloud Messaging khi ở nền/đã đóng
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       ref.read(realtimeProvider.notifier).connect();
       ref.read(pushProvider.notifier).enable();
       // chạm thông báo lúc ứng dụng đã đóng: nội dung đến trước khi khung ứng dụng sẵn sàng → mở ngay bây giờ
@@ -128,16 +130,28 @@ class _ShellState extends ConsumerState<_Shell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     LocalNotifs.tapped.removeListener(_openTapped);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(realtimeProvider.notifier).connect();
+      ref.read(pushProvider.notifier).enable();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) {
+      // Socket ở nền có thể ACK làm máy chủ hủy FCM trong khi iOS không hiện local notification.
+      ref.read(realtimeProvider.notifier).disconnect();
+    }
   }
 
   void _openTapped() {
     final d = LocalNotifs.tapped.value;
     if (d == null || !mounted) return;
     LocalNotifs.tapped.value = null;
-    if (ref.read(sessionProvider).signedIn && d['id'] != null) {
-      ref.read(apiProvider).post('/api/mobile/notifications/read', {'ids': [d['id']]}).catchError((_) => <String, dynamic>{});
+    if (ref.read(sessionProvider).signedIn && d['notification_id'] != null) {
+      ref.read(apiProvider).post('/api/mobile/notifications/read', {'ids': [d['notification_id']]}).catchError((_) => <String, dynamic>{});
     }
     openNotificationLink(context, ref, d);
   }

@@ -50,3 +50,9 @@ app.*.map.json
 # bản build phát hành để bàn giao (không commit)
 /release/
 firebase.json
+
+# Cấu hình triển khai riêng; không đưa APNs .p8 / service account vào mobile.
+release.json
+*.p8
+*.p12
+*.mobileprovision

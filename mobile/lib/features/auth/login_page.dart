@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config.dart';
 import '../../app/theme.dart';
 import '../../core/api.dart';
+import '../../core/external_link.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
 import '../profile/settings_page.dart';
@@ -150,5 +152,7 @@ class _LoginPageState extends ConsumerState<LoginPage> with SingleTickerProvider
           title: const Text('Tôi đồng ý chính sách: thông tin cá nhân chỉ cán bộ xử lý xem, không công khai.', style: TextStyle(fontSize: 13)),
         ),
         FilledButton(onPressed: busy ? null : _register, child: busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Đăng ký')),
+        if (AppConfig.privacyPolicyUrl.isNotEmpty)
+          TextButton(onPressed: () => openAccountLink(context, AppConfig.privacyPolicyUrl), child: const Text('Đọc chính sách quyền riêng tư')),
       ]);
 }

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>315105906364-j5dpjbngt17bcdou7k81a4mfipjmfq91.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.315105906364-j5dpjbngt17bcdou7k81a4mfipjmfq91</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>315105906364-0k0fh5adtummobtgh8jrg4n6objjtlu9.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyDZ8892ekybkkfRVcqhpohhh5ndgrxHeZ4</string>
+	<key>GCM_SENDER_ID</key>
+	<string>315105906364</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>vn.gov.kontum.mobilegis</string>
+	<key>PROJECT_ID</key>
+	<string>even-metrics-413108</string>
+	<key>STORAGE_BUCKET</key>
+	<string>even-metrics-413108.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:315105906364:ios:d44716f1cb166a35c10ab9</string>
+</dict>
+</plist>

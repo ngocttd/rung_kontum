@@ -10,7 +10,11 @@ class AppConfig {
 
   /// Cho phép hiện khối "Đăng nhập nhanh theo vai trò" (chỉ hiện khi máy chủ cũng bật MOBILE_DEMO_LOGIN).
   /// Bản phát hành chính thức: --dart-define=DEMO_LOGIN=false
-  static const bool demoLoginAllowed = bool.fromEnvironment('DEMO_LOGIN', defaultValue: true);
+  static const bool demoLoginAllowed = bool.fromEnvironment('DEMO_LOGIN', defaultValue: !kReleaseMode);
+
+  static const String privacyPolicyUrl = String.fromEnvironment('PRIVACY_POLICY_URL');
+  /// Trang HTTPS cho người dùng thực hiện xóa tài khoản, không phải trang hỗ trợ chung.
+  static const String accountDeletionUrl = String.fromEnvironment('ACCOUNT_DELETION_URL');
 
   static const String appName = 'MobileGIS Kon Tum';
   static const String webPortal = String.fromEnvironment('WEB_PORTAL_URL', defaultValue: '');

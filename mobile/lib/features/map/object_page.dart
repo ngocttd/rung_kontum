@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:share_plus/share_plus.dart';
+import '../../core/share_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
@@ -57,7 +57,7 @@ class ObjectPage extends ConsumerWidget {
             IconButton(
               tooltip: 'Chia sẻ',
               icon: const Icon(Icons.share_outlined),
-              onPressed: () => SharePlus.instance.share(ShareParams(text: '$title\nToạ độ: ${fmtCoord(data.point.latitude, data.point.longitude)}\nhttps://maps.google.com/?q=${data.point.latitude},${data.point.longitude}')),
+              onPressed: () => shareText(context, '$title\nToạ độ: ${fmtCoord(data.point.latitude, data.point.longitude)}\nhttps://maps.google.com/?q=${data.point.latitude},${data.point.longitude}'),
             ),
           ],
           flexibleSpace: FlexibleSpaceBar(

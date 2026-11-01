@@ -12,7 +12,7 @@
 |---|---|
 | Flutter | **3.47.5** (stable, Dart 3.13.4) – ghi trong `.fvmrc` |
 | Android | SDK 36, JDK 17, minSdk theo Flutter (24) |
-| iOS | Xcode 16 trở lên, iOS 13 trở lên (build trên macOS) |
+| iOS | Xcode 26 trở lên, iOS 15 trở lên (build trên macOS) |
 | Backend | Thư mục gốc dự án (`npm start`), PostgreSQL/PostGIS |
 
 > Nên đặt Flutter SDK và thư mục build ở đường dẫn **không có dấu cách và ngoài OneDrive** (ví dụ `C:\dev\`). Gradle/NDK có thể lỗi với đường dẫn có dấu cách. OneDrive đồng bộ thư mục `build/` làm chậm máy.
@@ -108,6 +108,8 @@ Mã ứng dụng là `vn.gov.kontum.kontum_mobilegis`. Muốn đổi thì sửa 
 **HTTP và HTTPS:** bản release chỉ cho HTTPS (`android/app/src/main/res/xml/network_security_config.xml`). Bản debug và profile cho phép HTTP để thử trong mạng LAN.
 
 ### iOS (trên macOS)
+
+Phát hành App Store: xem [APP_STORE.md](APP_STORE.md), cấu hình `release.json` và chạy `bash scripts/build_ios.sh release.json <build-number>`. Lệnh bên dưới chỉ là ví dụ build thủ công, chưa chứa cấu hình Firebase/quyền riêng tư.
 
 ```bash
 cd ios && pod install && cd ..
@@ -232,9 +234,9 @@ Kiểm thử API theo TC01–TC12 và đồng bộ web ↔ mobile: `node scripts
 1. Tạo dự án trên <https://console.firebase.google.com> (không cần Google Analytics).
 2. Thêm ứng dụng:
    - **Android** – package name `vn.gov.kontum.kontum_mobilegis` (SHA-1 không bắt buộc cho FCM);
-   - **iOS** – bundle ID `vn.gov.kontum.kontumMobilegis`.
+   - **iOS** – bundle ID `vn.gov.kontum.mobilegis`.
    Không cần tải `google-services.json` / `GoogleService-Info.plist`: ứng dụng khởi tạo Firebase bằng cấu hình truyền lúc build.
-3. **iOS:** Apple Developer → Keys → tạo khoá APNs (`.p8`) → Firebase *Project settings → Cloud Messaging → Apple app configuration* → tải khoá lên (Key ID, Team ID). Bundle ID phải bật capability Push Notifications (`ios/Runner/Runner.entitlements`; bản phát hành đổi `aps-environment` thành `production`). `Info.plist` đã khai báo Background Modes → `remote-notification`.
+3. **iOS:** Apple Developer → Keys → tạo khoá APNs (`.p8`) → Firebase *Project settings → Cloud Messaging → Apple app configuration* → tải khoá lên (Key ID, Team ID). Bundle ID phải bật capability Push Notifications (`ios/Runner/Runner.entitlements`; Debug dùng `Runner.entitlements` (`development`), Release/Profile dùng `RunnerRelease.entitlements` (`production`)). `Info.plist` đã khai báo Background Modes → `remote-notification`.
 4. **Cấu hình ứng dụng:** chép `firebase.example.json` thành `firebase.json` (đã nằm trong `.gitignore`) và điền từ *Project settings → General → Your apps*:
 
    | Khoá | Lấy ở |

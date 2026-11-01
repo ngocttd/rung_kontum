@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
+import '../../core/share_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
@@ -78,7 +78,7 @@ class NewsDetailPage extends ConsumerWidget {
       appBar: AppBar(actions: [
         IconButton(icon: const Icon(Icons.share_outlined), onPressed: () {
           final d = v.asData?.value.data;
-          if (d != null) SharePlus.instance.share(ShareParams(text: '${d['title']}\n${api.url(d['web_url'] as String?)}'));
+          if (d != null) shareText(context, '${d['title']}\n${api.url(d['web_url'] as String?)}');
         }),
       ]),
       body: AsyncView(
