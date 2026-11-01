@@ -128,8 +128,8 @@ const fakeToken = () => `${crypto.randomBytes(11).toString('base64url')}:APA91b$
     await new Promise((r) => mock.listen(0, '127.0.0.1', r));
     const mb = `http://127.0.0.1:${mock.address().port}`;
     fs.writeFileSync(path.join(tmp, 'sa.json'), JSON.stringify({ type: 'service_account', project_id: 'kontum-test', private_key_id: 'kid1', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }), client_email: 'fcm@kontum-test.iam.gserviceaccount.com', token_uri: `${mb}/token` }));
-    Object.assign(process.env, { FCM_SERVICE_ACCOUNT_FILE: path.join(tmp, 'sa.json'), FCM_ENDPOINT: mb });
-    delete process.env.FCM_PROJECT_ID; delete process.env.FCM_TOKEN_URI;
+    // Ghi đè rõ project giả lập: config.js có thể nạp lại .env khi require fcm lần đầu.
+    Object.assign(process.env, { FCM_SERVICE_ACCOUNT_FILE: path.join(tmp, 'sa.json'), FCM_ENDPOINT: mb, FCM_PROJECT_ID: 'kontum-test', FCM_TOKEN_URI: `${mb}/token` });
     const fcm = require('../src/services/push/fcm');
     const tok = fakeToken();
     const r1 = await fcm.send(tok, { id: crypto.randomUUID(), source_ref: 'fd:test', kind: 'fire_danger', title: 'Cảnh báo cháy rừng Cấp IV', body: 'Kiểm thử', priority: 'high', data: { screen: 'fire', commune: '23284' } });

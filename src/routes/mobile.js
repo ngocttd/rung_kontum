@@ -280,6 +280,7 @@ r.get('/notifications', optionalAuth, wrap(async (req, res) => {
   res.json(page(req, db.enabled ? await require('../services/notifier').feed(req.auth, communes) : await field.notifications(req.auth, communes)));
 }));
 r.post('/notifications/test', requireAuth(), rateLimit('m-notify-test', 10, 3600e3), wrap(async (req, res) => {
+  if (!require('../db/pool').enabled) throw new field.FieldError(503, 'DB_REQUIRED', 'Gửi thông báo thử cần cơ sở dữ liệu PostgreSQL. Vui lòng cấu hình máy chủ.');
   // người dùng tự gửi thông báo thử tới các thiết bị của mình (kiểm tra Socket.IO + push nền tảng)
   const n = await require('../services/notifier').create({ source_ref: `test:${require('crypto').randomUUID()}`, kind: 'system', title: 'Thông báo thử', body: 'Nếu bạn thấy thông báo này, kênh nhận thông báo của thiết bị đang hoạt động.', data: { screen: 'notifications' }, target_user: req.auth.sub, expires_at: new Date(Date.now() + 3600e3).toISOString() });
   res.json({ ok: Boolean(n), id: n && n.id });
