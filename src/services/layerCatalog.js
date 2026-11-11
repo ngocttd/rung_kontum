@@ -7,7 +7,7 @@ const repo = require('../data/repo');
 
 const GROUPS = [
   { key: 'admin', title: 'Ranh giới hành chính', section: 'HÀNH CHÍNH', cls: 'sec-admin', icon: 'geo-fill', tab: 'theme' },
-  { key: 'forest', title: 'Hiện trạng rừng 2025 (QĐ 1047)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
+  { key: 'forest', title: 'Hiện trạng rừng', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
   { key: 'landcover', title: 'Lớp phủ 1991 – 2014 – 2023 (dữ liệu dự án, 15 m)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
   { key: 'map-lpr', title: 'Lớp phủ rừng LPR các năm (bản đồ dự án)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
   { key: 'change', title: 'Biến động và dự báo mất rừng', section: 'BIẾN ĐỘNG RỪNG', cls: 'sec-forest', icon: 'graph-up-arrow', tab: 'theme' },
@@ -25,14 +25,21 @@ const GROUPS = [
   { key: 'reanalysis', title: 'Thời tiết ngày gần nhất (ERA5-Land)', section: 'ĐỊA HÌNH & CHỈ SỐ', cls: 'sec-base', icon: 'graph-up-arrow', tab: 'base' },
 ];
 const GROUP = Object.fromEntries(GROUPS.map((g) => [g.key, g]));
+// nhãn có năm lấy từ dữ liệu hiện hành
+function labels() {
+  const D = require('../lib/dataContext').dataContext();
+  return { forest: `Hiện trạng rừng ${D.forestLabel}`, cover: `Che phủ rừng ${D.forestYear || ''} (theo xã)`, area: `Diện tích rừng ${D.forestYear || ''} (theo xã)`,
+    risk: `Dự báo nguy cơ mất rừng ${D.forecastShort}`, riskInfo: `Xác suất mất rừng trung bình ${D.forecastLabel} (mô hình hiệu chỉnh)`, decision: D.decision,
+    loss: `Mất tán cây ${D.hansenFirst || ''}–${D.hansenLast || ''} (Hansen)`, loss5: `Mất tán cây ${D.lossRecentFrom || ''}–${D.hansenLast || ''} (theo xã)` };
+}
 
 // lớp cố định: [id, kind, group, title, icon, info, opts]
 // kind: vector | choro | overlay (ảnh trong overlays.json); icon: 'sym:x' | 'mk:x' | 'ic2:x'
 const STATIC = [
   ['province', 'vector', 'admin', 'Ranh giới Kon Tum (cũ)', 'sym:boundary-historical', 'Government of Viet Nam / HDX qua geoBoundaries, năm 2020', { on: true }],
   ['communes', 'vector', 'admin', 'Ranh giới xã/phường', 'sym:boundary-commune', 'vietnamese-provinces-database v5.2.0, cắt theo ranh Kon Tum cũ', { on: true, forest: true }],
-  ['cover', 'choro', 'forest', 'Che phủ rừng 2025 (theo xã)', 'sym:forest-protection', 'QĐ 1047/QĐ-UBND – tỷ lệ che phủ công bố theo xã', {}],
-  ['forest', 'choro', 'forest', 'Diện tích rừng 2025 (theo xã)', 'sym:forest-special-use', 'QĐ 1047/QĐ-UBND – diện tích đã thành rừng theo xã', {}],
+  ['cover', 'choro', 'forest', '@cover', 'sym:forest-protection', 'Tỷ lệ che phủ công bố theo xã (@decision)', {}],
+  ['forest', 'choro', 'forest', '@area', 'sym:forest-special-use', 'Diện tích đã thành rừng theo xã (@decision)', {}],
   ['lc-2023', 'overlay', 'landcover', 'Lớp phủ năm 2023', 'sym:forest-evergreen', null, {}],
   ['lc-2014', 'overlay', 'landcover', 'Lớp phủ năm 2014', 'sym:forest-mixed', null, {}],
   ['lc-1991', 'overlay', 'landcover', 'Lớp phủ năm 1991', 'sym:forest-conifer', null, {}],
@@ -40,10 +47,10 @@ const STATIC = [
   ['change-latest', 'overlay', 'change', null, 'sym:change-suspected', null, {}],
   ['candidates', 'vector', 'change', 'Vùng biến động nghi vấn (Sentinel-2)', 'sym:change-suspected', 'Sentinel-2 chuỗi tháng 100 m – phân tích tự động theo kỳ, chưa xác minh hiện trường', {}],
   ['lc-forest-change-1991-2023', 'overlay', 'change', 'Mất / tăng rừng 1991–2023', 'sym:change-suspected', null, {}],
-  ['hansen-loss', 'overlay', 'change', 'Mất tán cây 2001–2024 (Hansen)', 'sym:change-suspected', null, { forest: true }],
-  ['forest-loss-risk', 'overlay', 'change', 'Dự báo nguy cơ mất rừng 2025–26', 'sym:risk-4', null, {}],
-  ['risk', 'choro', 'change', 'Xác suất mất rừng (theo xã)', 'sym:risk-3', 'Xác suất mất rừng trung bình 2025–2026 (mô hình hiệu chỉnh)', {}],
-  ['loss', 'choro', 'change', 'Mất tán cây 2020–2024 (theo xã)', 'sym:risk-5', 'Hansen GFC – tổng diện tích mất tán cây 2020–2024 theo xã', {}],
+  ['hansen-loss', 'overlay', 'change', '@loss', 'sym:change-suspected', null, {}],
+  ['forest-loss-risk', 'overlay', 'change', '@risk', 'sym:risk-4', null, {}],
+  ['risk', 'choro', 'change', 'Xác suất mất rừng (theo xã)', 'sym:risk-3', '@riskInfo', {}],
+  ['loss', 'choro', 'change', '@loss5', 'sym:risk-5', 'Hansen GFC – tổng diện tích mất tán cây 5 năm gần nhất theo xã', {}],
   ['hotspots', 'vector', 'fire', 'Điểm nóng / điểm cháy 7 ngày (FIRMS + nhập tay)', 'mk:hotspot-unverified', 'NASA FIRMS NRT (MODIS, VIIRS) và điểm cháy cán bộ nhập; chỉ hiện điểm trong 7 ngày gần nhất – xem lịch sử ở trang Cảnh báo cháy', { on: true }],
   ['danger', 'choro', 'fire', 'Cấp nguy cơ cháy theo ngày', 'sym:risk-5', 'Cấp dự báo cháy theo chỉ số P Nesterov – theo ngày chọn ở khung bên phải', { on: true }],
   ['danger7', 'choro', 'fire', 'Cấp cao nhất 7 ngày tới', 'sym:risk-4', 'Cấp cao nhất trong 7 ngày tới', {}],
@@ -55,12 +62,13 @@ const STATIC = [
   ['s2-2025-wet-true', 'overlay', 'imagery', 'Màu tự nhiên – mùa mưa 2025', 'ic2:satellite', null, {}],
   ['s2-2025-dry-false', 'overlay', 'imagery', 'Giả màu – mùa khô 2025', 'ic2:satellite', null, {}],
   ['s2-2025-wet-false', 'overlay', 'imagery', 'Giả màu – mùa mưa 2025', 'ic2:satellite', null, {}],
+  ['ndvi-latest', 'overlay', 'terrain', null, 'ic2:plantation', null, { forest: true }],
   ['dem-2024', 'overlay', 'terrain', 'Địa hình (DEM 30 m)', 'ic2:map', null, { forest: true }],
-  ['ndvi-2025-dry', 'overlay', 'terrain', 'NDVI mùa khô 2025', 'ic2:plantation', null, { forest: true }],
+  ['ndvi-2025-dry', 'overlay', 'terrain', 'NDVI mùa khô 2025', 'ic2:plantation', null, {}],
   ['ndvi-2025-wet', 'overlay', 'terrain', 'NDVI mùa mưa 2025', 'ic2:plantation', null, {}],
   ['ndvi-2024-dry', 'overlay', 'terrain', 'NDVI mùa khô 2024', 'ic2:plantation', null, {}],
   ['ndvi-2024-wet', 'overlay', 'terrain', 'NDVI mùa mưa 2024', 'ic2:plantation', null, {}],
-  ['worldcover-2021', 'overlay', 'terrain', 'Lớp phủ đất 2021 (ESA WorldCover, tham khảo)', 'ic2:forest', null, { forest: true }],
+  ['worldcover-2021', 'overlay', 'terrain', 'Lớp phủ đất 2021 (ESA WorldCover, tham khảo)', 'ic2:forest', null, {}],
   ['wind-era5', 'vector', 'reanalysis', 'Hướng gió theo lưới ERA5-Land', 'ic2:wind', 'ERA5-Land – gió 10 m lúc 12 giờ ngày gần nhất có tái phân tích, lưới ~11 km', {}],
 ];
 
@@ -102,12 +110,16 @@ async function full({ mapLayers } = {}) {
   const maps = mapLayers || await require('./maps').publishedLayers().catch(() => []);
   const items = [];
   let order = 0;
-  for (const [id, kind, group, title, icon, info, opts] of STATIC) {
+  const L = labels();
+  const lab = (t) => (typeof t === 'string' && t.startsWith('@') ? L[t.slice(1)] : t);
+  for (const [id, kind, group, title0, icon, info0, opts] of STATIC) {
+    const title = lab(title0); const info = info0 ? String(lab(info0)).replace('@decision', L.decision) : info0;
     if (kind === 'overlay' && !ov[id]) continue;
     const o = ov[id];
     let t = title;
     if (id === 'change-latest') t = o && o.window ? `Biến động NDVI ${String(o.window).split(' ')[0].replace(/^(\d{4})-(\d{2})\.\.(\d{2})$/, '$2–$3/$1')}` : 'Biến động NDVI mới nhất';
     if (id === 's2-latest') t = o && o.month ? `Ảnh Sentinel-2 mới nhất ${o.month.slice(5)}/${o.month.slice(0, 4)}` : 'Ảnh Sentinel-2 mới nhất';
+    if (id === 'ndvi-latest') t = o && o.month ? `NDVI tháng mới nhất ${o.month.slice(5)}/${o.month.slice(0, 4)}` : 'NDVI tháng mới nhất';
     items.push({ id, kind, group, title: t || (o && o.title) || id, icon, info: info || (o ? `${o.title} – ${o.source}. ${o.meaning || ''}${o.resolution ? ` (${o.resolution})` : ''}` : ''),
       default_on: Boolean(opts.on), on_forest: Boolean(opts.forest), hidden: false, sort: (order += 10), source: 'system', deletable: false });
   }
@@ -149,7 +161,8 @@ async function full({ mapLayers } = {}) {
 // cây nhóm cho trang bản đồ: [{ ...group, items[] }] – chỉ lớp không ẩn
 async function tree(opts) {
   const items = (await full(opts)).filter((i) => !i.hidden);
-  return GROUPS.map((g) => ({ ...g, items: items.filter((i) => i.group === g.key) })).filter((g) => g.items.length);
+  const L = labels();
+  return GROUPS.map((g) => ({ ...g, title: g.key === 'forest' ? L.forest : g.title, items: items.filter((i) => i.group === g.key) })).filter((g) => g.items.length);
 }
 
 function save(user, id, b) {

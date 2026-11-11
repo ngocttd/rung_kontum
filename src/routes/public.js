@@ -54,7 +54,7 @@ r.get('/', (req, res) => {
     title: 'Trang chủ', nav: 'home',
     summary: repo.forestSummary(), hotspots: hs, firms: repo.firmsMeta(), weather: weatherSummary(), danger: dangerSummary(),
     reportCounts: reports.counts(), alertFeed: alerts.feed({ limit: 4 }), articles: content.list().slice(0, 4), documents: repo.documents().filter((d) => d.type === 'pdf').slice(0, 3),
-    change: fcg ? { loss2024: fcg.history.aoi_annual_loss_ha['2024'], candidates: repo.changeCandidates().features.length, auc: fcg.forecast.validation.auc } : null,
+    change: fcg ? { loss2024: fcg.history.aoi_annual_loss_ha[String(Math.max(...Object.keys(fcg.history.aoi_annual_loss_ha).map(Number)))], candidates: repo.changeCandidates().features.length, auc: fcg.forecast.validation.auc } : null,
     overlays: repo.overlays(),
   });
 });
@@ -94,6 +94,7 @@ r.get('/tai-nguyen-rung', async (req, res, next) => {
     res.render('public/forest', {
       title: 'Tài nguyên rừng', nav: 'forest', summary: repo.forestSummary(), communes, landcover: repo.landcover(), photos: repo.photos(),
       overlays, fcg: repo.forestChange(), lc: repo.landcoverHistory(), tab: req.query.tab || 'tong-quan', yearLayers, extras,
+      classLatest: require('../services/imagery').classifications().find((c) => c.published) || null,
     });
   } catch (e) { next(e); }
 });

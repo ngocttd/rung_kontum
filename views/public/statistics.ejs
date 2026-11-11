@@ -3,9 +3,15 @@
 <%
   const s = summary;
   const fv = fcg ? fcg.forecast.validation : null;
-  const loss5 = fcg ? ['2020','2021','2022','2023','2024'].reduce((a,y)=>a+fcg.history.aoi_annual_loss_ha[y],0) : null;
-  const hs2025 = history ? Object.entries(history.monthly).filter(([m]) => m.startsWith('2025')).reduce((a,[,n])=>a+n,0) : null;
-  const hs2024 = history ? Object.entries(history.monthly).filter(([m]) => m.startsWith('2024')).reduce((a,[,n])=>a+n,0) : null;
+  const lossYears = []; for (let y = D.lossRecentFrom; y && y <= D.hansenLast; y++) lossYears.push(String(y));
+  const loss5 = fcg ? lossYears.reduce((a,y)=>a+(fcg.history.aoi_annual_loss_ha[y] || 0),0) : null;
+  // năm điểm nóng: năm hiện tại (lũy kế) và năm trước
+  const hY = D.nowYear; const hY0 = D.nowYear - 1;
+  const hs2025 = history ? Object.entries(history.monthly).filter(([m]) => m.startsWith(String(hY))).reduce((a,[,n])=>a+n,0) : null;
+  const hs2024 = history ? Object.entries(history.monthly).filter(([m]) => m.startsWith(String(hY0))).reduce((a,[,n])=>a+n,0) : null;
+  const hFirst = history ? Object.keys(history.monthly).sort()[0].slice(0, 4) : '';
+  // năm gần nhất có đủ chuỗi cấp nguy cơ cháy theo ngày
+  const dangerYear = dangerMonthly ? Object.keys(dangerMonthly).map(m => m.slice(0, 4)).sort().filter((y, i, a) => a.filter(x => x === y).length >= 12).pop() || Object.keys(dangerMonthly).sort().pop().slice(0, 4) : '';
   const sorted = communes.filter(c => c.official).sort((a,b)=>b.official.established_forest_ha - a.official.established_forest_ha);
   const topicChoro = { 'tai-nguyen': 'cover', 'bien-dong': 'risk', chay: 'danger7' }[topic] || 'cover';
 %>
@@ -37,21 +43,21 @@
 
     <div class="grid">
       <div class="card card-b" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
-        <label><span class="src">Năm số liệu</span><select class="input" disabled><option>2025</option></select></label>
+        <label><span class="src">Năm số liệu</span><select class="input" disabled><option><%= D.forestYear %></option></select></label>
         <label><span class="src">Phạm vi</span><select class="input" id="scope" style="min-width:230px"><option value="">Toàn vùng Kon Tum (40 xã)</option><% communes.slice().sort((a,b)=>a.fullName.localeCompare(b.fullName,'vi')).forEach(c => { %><option value="<%= c.code %>"><%= c.fullName %></option><% }) %></select></label>
         <label><span class="src">Tô màu bản đồ</span><select class="input" id="choro">
-          <option value="cover" <%= topicChoro==='cover'?'selected':'' %>>Tỷ lệ che phủ 2025</option><option value="forest">Diện tích có rừng</option><option value="loss">Mất tán cây 2020–2024</option>
+          <option value="cover" <%= topicChoro==='cover'?'selected':'' %>>Tỷ lệ che phủ <%= D.forestYear %></option><option value="forest">Diện tích có rừng</option><option value="loss">Mất tán cây <%= D.lossRecentFrom %>–<%= D.hansenLast %></option>
           <option value="risk" <%= topicChoro==='risk'?'selected':'' %>>Dự báo nguy cơ mất rừng</option><option value="danger7" <%= topicChoro==='danger7'?'selected':'' %>>Cấp nguy cơ cháy 7 ngày</option></select></label>
-        <span class="src" style="margin-left:auto">Cập nhật dữ liệu: rừng 31/12/2025 · Hansen 2024 · nguy cơ cháy <%= danger ? fmt.dateTime(danger.generated) : '—' %></span>
+        <span class="src" style="margin-left:auto">Cập nhật dữ liệu: rừng <%= D.forestAsOf %> · Hansen <%= D.hansenLast %> · ảnh Sentinel-2 <%= D.s2Month %> · nguy cơ cháy <%= danger ? fmt.dateTime(danger.generated) : '—' %></span>
       </div>
 
       <div class="kpi-cards" id="kpis">
-        <div class="card kc"><%- cicon('forest') %><div><span>Diện tích có rừng</span><strong data-k="forest"><%= fmt.num(s.established_forest_ha) %> ha</strong><span class="sub">31/12/2025</span></div></div>
+        <div class="card kc"><%- cicon('forest') %><div><span>Diện tích có rừng</span><strong data-k="forest"><%= fmt.num(s.established_forest_ha) %> ha</strong><span class="sub"><%= D.forestAsOf %></span></div></div>
         <div class="card kc"><%- cicon('plantation') %><div><span>Tỷ lệ che phủ</span><strong data-k="cover"><%= fmt.num(s.cover_percent_computed, 1) %>%</strong><span class="sub" data-k="cover-note">tính từ tổng 40 xã</span></div></div>
         <div class="card kc"><%- cicon('forest') %><div><span>Rừng tự nhiên</span><strong data-k="natural"><%= fmt.num(s.natural_forest_ha) %> ha</strong></div></div>
         <div class="card kc"><%- cicon('plantation') %><div><span>Rừng trồng</span><strong data-k="plant"><%= fmt.num(s.plantation_ha) %> ha</strong><span class="sub" data-k="imm">+ <%= fmt.num(s.immature_plantation_ha) %> ha chưa thành rừng</span></div></div>
-        <div class="card kc"><%- cicon('fire') %><div><span>Điểm nóng 2025</span><strong data-k="hot"><%= fmt.num(hs2025) %></strong><span class="sub" data-k="hot-note">2024: <%= fmt.num(hs2024) %> (MODIS) · 7 ngày: <%= history ? Object.values(history.nrtMonthly).reduce((a,b)=>a+b,0) : 0 %></span></div></div>
-        <div class="card kc"><%- cicon('violation') %><div><span>Mất tán cây 2020–24</span><strong data-k="loss"><%= fmt.num(loss5) %> ha</strong><span class="sub">Hansen GFC</span></div></div>
+        <div class="card kc"><%- cicon('fire') %><div><span>Điểm nóng <%= hY %></span><strong data-k="hot"><%= fmt.num(hs2025) %></strong><span class="sub" data-k="hot-note"><%= hY0 %>: <%= fmt.num(hs2024) %> (MODIS) · 7 ngày: <%= history ? Object.values(history.nrtMonthly).reduce((a,b)=>a+b,0) : 0 %></span></div></div>
+        <div class="card kc"><%- cicon('violation') %><div><span>Mất tán cây <%= D.lossRecentFrom %>–<%= String(D.hansenLast).slice(2) %></span><strong data-k="loss"><%= fmt.num(loss5) %> ha</strong><span class="sub">Hansen GFC</span></div></div>
       </div>
 
       <div class="grid" style="grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,1fr)">
@@ -61,11 +67,11 @@
         </section>
         <section class="grid">
           <div class="card"><div class="card-h"><h2><%- ic('graph-up-arrow') %> Mất tán cây 2015–2024</h2></div><div class="card-b"><div class="chart-box short"><canvas id="ch-loss"></canvas></div></div></div>
-          <div class="card"><div class="card-h"><h2><%- ic('bar-chart-fill') %> Cơ cấu diện tích rừng 2025</h2></div><div class="card-b"><div class="donut-wrap" style="grid-template-columns:130px 1fr"><div class="chart-box" style="height:130px"><canvas id="ch-struct"></canvas></div>
+          <div class="card"><div class="card-h"><h2><%- ic('bar-chart-fill') %> Cơ cấu diện tích rừng <%= D.forestYear %></h2></div><div class="card-b"><div class="donut-wrap" style="grid-template-columns:130px 1fr"><div class="chart-box" style="height:130px"><canvas id="ch-struct"></canvas></div>
             <ul class="risk-list" style="font-size:12px"><li><span class="dot" style="background:#006b38"></span>Đặc dụng<span class="v" data-k="sp"><%= fmt.num(s.special_use_ha) %></span></li><li><span class="dot" style="background:#75bb25"></span>Phòng hộ<span class="v" data-k="pr"><%= fmt.num(s.protection_ha) %></span></li><li><span class="dot" style="background:#f8ce42"></span>Sản xuất<span class="v" data-k="pd"><%= fmt.num(s.production_ha) %></span></li></ul></div></div></div>
         </section>
         <section class="card" id="bang">
-          <div class="card-h"><h2><%- ic('collection-fill') %> Thống kê theo xã (2025)</h2></div>
+          <div class="card-h"><h2><%- ic('collection-fill') %> Thống kê theo xã (<%= D.forestYear %>)</h2></div>
           <div class="card-b table-wrap"><table class="tbl" data-page-size="10"><thead><tr><th>#</th><th>Xã/phường</th><th class="num">Có rừng (ha)</th><th class="num">Che phủ (%)</th></tr></thead><tbody>
             <% sorted.forEach((c,i) => { %><tr data-code="<%= c.code %>"><td><%= i+1 %></td><td><%= c.fullName %></td><td class="num"><%= fmt.num(c.official.established_forest_ha) %></td><td class="num"><%= fmt.num(c.official.official_forest_cover_percent, 1) %></td></tr><% }) %>
           </tbody><tfoot><tr><td></td><td>Tổng</td><td class="num"><%= fmt.num(s.established_forest_ha) %></td><td class="num"><%= fmt.num(s.cover_percent_computed, 1) %></td></tr></tfoot></table></div>
@@ -73,9 +79,9 @@
       </div>
 
       <div class="grid" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.2fr) 230px">
-        <section class="card"><div class="card-h"><h2><%- ic('fire') %> Điểm nóng theo tháng 2024–2026</h2></div><div class="card-b"><div class="chart-box"><canvas id="ch-hot"></canvas></div><p class="src" style="margin:4px 0 0">Đỏ: lịch sử MODIS 1 km (GEE, tới <%= history ? fmt.ymd(history.last_date) : "—" %>); tím: FIRMS NRT 7 ngày gần nhất. Phát hiện nhiệt, chưa xác minh.</p></div></section>
-        <section class="card"><div class="card-h"><h2><%- ic('exclamation-triangle-fill') %> Ngày-xã theo cấp nguy cơ cháy 2025</h2></div><div class="card-b"><div class="donut-wrap" style="grid-template-columns:1fr"><div class="chart-box" style="height:200px"><canvas id="ch-cls"></canvas></div></div><p class="src" style="margin:4px 0 0">Số ngày × xã đạt từng cấp (chỉ số P, tính lại từ ERA5-Land).</p></div></section>
-        <section class="card"><div class="card-h"><h2><%- ic('bar-chart-fill') %> Dự báo mất rừng 2025–2026 (10 xã cao nhất)</h2></div><div class="card-b"><div class="chart-box"><canvas id="ch-risk"></canvas></div><p class="src" style="margin:4px 0 0">Diện tích kỳ vọng (ha), mô hình AUC <%= fv ? fmt.num(fv.auc, 2) : '—' %>.</p></div></section>
+        <section class="card"><div class="card-h"><h2><%- ic('fire') %> Điểm nóng theo tháng <%= hFirst %>–<%= hY %></h2></div><div class="card-b"><div class="chart-box"><canvas id="ch-hot"></canvas></div><p class="src" style="margin:4px 0 0">Đỏ: lịch sử MODIS 1 km (GEE, tới <%= history ? fmt.ymd(history.last_date) : "—" %>); tím: FIRMS NRT 7 ngày gần nhất. Phát hiện nhiệt, chưa xác minh.</p></div></section>
+        <section class="card"><div class="card-h"><h2><%- ic('exclamation-triangle-fill') %> Ngày-xã theo cấp nguy cơ cháy <%= dangerYear %></h2></div><div class="card-b"><div class="donut-wrap" style="grid-template-columns:1fr"><div class="chart-box" style="height:200px"><canvas id="ch-cls"></canvas></div></div><p class="src" style="margin:4px 0 0">Số ngày × xã đạt từng cấp (chỉ số P, tính lại từ ERA5-Land).</p></div></section>
+        <section class="card"><div class="card-h"><h2><%- ic('bar-chart-fill') %> Dự báo mất rừng <%= D.forecastLabel %> (10 xã cao nhất)</h2></div><div class="card-b"><div class="chart-box"><canvas id="ch-risk"></canvas></div><p class="src" style="margin:4px 0 0">Diện tích kỳ vọng (ha), mô hình AUC <%= fv ? fmt.num(fv.auc, 2) : '—' %>.</p></div></section>
         <section class="card"><div class="card-h"><h2><%- ic('download') %> Xuất báo cáo</h2></div>
           <div class="card-b grid" style="gap:8px">
             <button class="btn btn-primary btn-block" onclick="window.print()"><%- ic('file-earmark-pdf-fill') %> Xuất báo cáo PDF</button>
@@ -91,7 +97,7 @@
 <%- include('../partials/chartjs') %>
 <%- include('../partials/mapjs') %>
 <%- include('../partials/page-data', { pageData: {
-  summary: s, loss: fcg ? fcg.history.aoi_annual_loss_ha : {}, hot: history ? (({ points, ...h }) => h)(history) : null, dangerMonthly, choro: topicChoro, hs: { y2025: hs2025, y2024: hs2024 }, loss5,
+  summary: s, loss: fcg ? fcg.history.aoi_annual_loss_ha : {}, hot: history ? (({ points, ...h }) => h)(history) : null, dangerMonthly, choro: topicChoro, hs: { y2025: hs2025, y2024: hs2024, y: hY, y0: hY0, first: hFirst }, loss5, dangerYear, lossFrom: D.hansenLast - 9,
   communes: communes.map(c => ({ code: c.code, name: c.fullName, o: c.official, loss5: c.loss ? c.loss.last5 : null, hot: history ? (history.byCommune[c.code] || 0) : null, risk: c.risk })) } }) %>
 <script src="/js/pages/statistics.js"></script>
 </body></html>

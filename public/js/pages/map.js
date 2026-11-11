@@ -162,8 +162,8 @@
         <tr><td>Che phủ công bố</td><td>${KT.num(o.official_forest_cover_percent, 2)}%</td></tr>
         <tr><td>Cây gỗ WorldCover 2021</td><td>${KT.num((lc.tree_cover_share || 0) * 100, 1)}% (phần trong ranh cũ)</td></tr>
         <tr><td>Mất tán cây 2020–2024</td><td>${c.loss ? `${KT.num(c.loss.last5)} ha` : '—'}</td></tr>
-        <tr><td>Dự báo mất rừng 2025–26</td><td>${rk.expected_loss_ha !== undefined ? `${KT.num(rk.expected_loss_ha)} ha kỳ vọng · ${KT.num(rk.high_risk_ha)} ha nguy cơ cao` : '—'}</td></tr></table>
-        <p class="src">QĐ 1047/QĐ-UBND (31/12/2025, toàn xã) · Hansen GFC · mô hình dự báo của hệ thống</p>`;
+        <tr><td>Dự báo mất rừng ${KT.D.forecastShort}</td><td>${rk.expected_loss_ha !== undefined ? `${KT.num(rk.expected_loss_ha)} ha kỳ vọng · ${KT.num(rk.high_risk_ha)} ha nguy cơ cao` : '—'}</td></tr></table>
+        <p class="src">${KT.esc(KT.D.decision)} (số liệu ${KT.D.forestAsOf}, toàn xã) · Hansen GFC · mô hình dự báo của hệ thống</p>`;
       document.getElementById('info-admin').innerHTML = `<h3 style="font-size:15px;margin-bottom:6px">${KT.esc(c.name)}</h3><table class="kv">
         <tr><td>Mã đơn vị</td><td>${c.code}</td></tr><tr><td>Diện tích tự nhiên</td><td>${KT.num(o.natural_area_ha)} ha</td></tr>
         <tr><td>Độ cao trung bình</td><td>${KT.num(lc.elevation_mean_m)} m (${KT.num(lc.elevation_min_m)}–${KT.num(lc.elevation_max_m)} m)</td></tr>

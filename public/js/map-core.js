@@ -1,6 +1,8 @@
 /* Shared Mapbox GL map: basemaps, data layers that survive style switches, popups, measuring, export. */
 (function () {
   const KT = (window.KT = window.KT || {});
+  const D = window.KT_D || {}; // năm/nguồn dữ liệu hiện hành (server: src/lib/dataContext.js)
+  KT.D = D;
   const BASEMAPS = {
     satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
     streets: 'mapbox://styles/mapbox/streets-v12',
@@ -45,16 +47,16 @@
     'rejected', 'fire-rejected', 'closed', 'fire-resolved', 'hotspot-unverified'];
 
   const CHORO = {
-    cover: { prop: 'cover', title: 'Tỷ lệ che phủ rừng công bố 2025 (%)', stops: [[0, '#f7fcb9'], [20, '#d9f0a3'], [40, '#addd8e'], [60, '#41ab5d'], [80, '#006837']], unit: '%' },
-    forest: { prop: 'forest_ha', title: 'Diện tích có rừng 2025 (ha)', stops: [[0, '#f7fcb9'], [5000, '#c2e699'], [10000, '#78c679'], [20000, '#31a354'], [35000, '#006837']], unit: ' ha' },
+    cover: { prop: 'cover', title: `Tỷ lệ che phủ rừng công bố ${D.forestYear || ''} (%)`, stops: [[0, '#f7fcb9'], [20, '#d9f0a3'], [40, '#addd8e'], [60, '#41ab5d'], [80, '#006837']], unit: '%' },
+    forest: { prop: 'forest_ha', title: `Diện tích có rừng ${D.forestYear || ''} (ha)`, stops: [[0, '#f7fcb9'], [5000, '#c2e699'], [10000, '#78c679'], [20000, '#31a354'], [35000, '#006837']], unit: ' ha' },
     danger: { prop: 'danger_cls', title: 'Cấp nguy cơ cháy hôm nay (chỉ số P)', classes: true },
     danger7: { prop: 'danger_max7', title: 'Cấp nguy cơ cháy cao nhất 7 ngày tới', classes: true },
-    risk: { prop: 'risk_mean', title: 'Xác suất mất rừng TB 2025–2026', stops: [[0, '#fff5eb'], [0.01, '#fdd0a2'], [0.03, '#fd8d3c'], [0.06, '#d94801'], [0.1, '#7f2704']], unit: '', pct: true },
+    risk: { prop: 'risk_mean', title: `Xác suất mất rừng TB ${D.forecastLabel}`, stops: [[0, '#fff5eb'], [0.01, '#fdd0a2'], [0.03, '#fd8d3c'], [0.06, '#d94801'], [0.1, '#7f2704']], unit: '', pct: true },
     special: { prop: 'special_ha', title: 'Quy hoạch rừng đặc dụng (ha)', stops: [[0, '#f2f7ee'], [1, '#c7e6b7'], [3000, '#5fae5f'], [9000, '#1d7a3a'], [18000, '#004d26']], unit: ' ha' },
     protection: { prop: 'protection_ha', title: 'Quy hoạch rừng phòng hộ (ha)', stops: [[0, '#f7fbea'], [1, '#e1f2b0'], [3000, '#a8d655'], [9000, '#6aa51f'], [27000, '#3b6b06']], unit: ' ha' },
     production: { prop: 'production_ha', title: 'Quy hoạch rừng sản xuất (ha)', stops: [[0, '#fffbe8'], [1, '#fdeca6'], [5000, '#f8ce42'], [12000, '#d99a0b'], [25000, '#8a5a00']], unit: ' ha' },
-    natural: { prop: 'natural_forest_ha', title: 'Rừng tự nhiên 2025 (ha)', stops: [[0, '#f1f8ef'], [3000, '#a9d8a0'], [10000, '#4ea85a'], [20000, '#176c35'], [40000, '#0a3d1d']], unit: ' ha' },
-    plantation: { prop: 'plantation_ha', title: 'Rừng trồng đã thành rừng 2025 (ha)', stops: [[0, '#f8f0fb'], [300, '#e3c4f0'], [1500, '#c48ee0'], [3500, '#a254cc'], [6000, '#6a2591']], unit: ' ha' },
+    natural: { prop: 'natural_forest_ha', title: `Rừng tự nhiên ${D.forestYear || ''} (ha)`, stops: [[0, '#f1f8ef'], [3000, '#a9d8a0'], [10000, '#4ea85a'], [20000, '#176c35'], [40000, '#0a3d1d']], unit: ' ha' },
+    plantation: { prop: 'plantation_ha', title: `Rừng trồng đã thành rừng ${D.forestYear || ''} (ha)`, stops: [[0, '#f8f0fb'], [300, '#e3c4f0'], [1500, '#c48ee0'], [3500, '#a254cc'], [6000, '#6a2591']], unit: ' ha' },
     loss: { prop: 'loss_5y', title: 'Mất tán cây 2020–2024 (ha)', stops: [[0, '#fff7f3'], [100, '#fcc5c0'], [400, '#f768a1'], [900, '#ae017e'], [1800, '#49006a']], unit: ' ha' },
   };
   KT.CHORO = CHORO;
@@ -327,12 +329,12 @@
     <p class="src" style="margin:6px 0 0">${['confirmed', 'handling', 'closed'].includes(p.status) ? 'Đã xác minh hiện trường.' : p.status === 'rejected' ? 'Đã kiểm tra: không phải cháy rừng.' : man ? 'Tin báo nhập thủ công, chưa xác minh hiện trường.' : 'Phát hiện nhiệt chưa xác minh hiện trường.'}</p></div>`;
   };
   KT.communeHtml = (p) => `<div class="pop"><h4>${KT.esc(p.fullName)}</h4><table>
-    <tr><td>Có rừng 2025</td><td>${KT.num(p.forest_ha)} ha</td></tr><tr><td>Che phủ công bố</td><td>${KT.num(p.cover, 2)}%</td></tr>
+    <tr><td>Có rừng ${D.forestYear || ''}</td><td>${KT.num(p.forest_ha)} ha</td></tr><tr><td>Che phủ công bố</td><td>${KT.num(p.cover, 2)}%</td></tr>
     <tr><td>Rừng tự nhiên</td><td>${KT.num(p.natural_forest_ha)} ha</td></tr><tr><td>Mất tán cây 2020–24</td><td>${KT.num(p.loss_5y)} ha</td></tr>
     <tr><td>Điểm nóng 7 ngày</td><td>${p.hotspots_7d ?? 0} <span class="src">(lịch sử 2024–26: ${p.hotspots_hist ?? 0})</span></td></tr>
     <tr><td>Nguy cơ cháy hôm nay</td><td>${p.danger_cls ? `<span class="lv lv-${p.danger_cls}">${p.danger_cls}</span> P=${KT.num(p.danger_p)}` : '—'}</td></tr>
     <tr><td>Cao nhất 7 ngày</td><td>${p.danger_max7 ? `<span class="lv lv-${p.danger_max7}">${p.danger_max7}</span>` : '—'}</td></tr>
-    <tr><td>Dự báo mất rừng</td><td>${p.risk_expected_ha !== null && p.risk_expected_ha !== undefined ? `${KT.num(p.risk_expected_ha)} ha (2025–26)` : '—'}</td></tr></table></div>`;
+    <tr><td>Dự báo mất rừng</td><td>${p.risk_expected_ha !== null && p.risk_expected_ha !== undefined ? `${KT.num(p.risk_expected_ha)} ha (${D.forecastShort})` : '—'}</td></tr></table></div>`;
   KT.sampleHtml = (p) => `<div class="pop"><h4>${KT.ic('clipboard-check-fill')} Mẫu thực địa 2025</h4><table>
     <tr><td>Đối tượng</td><td><b>${KT.esc(p.ten_vi || p.ten)}</b></td></tr><tr><td>Nhãn lớp phủ</td><td>${KT.esc(p.lpr)}</td></tr>
     <tr><td>Lớp phủ 2023 tại điểm</td><td>${KT.esc(p.lc2023 || '—')}</td></tr><tr><td>Toạ độ UTM 48N</td><td>${p.x_utm}, ${p.y_utm}</td></tr></table>

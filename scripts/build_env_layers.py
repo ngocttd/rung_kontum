@@ -161,7 +161,7 @@ for bj in reversed(hw):
 for p in sorted((ROOT / 'data/collected/monitoring-series').glob('sentinel-*-100m.tif'), reverse=True):
     with rasterio.open(p) as d:
         out = {}
-        for k, i in (('b8', 4), ('b11', 5), ('n', 7)):
+        for k, i in (('b4', 3), ('b8', 4), ('b11', 5), ('n', 7)):
             dst = np.zeros((H, WD), 'float32')
             reproject(rasterio.band(d, i), dst, dst_transform=TR, dst_crs='EPSG:3857', resampling=Resampling.bilinear, src_nodata=0, dst_nodata=0)
             out[k] = dst
@@ -174,6 +174,12 @@ for p in sorted((ROOT / 'data/collected/monitoring-series').glob('sentinel-*-100
          f'Sentinel-2 SR median tháng {month[5:]}/{month[:4]} (GEE) – NDMI tính bằng Python, lưới 100 m',
          'NDMI = (B8 − B11)/(B8 + B11): thấp (nâu) = thực vật khô, dễ cháy; cao (xanh) = ẩm. Rừng khộp mùa khô có NDMI thấp tự nhiên.',
          [dict(value=s[0], color=s[1]) for s in STOPS], '100 m', 'fire-env', dict(month=month, valid_fraction=round(float(valid.sum() / MASK.sum()), 3)))
+    nv = np.where(valid, (out['b8'] - out['b4']) / np.maximum(out['b8'] + out['b4'], 1), np.nan)
+    VST = [(-0.1, '#a50026'), (0.2, '#f46d43'), (0.4, '#fee08b'), (0.6, '#a6d96a'), (0.8, '#1a9850'), (0.9, '#006837')]
+    save('ndvi-latest', colorize(nv, VST, 235), f'NDVI tháng {month[5:]}/{month[:4]}',
+         f'Sentinel-2 SR median tháng {month[5:]}/{month[:4]} (GEE) – NDVI tính bằng Python, lưới 100 m',
+         'Chỉ số thực vật tháng ảnh mới nhất; NDVI thấp mùa khô ở rừng khộp rụng lá không đồng nghĩa mất rừng',
+         [dict(value=s[0], color=s[1]) for s in VST], '100 m', 'terrain', dict(month=month))
     break
 
 # ---------- 4. LST MODIS (nếu đã tải bằng collect_lst.py) ----------

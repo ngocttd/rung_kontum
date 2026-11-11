@@ -15,9 +15,10 @@
         <a href="/tai-nguyen-rung" class="<%= nav === 'forest' ? 'active' : '' %>">Tài nguyên rừng <%- ic('chevron-down') %></a>
         <div class="nav-drop">
           <a href="/tai-nguyen-rung">Tổng quan tài nguyên rừng</a>
-          <a href="/tai-nguyen-rung?tab=hien-trang">Hiện trạng rừng 2025 theo xã</a>
-          <a href="/tai-nguyen-rung?tab=lop-phu">Lớp phủ đất và ảnh vệ tinh</a>
+          <a href="/tai-nguyen-rung?tab=hien-trang">Hiện trạng rừng <%= D.forestYear || '' %> theo xã</a>
+          <a href="/tai-nguyen-rung?tab=lop-phu">Lớp phủ qua các năm</a>
           <a href="/bien-dong-rung">Biến động và dự báo mất rừng</a>
+          <a href="/so-sanh-anh">So sánh ảnh vệ tinh</a>
         </div>
       </div>
       <div class="nav-item">

@@ -18,7 +18,7 @@
   kpis: [
     { icon: 'fire', value: String(hotspots.length), label: 'Điểm nóng / điểm cháy trên bản đồ', tone: 'fire', sub: hotspots.filter(h => ['new','assigned','verifying'].includes(h.status)).length + ' chưa xác minh · ' + hotspots.filter(h => ['confirmed','handling','closed'].includes(h.status)).length + ' xác nhận cháy' },
     { icon: 'exclamation-triangle-fill', value: String(atRisk.length), label: 'Xã nguy cơ cấp III+ (7 ngày)', tone: 'warn', sub: danger ? 'tính lúc ' + fmt.dateTime(danger.inputs) : '' },
-    { icon: 'tree-fill', value: fmt.num(forestAtRisk) + ' ha', label: 'Rừng thuộc các xã cấp III+', tone: 'green', sub: 'theo số liệu rừng 2025' },
+    { icon: 'tree-fill', value: fmt.num(forestAtRisk) + ' ha', label: 'Rừng thuộc các xã cấp III+', tone: 'green', sub: 'theo số liệu rừng ' + D.forestYear },
     { icon: 'thermometer-half', value: fmt.num(weather.temp, 0) + '°C', label: 'Nhiệt độ trung bình', tone: 'blue', sub: 'độ ẩm ' + fmt.num(weather.humidity, 0) + '%' },
   ] }) %>
 <main class="container page fire-page">
@@ -43,8 +43,7 @@
         <div class="field"><span>Lớp nền và hành chính</span>
           <label class="check"><input type="checkbox" data-vec="province" checked> Ranh Kon Tum cũ</label>
           <label class="check"><input type="checkbox" data-vec="communes" checked> Ranh giới xã</label>
-          <label class="check"><input type="checkbox" data-ov="worldcover-2021"> Lớp phủ (WorldCover)</label>
-          <label class="check"><input type="checkbox" data-ov="ndvi-2025-dry"> NDVI mùa khô (độ khô thực vật)</label>
+          <% overlays.filter(o => ['ndmi-latest', 'lst-latest', 'ndvi-latest'].includes(o.id)).forEach(o => { %><label class="check"><input type="checkbox" data-ov="<%= o.id %>"> <%= o.title %></label><% }) %>
           <label class="check"><input type="checkbox" data-vec="weather"> Hướng gió, nhiệt độ hiện tại</label>
         </div>
         <label class="field"><span>Ngày dự báo hiển thị</span>
@@ -89,7 +88,7 @@
         <div class="card-h"><h2><%- ic('graph-up-arrow') %> Dự báo nguy cơ cháy rừng</h2><span class="more muted" style="font-weight:400" id="donut-day"></span></div>
         <div class="card-b">
           <div class="donut-wrap keep" style="grid-template-columns:minmax(0,1fr) 130px"><ul class="risk-list" id="danger-list" style="font-size:12.5px"></ul><div class="chart-box" style="height:130px"><canvas id="ch-donut"></canvas></div></div>
-          <p class="src" style="margin:6px 0 0">Diện tích rừng 2025 của các xã theo cấp dự báo (chỉ số P, tự động). Điểm nóng là quan sát riêng, không làm thay đổi cấp dự báo.</p>
+          <p class="src" style="margin:6px 0 0">Diện tích rừng <%= D.forestYear %> của các xã theo cấp dự báo (chỉ số P, tự động). Điểm nóng là quan sát riêng, không làm thay đổi cấp dự báo.</p>
         </div>
       </section>
     </aside>
@@ -228,6 +227,6 @@
   forest: Object.fromEntries(communes.map(c => [c.code, (c.official || {}).established_forest_ha || 0])),
   names: Object.fromEntries(communes.map(c => [c.code, c.fullName])),
   hotspots: hotspots.map(h => ({ ...h, decision: undefined })), hsBadge, history, burnedMonthly: burned ? burned.monthly : null,
-  validation: v, overlays: overlays.filter(o => ['worldcover-2021', 'ndvi-2025-dry'].includes(o.id)), selectedHotspot, selectedCommune } }) %>
+  validation: v, overlays: overlays.filter(o => ['ndmi-latest', 'lst-latest', 'ndvi-latest'].includes(o.id)), selectedHotspot, selectedCommune } }) %>
 <script src="/js/pages/fire.js"></script>
 </body></html>

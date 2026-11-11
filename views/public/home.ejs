@@ -63,7 +63,7 @@
         <div class="map-cards">
           <% [
             ['worldcover-2021', 'Bản đồ hiện trạng rừng', 'Lớp phủ, loại rừng, biến động', '/tai-nguyen-rung'],
-            ['forest-loss-risk', 'Bản đồ nguy cơ mất rừng', 'Dự báo 2025–2026, lưới 100 m', '/bien-dong-rung'],
+            ['forest-loss-risk', 'Bản đồ nguy cơ mất rừng', 'Dự báo ' + D.forecastLabel + ', lưới 100 m', '/bien-dong-rung'],
             ['s2-latest', 'Ảnh vệ tinh mới nhất', 'Sentinel-2, phát hiện biến động', '/ban-do?lop=s2-latest'],
             ['dem-2024', 'Bản đồ chuyên đề', 'Địa hình, thủy văn, hành chính', '/ban-do?lop=dem-2024'],
           ].forEach(([id, t, d, href]) => { if (!ov[id]) return; %>
@@ -93,15 +93,15 @@
             <h3 style="font-size:14px">Biến động rừng gần đây</h3>
             <% if (change) { %>
               <p style="margin:6px 0"><strong style="font-size:24px;color:var(--navy)"><%= change.candidates %></strong> vùng biến động nghi vấn (chưa xác minh)</p>
-              <p class="src" style="margin:0">Sentinel-2 so sánh cùng kỳ 2024–2025 · chờ xác minh hiện trường</p>
+              <p class="src" style="margin:0">Sentinel-2 so sánh cùng kỳ 1–2 năm trước · ảnh đến <%= D.s2Month %> · chờ xác minh hiện trường</p>
             <% } %>
             <a href="/bien-dong-rung" class="btn btn-outline btn-sm" style="margin-top:8px">Xem biến động</a>
           </div>
           <div>
             <h3 style="font-size:14px">Dự báo nguy cơ mất rừng</h3>
             <% if (change) { %>
-              <p style="margin:6px 0"><strong style="font-size:24px;color:var(--navy)"><%= fmt.num(change.loss2024) %> ha</strong> mất tán cây năm 2024</p>
-              <p class="src" style="margin:0">Mô hình 2025–2026 kiểm định AUC <%= fmt.num(change.auc, 2) %> trên giai đoạn 2023–2024</p>
+              <p style="margin:6px 0"><strong style="font-size:24px;color:var(--navy)"><%= fmt.num(change.loss2024) %> ha</strong> mất tán cây năm <%= D.hansenLast %></p>
+              <p class="src" style="margin:0">Mô hình <%= D.forecastLabel %> kiểm định AUC <%= fmt.num(change.auc, 2) %> trên giai đoạn 2023–2024</p>
             <% } %>
             <a href="/bien-dong-rung#du-bao" class="btn btn-outline btn-sm" style="margin-top:8px">Xem bản đồ nguy cơ</a>
           </div>

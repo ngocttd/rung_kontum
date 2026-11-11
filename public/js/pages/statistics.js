@@ -2,14 +2,14 @@
 (function () {
   const P = window.PAGE;
   const S = P.summary;
-  const ys = Object.keys(P.loss).filter((y) => y >= '2015');
+  const ys = Object.keys(P.loss).filter((y) => Number(y) >= P.lossFrom);
   const lossChart = KT.chart('ch-loss', { type: 'line', data: { labels: ys, datasets: [{ label: 'Mất tán cây (ha)', data: ys.map((y) => P.loss[y]), borderColor: '#e11d48', backgroundColor: 'rgba(225,29,72,.12)', fill: true, tension: 0.3 }] },
     options: { plugins: { legend: { display: false } } } });
   const struct = KT.donut('ch-struct', ['Quy hoạch đặc dụng', 'Quy hoạch phòng hộ', 'Quy hoạch sản xuất'], [S.special_use_ha, S.protection_ha, S.production_ha], ['#006b38', '#75bb25', '#f8ce42']);
   KT.hotspotChart('ch-hot', P.hot, { ticks: 12 });
   if (P.dangerMonthly) {
     const c = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    Object.entries(P.dangerMonthly).filter(([m]) => m.startsWith('2025')).forEach(([, v]) => Object.entries(v).forEach(([k, n]) => { c[k] += n; }));
+    Object.entries(P.dangerMonthly).filter(([m]) => m.startsWith(String(P.dangerYear))).forEach(([, v]) => Object.entries(v).forEach(([k, n]) => { c[k] += n; }));
     const tot = Object.values(c).reduce((a, b) => a + b, 0);
     KT.donut('ch-cls', [1, 2, 3, 4, 5].map((k) => KT.LEVEL[k]), [1, 2, 3, 4, 5].map((k) => c[k]), [1, 2, 3, 4, 5].map((k) => KT.RISK[k]), ['Ngày-xã', KT.num(tot)]);
   }
@@ -26,7 +26,7 @@
     if (!c || !c.o) {
       set('forest', `${KT.num(S.established_forest_ha)} ha`); set('cover', `${KT.num(S.cover_percent_computed, 1)}%`); set('cover-note', 'tính từ tổng 40 xã');
       set('natural', `${KT.num(S.natural_forest_ha)} ha`); set('plant', `${KT.num(S.plantation_ha)} ha`); set('imm', `+ ${KT.num(S.immature_plantation_ha)} ha chưa thành rừng`);
-      set('hot', KT.num(P.hs.y2025)); set('hot-note', `2024: ${KT.num(P.hs.y2024)} (MODIS 1 km)`); set('loss', `${KT.num(P.loss5)} ha`);
+      set('hot', KT.num(P.hs.y2025)); set('hot-note', `${P.hs.y0}: ${KT.num(P.hs.y2024)} (MODIS 1 km)`); set('loss', `${KT.num(P.loss5)} ha`);
       struct.data.datasets[0].data = [S.special_use_ha, S.protection_ha, S.production_ha];
       set('sp', KT.num(S.special_use_ha)); set('pr', KT.num(S.protection_ha)); set('pd', KT.num(S.production_ha));
       lossChart.data.datasets[0].data = ys.map((y) => P.loss[y]); lossChart.update();
@@ -34,7 +34,7 @@
       const o = c.o;
       set('forest', `${KT.num(o.established_forest_ha)} ha`); set('cover', `${KT.num(o.official_forest_cover_percent, 2)}%`); set('cover-note', 'số công bố của xã');
       set('natural', `${KT.num(o.natural_forest_ha)} ha`); set('plant', `${KT.num(o.established_plantation_ha)} ha`); set('imm', `+ ${KT.num(o.immature_plantation_ha)} ha chưa thành rừng`);
-      set('hot', KT.num(c.hot)); set('hot-note', 'tổng 2024–2026 trong xã'); set('loss', `${KT.num(c.loss5)} ha`);
+      set('hot', KT.num(c.hot)); set('hot-note', `tổng ${P.hs.first}–${P.hs.y} trong xã`); set('loss', `${KT.num(c.loss5)} ha`);
       struct.data.datasets[0].data = [o.special_use_planning_ha, o.protection_planning_ha, o.production_planning_ha];
       set('sp', KT.num(o.special_use_planning_ha)); set('pr', KT.num(o.protection_planning_ha)); set('pd', KT.num(o.production_planning_ha));
       KT.fetchCached('/api/public/forest/communes').then((list) => {

@@ -20,15 +20,24 @@
     if (lossChart) lossChart.destroy();
     const note = document.getElementById('loss-note');
     if (mode === 'loss' && P.loss) {
-      const ys = Object.keys(P.loss).filter((y) => y >= '2015');
-      lossChart = KT.chart('ch-loss', { type: 'bar', data: { labels: ys, datasets: [{ label: 'Mất tán cây (ha)', data: ys.map((y) => P.loss[y]), backgroundColor: '#6fbf4a', borderRadius: 3 }] },
-        options: { plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } } } } });
-      note.textContent = 'Hansen/UMD GFC v1.12 – mất tán cây mọi nguyên nhân (gồm khai thác rừng trồng), ha/năm.';
+      // 10 năm gần nhất của Hansen + các năm sau đó từ phân tích biến động Sentinel-2 của hệ thống (khác phương pháp, chưa xác minh)
+      const D = KT.D || {}; const last = Number(D.hansenLast) || Math.max(...Object.keys(P.loss).map(Number));
+      const ys = Object.keys(P.loss).map(Number).filter((y) => y > last - 10).sort((a, b) => a - b);
+      const sy = Object.keys(D.s2Change || {}).map(Number).filter((y) => y > last).sort((a, b) => a - b);
+      const labels = [...ys, ...sy].map(String);
+      lossChart = KT.chart('ch-loss', { type: 'bar', data: { labels, datasets: [
+        { label: 'Mất tán cây – Hansen GFC (ha)', data: labels.map((y) => P.loss[y] ?? null), backgroundColor: '#6fbf4a', borderRadius: 3, stack: 's' },
+        { label: 'Biến động nghi vấn Sentinel-2 (ha, chưa xác minh)', data: labels.map((y) => (D.s2Change || {})[y] ?? null), backgroundColor: '#ff3d7f', borderRadius: 3, stack: 's' },
+      ] }, options: { plugins: { legend: { display: sy.length > 0, position: 'bottom', labels: { boxWidth: 10, font: { size: 10.5 } } } }, scales: { x: { grid: { display: false } } } } });
+      document.getElementById('loss-title').textContent = `Biến động tán rừng ${labels[0]}–${labels[labels.length - 1]}`;
+      note.textContent = `Xanh: Hansen/UMD GFC (đến ${last}) – mất tán cây mọi nguyên nhân, gồm khai thác rừng trồng.${sy.length ? ` Hồng: ${sy.join(', ')} – tổng diện tích vùng biến động nghi vấn từ ảnh Sentinel-2 (phương pháp khác, chưa xác minh hiện trường).` : ''}`;
     } else {
       const rows = await KT.getJSON('/api/public/ndvi');
       lossChart = KT.chart('ch-loss', { type: 'line', data: { labels: rows.map((r) => `${r.month.slice(5)}/${r.month.slice(2, 4)}`), datasets: [{ label: 'NDVI', data: rows.map((r) => r.ndvi), borderColor: '#0f7a52', tension: 0.3, pointRadius: 2 }] },
         options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 8, maxRotation: 0 } } } } });
-      note.textContent = 'NDVI trung bình tháng (Sentinel-2, 100 m) 01/2024–09/2026; giảm mùa khô là quy luật mùa vụ.';
+      const f0 = rows[0]; const f1 = rows[rows.length - 1];
+      document.getElementById('loss-title').textContent = 'NDVI trung bình tháng';
+      note.textContent = `NDVI trung bình tháng (Sentinel-2, 100 m) ${f0 ? f0.month.slice(5) + '/' + f0.month.slice(0, 4) : ''}–${f1 ? f1.month.slice(5) + '/' + f1.month.slice(0, 4) : ''}; giảm mùa khô là quy luật mùa vụ.`;
     }
   }
   drawLoss('loss');
@@ -120,7 +129,7 @@
   document.querySelectorAll('input[name=bm]').forEach((r) => r.addEventListener('change', () => {
     const s2 = r.value === 's2';
     v.setBasemap(s2 ? 'satellite' : r.value);
-    const id = ovById['s2-latest'] ? 's2-latest' : 's2-2025-dry-true';
+    const id = ovById['s2-latest'] ? 's2-latest' : Object.keys(ovById).find((k) => /^s2-.*-true$/.test(k));
     v.setVisible(`ov-${id}`, s2);
     const cb = document.querySelector(`[data-ov="${id}"]`); if (cb) cb.checked = s2;
     renderLegend();
@@ -152,31 +161,37 @@
     select.value = ''; focus('');
     document.querySelectorAll('[data-ov]').forEach((c) => { c.checked = false; v.setVisible(`ov-${c.dataset.ov}`, false); });
     setChoro(null);
-    yearSel.value = '2025'; setYear('2025');
+    yearSel.value = 'official'; setYear('official');
   });
-  // năm bản đồ: 2025 = số liệu hiện trạng chính thức tô theo xã; 1991/2014/2023 = bản đồ lớp phủ của dự án
+  // năm bản đồ: 'official' = số liệu hiện trạng chính thức (năm theo quyết định công bố) tô theo xã; còn lại = bản đồ lớp phủ của dự án
   const yearSel = document.getElementById('map-year');
   const yearNote = document.getElementById('year-note');
-  let year = '2025';
+  let year = 'official';
   // giá trị ô chọn = mã lớp (lc-2023, m-<id>…); năm lấy từ data-year
   function setYear(val) {
-    const opt = [...yearSel.options].find((o) => o.value === String(val || '2025')) || yearSel.options[0];
-    year = opt.value === '2025' ? '2025' : String(opt.dataset.year);
-    const official = year === '2025';
-    [...yearSel.options].forEach((o) => { if (o.value !== '2025') v.setVisible(`ov-${o.value}`, o === opt); });
+    const opt = [...yearSel.options].find((o) => o.value === String(val || 'official')) || yearSel.options[0];
+    year = opt.value === 'official' ? 'official' : String(opt.dataset.year);
+    const official = year === 'official';
+    [...yearSel.options].forEach((o) => { if (o.value !== 'official') v.setVisible(`ov-${o.value}`, o === opt); });
     document.querySelectorAll('input[name=ftype]').forEach((c) => { c.disabled = !official; if (!official) c.checked = false; c.closest('label').style.opacity = official ? '' : '.45'; });
     if (official) setChoro(document.querySelector('input[name=ftype]:checked') ? document.querySelector('input[name=ftype]:checked').value : null);
     else { v.setChoropleth(null); renderLegend(); }
     yearNote.hidden = official;
     const lpr = opt.dataset.kind === 'map';
-    document.getElementById('map-title').textContent = official ? 'Bản đồ hiện trạng tài nguyên rừng năm 2025' : `${lpr ? 'Bản đồ lớp phủ rừng LPR' : 'Bản đồ lớp phủ'} năm ${year} (dữ liệu dự án)`;
-    if (!official) yearNote.textContent = `${lpr ? 'Bản đồ lớp phủ rừng LPR' : 'Bản đồ lớp phủ (ảnh viễn thám, 15 m)'} năm ${year} – dữ liệu dự án, không phải số liệu công bố. Lọc theo loại rừng chỉ áp dụng cho số liệu hiện trạng 2025.`;
+    document.getElementById('map-title').textContent = official ? `Bản đồ hiện trạng tài nguyên rừng năm ${KT.D.forestYear}` : `${lpr ? 'Bản đồ lớp phủ rừng LPR' : 'Bản đồ lớp phủ'} năm ${year} (dữ liệu dự án)`;
+    if (!official) yearNote.textContent = `${lpr ? 'Bản đồ lớp phủ rừng LPR' : 'Bản đồ lớp phủ (ảnh viễn thám, 15 m)'} năm ${year} – dữ liệu dự án, không phải số liệu công bố. Lọc theo loại rừng chỉ áp dụng cho số liệu hiện trạng ${KT.D.forestYear}.`;
     renderLegend();
   }
   yearSel.addEventListener('change', () => setYear(yearSel.value));
+  document.querySelectorAll('[data-show-year-ov]').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.showYearOv; if (!ovById[id]) return;
+    [...yearSel.options].forEach((o) => { if (o.value !== 'official') v.setVisible(`ov-${o.value}`, false); });
+    v.setChoropleth(null); v.setVisible(`ov-${id}`, true); renderLegend();
+    document.getElementById('map-title').textContent = ovById[id].title; window.scrollTo({ top: 200, behavior: 'smooth' });
+  }));
   document.querySelectorAll('[data-show-year]').forEach((b) => b.addEventListener('click', () => { yearSel.value = b.dataset.showYear; setYear(b.dataset.showYear); window.scrollTo({ top: 200, behavior: 'smooth' }); }));
   function lcRows(code) {
-    if (year === '2025' || !P.lc || !P.lc.by_commune[code]) return '';
+    if (year === 'official' || !P.lc || !P.lc.by_commune[code]) return '';
     const b = P.lc.by_commune[code][year] || P.lc.by_commune[code][Number(year)] || {};
     const tot = Object.values(b).reduce((a, x) => a + x, 0);
     return `<div class="pop" style="border-top:1px solid #e5e7eb;margin-top:6px;padding-top:6px"><h4>Lớp phủ năm ${year}</h4><table>${Object.keys(P.lc.classes).filter((k) => b[k]).map((k) => `<tr><td><span class="dot" style="background:${P.lc.classes[k].color}"></span> ${KT.esc(P.lc.classes[k].label)}</td><td>${KT.num(b[k])} ha${tot ? ` (${KT.num(b[k] / tot * 100, 1)}%)` : ''}</td></tr>`).join('')}</table></div>`;

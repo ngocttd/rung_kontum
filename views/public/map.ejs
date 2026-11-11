@@ -39,7 +39,7 @@
       <div class="lt-active" id="lt-active"></div>
       <div class="layer-tree" id="layer-tree">
         <% let lastSec = null; layerTree.forEach(g => {
-             const tabs = g.key === 'admin' ? 'theme base' : g.tab;
+             const tabs = g.tab;
              if (g.key === 'imagery') { %>
         <div class="lt-sec sec-base" data-lt-group="base"><%- ic('globe2') %> BẢN ĐỒ NỀN</div>
         <div class="basemap-list" data-lt-group="base">
@@ -118,7 +118,7 @@
           </select></div>
         <div class="card-b">
           <div class="donut-wrap" style="grid-template-columns:minmax(0,1fr) 128px"><ul class="risk-list" id="danger-list"></ul><div class="chart-box" style="height:128px"><canvas id="ch-danger"></canvas></div></div>
-          <p class="src" style="margin:6px 0 0">Diện tích có rừng (2025) của các xã theo cấp dự báo – chỉ số P Nesterov, tự động, chưa phải cảnh báo chính thức. <%= hotspotCount %> điểm nóng 7 ngày là dữ liệu quan sát riêng. <a href="/canh-bao-chay?tab=du-bao">Phương pháp</a></p>
+          <p class="src" style="margin:6px 0 0">Diện tích có rừng (<%= D.forestYear %>) của các xã theo cấp dự báo – chỉ số P Nesterov, tự động, chưa phải cảnh báo chính thức. <%= hotspotCount %> điểm nóng 7 ngày là dữ liệu quan sát riêng. <a href="/canh-bao-chay?tab=du-bao">Phương pháp</a></p>
         </div>
       </section>
       <section class="card">
@@ -150,7 +150,7 @@
       <div class="card"><div class="card-h"><h3>Biến động rừng 2020–2024</h3></div><div class="card-b" style="padding-top:8px">
         <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px"><img src="/assets/symbols/change-suspected.svg" width="34" alt=""><div><span class="muted">Mất tán cây</span><br><strong style="font-size:20px;color:var(--red)"><%= fmt.num(loss5) %> ha</strong></div>
           <span style="margin-left:auto;color:<%= loss5 < prev5 ? '#0c7a51' : '#c0261f' %>;font-weight:700"><%= loss5 < prev5 ? '↓' : '↑' %> <%= fmt.num(Math.abs(loss5 - prev5) / prev5 * 100, 1) %>%</span></div>
-        <div style="display:flex;gap:12px;align-items:center"><img src="/assets/symbols/risk-4.svg" width="34" alt=""><div><span class="muted">Dự báo mất 2025–2026</span><br><strong style="font-size:20px;color:var(--navy)"><%= fmt.num(expected) %> ha</strong></div>
+        <div style="display:flex;gap:12px;align-items:center"><img src="/assets/symbols/risk-4.svg" width="34" alt=""><div><span class="muted">Dự báo mất <%= D.forecastLabel %></span><br><strong style="font-size:20px;color:var(--navy)"><%= fmt.num(expected) %> ha</strong></div>
           <span style="margin-left:auto" class="src">AUC <%= fv ? fmt.num(fv.auc, 2) : '—' %></span></div>
         <p class="src" style="margin:6px 0 0">So với 2015–2019 · Hansen GFC; dự báo mô hình chưa phê duyệt</p></div></div>
     </div>

@@ -35,8 +35,12 @@ app.use(express.json({ limit: '200kb' }));
 // Sessions live outside synced folders (OneDrive locks files during rename).
 const sessionDir = process.env.SESSION_DIR || path.join(require('os').tmpdir(), 'webgis-kontum-sessions');
 fs.mkdirSync(sessionDir, { recursive: true });
+// Không ghi lại tệp phiên ở mỗi request (touch): trình duyệt tải nhiều ảnh song song làm Windows khoá tệp (EPERM).
+// Phiên giữ 8 giờ kể từ lần thay đổi gần nhất (đăng nhập, đổi CSRF…), khớp thời hạn cookie.
+const sessionStore = new FileStore({ path: sessionDir, retries: 5, ttl: 8 * 3600, logFn: () => {} });
+sessionStore.touch = (sid, sess, cb) => cb && cb();
 app.use(session({
-  store: new FileStore({ path: sessionDir, retries: 2, logFn: () => {} }),
+  store: sessionStore,
   secret: config.sessionSecret, resave: false, saveUninitialized: false, name: 'kt.sid',
   // COOKIE_SECURE=false chỉ khi tạm chạy HTTP (chưa có tên miền/HTTPS) – nếu không trình duyệt không gửi cookie đăng nhập
   cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : config.env === 'production', maxAge: 8 * 3600e3 },
@@ -50,6 +54,8 @@ app.use((req, res, next) => {
   res.locals.pageUrl = (n, key = 'trang') => { const u = new URL(req.originalUrl, 'http://x'); u.searchParams.set(key, n); return u.pathname + u.search; };
   res.locals.user = req.session.user || null;
   res.locals.citizen = req.session.citizen || null;
+  // năm/nguồn dữ liệu hiện hành (tính khi render, không viết cố định trong giao diện)
+  Object.defineProperty(res.locals, 'D', { enumerable: true, configurable: true, get: () => require('./src/lib/dataContext').dataContext() });
   res.locals.can = (perm) => security.can(req.session.user, perm);
   res.locals.mapboxToken = config.mapboxToken;
   res.locals.path = req.path;
@@ -76,6 +82,7 @@ app.use('/', require('./src/routes/public'));
 
 app.use((req, res) => res.status(404).render('public/error', { title: 'Không tìm thấy trang', code: 404, message: 'Trang bạn tìm không tồn tại hoặc đã được di chuyển.', nav: '' }));
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+  if (res.headersSent) { console.warn('[http] lỗi sau khi đã gửi phản hồi:', req.method, req.originalUrl, err.code || err.message); return undefined; }
   console.error(err);
   if (req.path.startsWith('/api/')) return res.status(500).json({ error: 'Lỗi máy chủ' });
   return res.status(500).render('public/error', { title: 'Lỗi hệ thống', code: 500, message: 'Đã xảy ra lỗi khi xử lý yêu cầu.', nav: '' });

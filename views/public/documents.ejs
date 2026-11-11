@@ -7,7 +7,7 @@
     <div><h1>Tài liệu – Bản đồ PDF</h1><p>Tra cứu, xem và tải các văn bản, báo cáo, dữ liệu chuyên ngành và bản đồ chuyên đề phục vụ quản lý, bảo vệ và phát triển rừng.</p></div>
     <div style="margin-left:auto;max-width:520px;width:100%">
       <form action="/tai-lieu" class="hero-search" style="max-width:none"><input name="q" value="<%= filter.q || '' %>" placeholder="Tìm kiếm tài liệu, số hiệu, cơ quan ban hành..."><button class="btn btn-primary"><%- ic('search') %></button></form>
-      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:nowrap">
+      <div class="doc-quick-row">
         <a class="bk dark doc-quick" href="/tai-lieu?loai=quy-hoach"><%- cicon('map') %> Bản đồ quy hoạch</a>
         <a class="bk dark doc-quick" href="/tai-lieu?loai=van-ban-phap-ly"><%- cicon('documents') %> Báo cáo – Văn bản</a>
         <a class="bk dark doc-quick" href="/tai-lieu?loai=du-lieu-chuyen-nganh"><%- cicon('database') %> Dữ liệu chuyên ngành</a>

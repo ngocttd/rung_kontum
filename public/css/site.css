@@ -209,6 +209,8 @@ tr.row-muted > td:last-child, tr.row-muted > td:nth-child(7) { opacity: 1; }
 .row-edit > summary { cursor: pointer; list-style: none; margin-top: 4px; }
 .row-edit > summary::-webkit-details-marker { display: none; }
 .row-edit[open] > summary { color: var(--blue); }
+.doc-quick-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.doc-quick-row .doc-quick { flex: 1 1 140px; min-width: 0; justify-content: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tbl-tools { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0 0 8px; }
 .tbl-tools .tt-search { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px; background: #fff; min-width: 220px; flex: 0 1 320px; }
 .tbl-tools .tt-search input { border: 0; outline: 0; flex: 1; font: inherit; background: transparent; }
