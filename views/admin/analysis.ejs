@@ -28,6 +28,60 @@
     </form>
   </div>
 </section>
+<section class="card" id="bien-dong" style="margin-bottom:16px">
+  <div class="card-h"><h2><%- ic('graph-up-arrow') %> Phân tích biến động rừng (Sentinel-2)</h2></div>
+  <div class="card-b">
+    <p class="src" style="margin-bottom:10px">Thuật toán chung cho cả hai cơ chế: ảnh Sentinel-2 median tháng 100 m (lọc mây) của kỳ phân tích so với kỳ đối chứng; ô nghi vấn khi NDVI giảm vượt ngưỡng, NBR giảm vượt ngưỡng, lặp lại đủ số tháng, nằm trong rừng còn đến 2024 (Hansen); gộp vùng đạt diện tích tối thiểu. Kết quả là <b>nghi vấn – chưa xác minh</b>, chỉ hiện ra bản đồ công khai khi được công bố. Ảnh có sẵn: <%= monthsAvail.length ? monthsAvail[0].slice(5) + '/' + monthsAvail[0].slice(0, 4) + ' – ' + monthsAvail[monthsAvail.length - 1].slice(5) + '/' + monthsAvail[monthsAvail.length - 1].slice(0, 4) + ' (' + monthsAvail.length + ' tháng)' : 'chưa có' %>.</p>
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px">
+      <!-- tự động -->
+      <div class="card" style="box-shadow:none;border:1px solid var(--line)">
+        <div class="card-h"><h3 style="font-size:15px;margin:0"><%- ic('calendar3') %> 1. Tự động theo lịch</h3>
+          <span class="badge <%= autoState.mode === 'auto' ? 'b-green' : 'b-blue' %>" style="margin-left:auto"><%= autoState.mode === 'auto' ? 'Tự công bố' : 'Chờ duyệt' %></span></div>
+        <div class="card-b">
+          <p class="src">Tác vụ “Ảnh Sentinel-2 tháng mới → phân tích biến động” (bảng lịch ở trên) tự tải ảnh và phân tích các kỳ theo mùa (01–04, 05–06, 07–09, 10–12) có ≥ 2 tháng ảnh trong 12 tháng gần nhất, so với cùng kỳ 1–2 năm trước.</p>
+          <table class="kv" style="margin:8px 0">
+            <tr><td>Lần phân tích mới nhất</td><td><%= autoDraft.generated_at ? fmt.dateTime(autoDraft.generated_at) : '—' %> <% if (autoPending) { %><span class="badge b-orange">chưa công bố</span><% } else if (autoDraft.generated_at) { %><span class="badge b-green">đã công bố</span><% } %></td></tr>
+            <tr><td>Các kỳ</td><td><%= (autoDraft.windows || []).map(w => w.window.split(' ')[0].replace(/^(\d{4})-(\d{2})\.\.(\d{2})$/, '$2–$3/$1') + ': ' + w.candidates + ' vùng' + (w.low_confidence ? ' (đối chứng 1 năm)' : '')).join(' · ') || '—' %></td></tr>
+            <tr><td>Đang công bố</td><td><%= autoState.approved_at ? fmt.dateTime(autoState.approved_generated_at) + ' · duyệt bởi ' + autoState.approved_by + ' lúc ' + fmt.dateTime(autoState.approved_at) : 'chưa có' %></td></tr>
+          </table>
+          <% if (can('alerts.approve')) { %>
+          <form method="post" action="/quan-tri/phan-tich/tu-dong/che-do" class="inline-form" style="margin-bottom:8px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <select class="input" name="mode"><option value="review" <%= autoState.mode !== 'auto' ? 'selected' : '' %>>Chờ duyệt trước khi công bố</option><option value="auto" <%= autoState.mode === 'auto' ? 'selected' : '' %>>Tự công bố sau mỗi lần chạy</option></select>
+            <button class="btn btn-outline btn-sm">Lưu chế độ</button></form>
+          <% if (autoPending) { %><form method="post" action="/quan-tri/phan-tich/tu-dong/cong-bo"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <input class="input" name="note" placeholder="Ghi chú công bố (tuỳ chọn)" style="margin-bottom:6px">
+            <div style="display:flex;gap:8px"><a class="btn btn-outline btn-sm" href="/quan-tri/canh-bao?tab=bien-dong">Xem vùng nghi vấn mới</a><button class="btn btn-primary btn-sm"><%- ic('check-lg') %> Công bố kết quả mới</button></div></form><% } %>
+          <% } %>
+        </div>
+      </div>
+      <!-- thủ công -->
+      <form class="card" style="box-shadow:none;border:1px solid var(--line)" method="post" action="/quan-tri/phan-tich/bien-dong">
+        <div class="card-h"><h3 style="font-size:15px;margin:0"><%- ic('funnel-fill') %> 2. Chạy thủ công theo thời gian tuỳ chọn</h3></div>
+        <div class="card-b">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <% const f = form || {}; %>
+          <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">
+            <label class="field"><span>Kỳ phân tích – từ tháng *</span><input class="input" type="month" name="from" required min="2025-01" max="<%= monthsAvail[monthsAvail.length - 1] || '' %>" value="<%= f.from || '' %>"></label>
+            <label class="field"><span>đến tháng *</span><input class="input" type="month" name="to" required min="2025-01" max="<%= monthsAvail[monthsAvail.length - 1] || '' %>" value="<%= f.to || '' %>"></label>
+          </div>
+          <p class="src" style="margin:-2px 0 8px">Hệ thống tự xác định: <b>kỳ đối chứng</b> là cùng các tháng của 1–2 năm trước có ảnh; <b>ngưỡng phát hiện</b> tự thích nghi theo dữ liệu của kỳ (chặt hơn khi ảnh nhiều nhiễu do mây, mùa khô). Các giá trị đã dùng hiển thị ở trang kết quả.</p>
+          <label class="field"><span>Ghi chú</span><input class="input" name="note" value="<%= f.note || '' %>" placeholder="Mục đích phân tích, khu vực quan tâm…"></label>
+          <% if (can('alerts.approve')) { %><label class="check"><input type="checkbox" name="publish_now"> Công bố ngay khi chạy xong</label><% } else { %><p class="src">Kết quả cần cán bộ chuyên môn/lãnh đạo duyệt trước khi công bố.</p><% } %>
+          <button class="btn btn-primary" style="margin-top:8px" <%= !can('jobs.run') ? 'disabled' : '' %>><%- ic('arrow-repeat') %> Chạy phân tích</button>
+        </div>
+      </form>
+    </div>
+    <!-- các kỳ đã chạy -->
+    <h3 style="font-size:15px;margin:16px 0 6px">Các kỳ phân tích theo yêu cầu</h3>
+    <% const rs = { queued: ['b-gray', 'Chờ chạy'], running: ['b-orange', 'Đang chạy'], succeeded: ['b-green', 'Hoàn thành'], failed: ['b-red', 'Lỗi'] }; %>
+    <div class="table-wrap"><% if (!runs.length) { %><div class="empty-state">Chưa có kỳ phân tích nào.</div><% } else { %>
+    <table class="tbl" data-page-size="10"><thead><tr><th>Mã</th><th>Kỳ phân tích</th><th>Người chạy</th><th>Trạng thái</th><th class="num">Vùng nghi vấn</th><th class="num">Diện tích (ha)</th><th>Công bố</th><th></th></tr></thead><tbody>
+      <% runs.forEach(r => { %><tr><td><%= r.code %></td><td><%= r.title %><% if (r.summary && r.summary.months_with_images < r.summary.requested_months) { %><div class="src">ảnh có <%= r.summary.months_with_images %>/<%= r.summary.requested_months %> tháng</div><% } %></td><td><%= r.created_by %><div class="src"><%= fmt.dateTime(r.created_at) %></div></td>
+        <td><span class="badge <%= rs[r.status][0] %>"><%= rs[r.status][1] %></span></td><td class="num"><%= r.summary ? fmt.num(r.summary.candidates) : '—' %></td><td class="num"><%= r.summary ? fmt.num(r.summary.area_ha) : '—' %></td>
+        <td><%= r.published ? 'Đã công bố' : (r.status === 'succeeded' ? 'Chưa' : '—') %></td><td><a class="btn btn-outline btn-sm" href="/quan-tri/phan-tich/bien-dong/<%= r.id %>">Xem</a></td></tr><% }) %>
+    </tbody></table><% } %></div>
+  </div>
+</section>
 <div class="grid" style="grid-template-columns:minmax(0,1fr)">
   <section class="card">
     <div class="card-h"><h2><%- ic('check-circle-fill') %> Kết quả mô hình hiện hành</h2></div>
@@ -50,7 +104,7 @@
 </script>
 <% } %>
 <section class="card" style="margin-top:16px"><div class="card-h"><h2><%- ic('clock-history') %> Lịch sử chạy</h2></div>
-  <div class="card-b table-wrap"><% if (!jobs.length) { %><div class="empty-state">Chưa có lần chạy nào.</div><% } else { %><table class="tbl"><thead><tr><th>Tác vụ</th><th>Người chạy</th><th>Bắt đầu</th><th>Kết thúc</th><th>Trạng thái</th><th></th></tr></thead><tbody>
-    <% const pg = paginate(jobs, query.trang, 10); pg.items.forEach(j => { %><tr><td><%= j.title %></td><td><%= j.by %></td><td><%= fmt.dateTime(j.started_at) %></td><td><%= j.finished_at ? fmt.dateTime(j.finished_at) : '—' %></td><td><span class="badge <%= st[j.status][0] %>"><%= st[j.status][1] %></span></td><td><a href="?job=<%= j.id %>">Nhật ký</a></td></tr><% }) %></tbody></table><%- include('../partials/pager', { pg: pg }) %><% } %></div></section>
+  <div class="card-b table-wrap"><% if (!jobs.length) { %><div class="empty-state">Chưa có lần chạy nào.</div><% } else { %><table class="tbl" data-page-size="10"><thead><tr><th>Tác vụ</th><th>Người chạy</th><th>Bắt đầu</th><th>Kết thúc</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    <% const pg = { items: jobs, offset: 0 }; pg.items.forEach(j => { %><tr><td><%= j.title %></td><td><%= j.by %></td><td><%= fmt.dateTime(j.started_at) %></td><td><%= j.finished_at ? fmt.dateTime(j.finished_at) : '—' %></td><td><span class="badge <%= st[j.status][0] %>"><%= st[j.status][1] %></span></td><td><a href="?job=<%= j.id %>">Nhật ký</a></td></tr><% }) %></tbody></table><% } %></div></section>
 <%- include('_bottom') %>
 </body></html>

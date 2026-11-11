@@ -22,11 +22,11 @@
       <p class="src" style="margin-top:8px">Vị trí chính xác (chỉ cán bộ xem). Màu viền theo trạng thái xử lý; bấm điểm để xem tóm tắt và mở hồ sơ.</p>
     <% } else { %>
     <div class="table-wrap"><% if (!list.length) { %><div class="empty-state"><%- ic('clipboard-check-fill') %>Chưa có phản ánh nào.</div><% } else { %>
-    <table class="tbl"><thead><tr><th>Mã</th><th>Thời gian</th><th>Loại phản ánh</th><th>Vị trí</th><th>Người gửi</th><th>Phân công</th><th>Công khai</th><th>Trạng thái</th><th>Kiểm tra</th><th></th></tr></thead><tbody>
-      <% const pg = paginate(list, query.trang, 15); pg.items.forEach(x => { %><tr><td><%= x.code %></td><td><%= fmt.dateTime(x.created_at) %></td><td><img src="/assets/markers/<%= x.marker %>.svg" width="16" alt=""> <%= x.typeLabel %><% if (x.fire_point) { %><div class="src">→ điểm cháy <%= x.fire_point %></div><% } %></td><td><%= x.commune_name || '—' %></td><td><%= x.reporter.name || 'Ẩn danh' %></td><td><%= x.assigned_to || '—' %></td><td><%= x.public ? 'Có' : 'Không' %></td><td><span class="badge <%= tone[x.statusTone] %>"><%= x.statusLabel %></span></td>
+    <table class="tbl" data-page-size="15"><thead><tr><th>Mã</th><th>Thời gian</th><th>Loại phản ánh</th><th>Vị trí</th><th>Người gửi</th><th>Phân công</th><th>Công khai</th><th>Trạng thái</th><th>Kiểm tra</th><th></th></tr></thead><tbody>
+      <% const pg = { items: list, offset: 0 }; pg.items.forEach(x => { %><tr><td><%= x.code %></td><td><%= fmt.dateTime(x.created_at) %></td><td><img src="/assets/markers/<%= x.marker %>.svg" width="16" alt=""> <%= x.typeLabel %><% if (x.fire_point) { %><div class="src">→ điểm cháy <%= x.fire_point %></div><% } %></td><td><%= x.commune_name || '—' %><% const sl = sameLoc(x); if (sl.count) { %><div><span class="badge b-orange" title="<%= sl.codes.join(', ') %>"><%= sl.count + 1 %> người cùng báo</span></div><% } %></td><td><%= x.reporter.name || 'Ẩn danh' %></td><td><%= x.assigned_to || '—' %></td><td><%= x.public ? 'Có' : 'Không' %></td><td><span class="badge <%= tone[x.statusTone] %>"><%= x.statusLabel %></span></td>
         <td><% if (x.reviewed_at) { %><span class="badge b-green">Đã kiểm tra</span><div class="src"><%= x.reviewed_by %> · <%= fmt.dateTime(x.reviewed_at) %></div><% } else if (can('reports.manage')) { %><form method="post" action="/quan-tri/phan-anh/<%= x.id %>/kiem-tra" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm"><%- ic('check-circle-fill') %> Đánh dấu đã kiểm tra</button></form><% } else { %><span class="badge b-gray">Chưa kiểm tra</span><% } %></td>
         <td><a class="btn btn-outline btn-sm" href="/quan-tri/phan-anh/<%= x.id %>"><%= can('reports.manage') ? 'Xử lý' : 'Xem' %></a></td></tr><% }) %>
-    </tbody></table><%- include('../partials/pager', { pg: pg }) %><% } %></div>
+    </tbody></table><% } %></div>
     <% } %>
   </div>
 </section>

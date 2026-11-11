@@ -173,7 +173,7 @@ const ASG_SELECT = `SELECT a.*, ST_Y(a.geom) AS lat, ST_X(a.geom) AS lon, u.user
 function locate(kind, ref) {
   if (kind === 'hotspot') { const h = repo.hotspots({ staff: true }).find((x) => x.id === ref); return h && { lon: h.lon, lat: h.lat, commune: h.communeCode, title: `Xác minh ${h.manual ? `điểm cháy báo tin ${h.manual.code}` : `điểm nóng ${h.sensorLabel}`}${h.commune ? ` tại ${h.commune}` : ''}` }; }
   if (kind === 'candidate') {
-    const f = repo.changeCandidates().features.find((x) => String(x.properties.id) === String(ref));
+    const f = repo.changeCandidates({ staff: true }).features.find((x) => String(x.properties.id) === String(ref));
     if (!f) return null;
     const p = f.properties; const [lon, lat] = f.geometry.type === 'Point' ? f.geometry.coordinates : [p.lon ?? p.center_lon, p.lat ?? p.center_lat];
     const c = Number.isFinite(lon) ? repo.communeAt(lon, lat) : null;
@@ -244,7 +244,7 @@ async function openAssignment(auth, id) {
 }
 function targetInfo(kind, ref) {
   if (kind === 'hotspot') { const h = repo.hotspots({ staff: true }).find((x) => x.id === ref); return h ? { ...h, decision: undefined } : null; }
-  if (kind === 'candidate') { const f = repo.changeCandidates().features.find((x) => String(x.properties.id) === String(ref)); return f ? f.properties : null; }
+  if (kind === 'candidate') { const f = repo.changeCandidates({ staff: true }).features.find((x) => String(x.properties.id) === String(ref)); return f ? f.properties : null; }
   if (kind === 'report') { const r = store.find('reports', (x) => x.code === ref || x.id === ref); return r ? ownView(r) : null; }
   return null;
 }

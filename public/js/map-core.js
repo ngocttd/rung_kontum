@@ -247,6 +247,19 @@
         },
       };
     },
+    // mũi tên gió theo xã (Open-Meteo hôm nay) hoặc lưới ERA5-Land; nhãn tốc độ m/s
+    wind(source) {
+      const id = `wind-${source}`;
+      return {
+        kind: 'vector', layers: [`${id}-arrow`, `${id}-label`], visible: false,
+        async build(map) {
+          const data = await KT.fetchCached(`/api/public/weather/wind?nguon=${source}`).catch(() => ({ type: 'FeatureCollection', features: [] }));
+          if (!map.getSource(id)) map.addSource(id, { type: 'geojson', data });
+          if (!map.getLayer(`${id}-arrow`)) map.addLayer({ id: `${id}-arrow`, type: 'symbol', source: id, layout: { 'icon-image': 'wind-arrow', 'icon-size': ['interpolate', ['linear'], ['get', 'speed_ms'], 0, 0.7, 8, 1.3], 'icon-rotate': ['+', ['get', 'dir_from'], 180], 'icon-allow-overlap': true, 'icon-rotation-alignment': 'map' } });
+          if (!map.getLayer(`${id}-label`)) map.addLayer({ id: `${id}-label`, type: 'symbol', source: id, minzoom: 8.5, layout: { 'text-field': ['concat', ['to-string', ['get', 'speed_ms']], ' m/s'], 'text-size': 10.5, 'text-offset': [0, 1.6], 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'], 'text-allow-overlap': false }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#174a7c', 'text-halo-width': 1.6 } });
+        },
+      };
+    },
     samples() {
       return {
         kind: 'vector', layers: ['samples'], visible: false,
@@ -363,6 +376,44 @@
       if (map.getSource(src)) map.removeSource(src);
     };
   };
+
+  // ---------- lớp vẽ tạm (kết quả công cụ) ----------
+  KT.scratch = function (map, id, data) {
+    if (!map.getSource(id)) {
+      map.addSource(id, { type: 'geojson', data });
+      map.addLayer({ id: `${id}-road`, type: 'line', source: id, filter: ['==', ['get', 'kind'], 'road'], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#1565d8', 'line-width': 5, 'line-opacity': 0.9 } });
+      map.addLayer({ id: `${id}-walk`, type: 'line', source: id, filter: ['in', ['get', 'kind'], ['literal', ['walk', 'near']]], paint: { 'line-color': ['match', ['get', 'kind'], 'near', '#ffd21f', '#ff6f00'], 'line-width': 2.5, 'line-dasharray': [2, 1.5] } });
+      map.addLayer({ id: `${id}-pt`, type: 'circle', source: id, filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 6, 'circle-color': ['match', ['get', 'kind'], 'start', '#0c7a51', 'end', '#c0261f', 'settlement', '#ffd21f', 'facility', '#7e57c2', 'road', '#1565d8', '#ffffff'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+      map.addLayer({ id: `${id}-label`, type: 'symbol', source: id, filter: ['has', 'label'], layout: { 'text-field': ['get', 'label'], 'text-size': 11.5, 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'] }, paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(0,0,0,.7)', 'text-halo-width': 1.4 } });
+    } else map.getSource(id).setData(data);
+    return () => { [`${id}-road`, `${id}-walk`, `${id}-pt`, `${id}-label`].forEach((l) => map.getLayer(l) && map.removeLayer(l)); if (map.getSource(id)) map.removeSource(id); };
+  };
+  const fmtM = (m) => (m >= 1000 ? `${KT.num(m / 1000, 1)} km` : `${KT.num(m)} m`);
+  KT.fmtDist = fmtM;
+  const pt = (c, kind, label) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: c }, properties: { kind, ...(label ? { label } : {}) } });
+  KT.nearHtml = (r) => `<div class="pop"><h4>${KT.ic('geo-alt-fill')} Khoảng cách từ điểm chọn</h4><table>
+    ${r.settlements.slice(0, 3).map((s, i) => `<tr><td>${i ? '' : 'Khu dân cư gần nhất'}</td><td><b>${KT.esc(s.name)}</b> (${KT.esc(s.kind)}) · ${fmtM(s.distance_m)}</td></tr>`).join('')}
+    ${r.road ? `<tr><td>Đường gần nhất</td><td>${KT.esc(r.road.name || r.road.highway)} · ${fmtM(r.road.distance_m)}</td></tr>` : ''}
+    ${r.facilities.slice(0, 2).map((f) => `<tr><td>${KT.esc(f.kind)}</td><td>${KT.esc(f.name)} · ${fmtM(f.distance_m)}</td></tr>`).join('')}</table>
+    <p class="src">${KT.esc(r.source)}</p></div>`;
+  // vẽ kết quả khoảng cách tới dân cư quanh một điểm
+  KT.showNearest = async function (map, lng, lat) {
+    const r = await KT.getJSON(`/api/public/tools/nearest?lon=${lng}&lat=${lat}`);
+    const o = [lng, lat]; const feats = [pt(o, 'start')];
+    r.settlements.slice(0, 3).forEach((s) => { feats.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: [o, [s.lon, s.lat]] }, properties: { kind: 'near' } }, pt([s.lon, s.lat], 'settlement', `${s.name} · ${fmtM(s.distance_m)}`)); });
+    if (r.road) feats.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: [o, [r.road.lon, r.road.lat]] }, properties: { kind: 'walk' } }, pt([r.road.lon, r.road.lat], 'road', `Đường · ${fmtM(r.road.distance_m)}`));
+    KT.scratch(map, 'tool', { type: 'FeatureCollection', features: feats });
+    return r;
+  };
+  KT.showRoute = async function (map, from, to) {
+    const r = await KT.getJSON(`/api/public/tools/route?from=${from[0]},${from[1]}&to=${to[0]},${to[1]}`);
+    if (r.error) throw new Error(r.error);
+    KT.scratch(map, 'tool', { type: 'FeatureCollection', features: [...r.features, pt(from, 'start', 'Điểm đi'), pt(to, 'end', 'Điểm đến')] });
+    const bb = new mapboxgl.LngLatBounds(); r.features.forEach((f) => f.geometry.coordinates.forEach((c) => bb.extend(c))); bb.extend(from); bb.extend(to);
+    map.fitBounds(bb, { padding: 70, maxZoom: 15 });
+    return r;
+  };
+  KT.routeText = (s) => `Đường đi ${fmtM(s.distance_m)} · khoảng ${s.duration_min >= 60 ? `${Math.floor(s.duration_min / 60)} giờ ${s.duration_min % 60} phút` : `${s.duration_min} phút`}${s.walk_end_m > 50 ? ` (gồm ${fmtM(s.walk_end_m)} đi bộ từ đường tới đích)` : ''}`;
 
   KT.legendHtml = (mode) => {
     const c = CHORO[mode];

@@ -94,7 +94,9 @@ async function create(meta, file, user) {
     [d.id, `storage:maps/${d.id}/v1/${name}`, file.originalname, file.mimetype, file.size]);
   await db.query('INSERT INTO maps.map_spatial_refs (dataset_id, srid) VALUES ($1, $2) ON CONFLICT (dataset_id) DO NOTHING', [d.id, meta.expected_srid ? Number(meta.expected_srid) : null]);
   await audit(d.id, user, 'upload', { file: file.originalname, size: file.size, format });
-  await enqueue(d.id, 'inspect', {}, user);
+  // canPublish: người tải lên có quyền xuất bản và chọn "xuất bản ngay khi xử lý xong" → lớp hiện trên bản đồ không cần bước duyệt
+  const autoPublish = meta.canPublish && meta.publish_now ? { layer: true, asDocument: format === 'pdf', note: 'Xuất bản ngay khi xử lý xong (người tải lên có quyền xuất bản)' } : null;
+  await enqueue(d.id, 'inspect', { autoPublish }, user);
   return d;
 }
 
@@ -214,7 +216,12 @@ async function handleInspect(job, payload) {
   const next = d.format === 'package' ? 'ready' : 'needs_georef';
   await db.query("UPDATE maps.map_datasets SET status = CASE WHEN status = 'published' THEN status ELSE $2 END WHERE id = $1", [d.id, next]);
   if (payload.autoPublish && payload.autoPublish.asDocument) await publish(d.id, { username: 'import' }, payload.autoPublish.note, true);
-  return { georeferenced: false };
+  // ảnh bản đồ (TIFF/PNG/JPG) không có toạ độ: thử tự định vị theo hình tỉnh; PDF chỉ là tài liệu, không đưa lên bản đồ
+  let auto = null;
+  if (d.format === 'raster_image' && payload.autoGeoref !== false) {
+    auto = await autoGeoref(d.id, { username: job.created_by }, { autoPublish: payload.autoPublish && payload.autoPublish.layer ? { layer: true, note: payload.autoPublish.note } : null }).catch((e) => ({ ok: false, error: e.message }));
+  }
+  return { georeferenced: false, auto };
 }
 
 function bboxPolygon(b) { return { type: 'Polygon', coordinates: [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]] }; }
@@ -223,7 +230,7 @@ async function handleProcess(job, payload) {
   const d = (await db.query('SELECT * FROM maps.map_datasets WHERE id = $1', [job.dataset_id])).rows[0];
   const of = await originalFile(d.id, payload.version);
   const v = of.version_no; const dir = path.join(dsDir(d.id), `v${v}`, 'derived'); fs.mkdirSync(dir, { recursive: true });
-  const cfg = payload.gcps ? { page: payload.page || 1, method: payload.method || 'affine', gcps: payload.gcps } : { ...(payload.display || d.display || {}), make_cog: of.size_bytes < 1.5e9 };
+  const cfg = payload.gcps ? { page: payload.page || 1, method: payload.method || 'affine', gcps: payload.gcps, clip: Boolean(payload.clip) } : { ...(payload.display || d.display || {}), make_cog: of.size_bytes < 1.5e9 };
   const cfgFile = path.join(dir, `job-${job.id}.json`); fs.writeFileSync(cfgFile, JSON.stringify(cfg));
   const r = await runWorker(['process', resolveKey(of.storage_key), dir, cfgFile]);
   fs.unlinkSync(cfgFile);
@@ -233,6 +240,9 @@ async function handleProcess(job, payload) {
   if (r.cog) await addFile(d.id, 'cog', v, path.join(dir, r.cog), { mime: 'image/tiff' });
   if (r.georef_raster) await addFile(d.id, 'georef_raster', v, path.join(dir, r.georef_raster), { mime: 'image/tiff' });
   const display = r.mode === 'gcp' ? { ...(d.display || {}), opacity: (d.display && d.display.opacity) || 0.75 } : { ...(payload.display || {}), ...(r.display || {}) };
+  // định vị mới (điểm khống chế / tự định vị): lớp chưa được hiển thị công khai cho tới khi qua bước xuất bản có kiểm tra sai số –
+  // kể cả khi bản đồ đã xuất bản trước đó dưới dạng tài liệu (không để lớp sai lệch lớn tự hiện ra bản đồ)
+  if (r.mode === 'gcp') display.layer_pending = true;
   delete display.tiles;
   // RGB GeoTIFF: XYZ tiles at full resolution so the layer stays sharp when zoomed in (served by /ban-do-chuyen-de/tiles)
   if (r.mode === 'rgb') {
@@ -248,11 +258,17 @@ async function handleProcess(job, payload) {
   await db.query(`UPDATE maps.map_datasets SET overlay_url = $2, overlay_bounds = $3, display = $4, georeferenced = true,
       status = CASE WHEN status = 'published' THEN status ELSE 'ready' END, updated_at = now() WHERE id = $1`, [d.id, fileUrl(oid), JSON.stringify(r.overlay_bounds), JSON.stringify(display)]);
   if (r.mode === 'gcp') {
+    // tự định vị: sai số là độ lệch đường biên tỉnh (m), không phải RMSE của điểm khống chế sinh tự động
+    const method = payload.auto ? 'auto_shape' : `gcp_${r.method}`;
+    const err = payload.auto ? payload.auto.boundary_error_m : r.rmse_m;
     await db.query(`UPDATE maps.map_spatial_refs SET srid = 4326, georef_method = $2, gcps = $3, residual_error = $4, bbox_json = $5, footprint = ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON($6), 4326)), updated_at = now() WHERE dataset_id = $1`,
-      [d.id, `gcp_${r.method}`, JSON.stringify(r.gcps), r.rmse_m, JSON.stringify(r.bounds4326), JSON.stringify(r.footprint)]);
+      [d.id, method, JSON.stringify(payload.auto ? { auto: payload.auto, points: r.gcps } : r.gcps), err, JSON.stringify(r.bounds4326), JSON.stringify(r.footprint)]);
   }
-  if (payload.autoPublish && payload.autoPublish.layer) await publish(d.id, { username: 'import' }, payload.autoPublish.note, true);
-  return { rmse_m: r.rmse_m, mode: r.mode, output_size: r.output_size, exact_fit: r.exact_fit };
+  let published = null;
+  if (payload.autoPublish && payload.autoPublish.layer) {
+    published = await publish(d.id, { username: 'import' }, payload.autoPublish.note, true).then(() => true).catch(async (e) => { await audit(d.id, { username: 'worker' }, 'layer_withheld', { reason: e.message }); return e.message; });
+  }
+  return { rmse_m: r.rmse_m, mode: r.mode, output_size: r.output_size, exact_fit: r.exact_fit, auto: payload.auto || null, published };
 }
 
 let pumping = false;
@@ -282,6 +298,27 @@ async function pump() {
   } catch (e) { console.warn('[maps] hàng đợi lỗi:', e.message); } finally { pumping = false; }
 }
 
+// ---------- tự định vị ảnh bản đồ toàn tỉnh (khớp hình tỉnh với ranh giới thật) ----------
+// Đạt ngưỡng (IoU ≥ AUTO_MIN_IOU, sai số biên ≤ AUTO_MAX_ERR_M) → tạo lớp hiển thị cắt theo ranh tỉnh; không đạt → giữ "cần nắn chỉnh".
+const AUTO_MIN_IOU = Number(process.env.MAP_AUTO_MIN_IOU || 0.95);
+const AUTO_MAX_ERR_M = Number(process.env.MAP_AUTO_MAX_ERR_M || 500);
+const MAX_RMSE_M = () => Number(process.env.MAP_MAX_RMSE_M || 50);
+async function autoGeoref(id, user, { autoPublish = null, override = null } = {}) {
+  const d = (await db.query('SELECT * FROM maps.map_datasets WHERE id = $1', [id])).rows[0];
+  if (!d) throw new Error('Không tìm thấy');
+  if (d.format === 'pdf') throw new Error('Bản đồ PDF chỉ xếp vào Tài liệu, không tự định vị lên bản đồ');
+  const of = await originalFile(id, d.current_version);
+  const r = override || await runWorker(['autogeoref', resolveKey(of.storage_key), '1']);
+  const tech = { ...(d.tech || {}), auto_georef: { at: new Date().toISOString(), ok: Boolean(r.ok), iou: r.iou, boundary_error_m: r.boundary_error_m, projection: r.projection, mask_kind: r.mask_kind, error: r.error || null, template_from: r.template_from || null } };
+  await db.query('UPDATE maps.map_datasets SET tech = $2 WHERE id = $1', [id, JSON.stringify(tech)]);
+  const pass = r.ok && r.iou >= AUTO_MIN_IOU && r.boundary_error_m <= AUTO_MAX_ERR_M;
+  await audit(id, user, pass ? 'auto_georef_ok' : 'auto_georef_failed', tech.auto_georef);
+  if (!pass) return { ok: false, ...tech.auto_georef, reason: r.ok ? `Độ khớp chưa đạt (IoU ${r.iou}, sai số ${r.boundary_error_m} m)` : r.error };
+  const auto = { iou: r.iou, boundary_error_m: r.boundary_error_m, projection: r.projection, mask_kind: r.mask_kind, template_from: r.template_from || null };
+  await enqueue(id, 'georef', { page: 1, method: r.method || 'poly2', gcps: r.gcps, clip: true, auto, autoPublish }, user);
+  return { ok: true, ...auto };
+}
+
 // ---------- configure / georef / review ----------
 async function configure(id, display, user) {
   await db.query('UPDATE maps.map_datasets SET display = $2, updated_by = $3, updated_at = now() WHERE id = $1', [id, JSON.stringify(display), user.username]);
@@ -290,6 +327,8 @@ async function configure(id, display, user) {
 }
 
 async function georeference(id, { page, method, gcps }, user) {
+  const fmt = (await db.query('SELECT format FROM maps.map_datasets WHERE id = $1', [id])).rows[0];
+  if (fmt && fmt.format === 'pdf') throw new Error('Bản đồ PDF chỉ xếp vào mục Tài liệu, không nắn chỉnh lên bản đồ');
   if (!Array.isArray(gcps) || gcps.length < 3) throw new Error('Cần tối thiểu 3 điểm khống chế');
   for (const g of gcps) {
     if (![g.px, g.py, g.fx, g.fy, g.lon, g.lat].every(Number.isFinite) || g.fx < 0 || g.fx > 1 || g.fy < 0 || g.fy > 1) throw new Error('Toạ độ điểm khống chế không hợp lệ');
@@ -314,16 +353,20 @@ async function submit(id, user) {
 async function publish(id, user, note, system = false) {
   const d = (await db.query('SELECT * FROM maps.map_datasets WHERE id = $1', [id])).rows[0];
   if (!d) throw new Error('Không tìm thấy');
-  if (!system && d.status !== 'pending_review') throw new Error('Chỉ xuất bản bản đồ ở trạng thái chờ duyệt');
+  const layerPending = d.status === 'published' && d.display && d.display.layer_pending;
+  if (!system && d.status !== 'pending_review' && !layerPending) throw new Error('Chỉ xuất bản bản đồ ở trạng thái chờ duyệt');
+  if (d.format === 'pdf' && d.georeferenced) throw new Error('Bản đồ PDF chỉ xuất bản vào mục Tài liệu, không hiển thị trên bản đồ');
   if (d.format === 'geotiff' && !d.georeferenced) throw new Error('GeoTIFF chưa có hệ toạ độ không được xuất bản thành lớp bản đồ (TC02)');
   const ref = (await db.query('SELECT residual_error, georef_method FROM maps.map_spatial_refs WHERE dataset_id = $1', [id])).rows[0];
-  const maxRmse = Number(process.env.MAP_MAX_RMSE_M || 50);
+  const maxRmse = MAX_RMSE_M();
   if (d.georeferenced && ref && ref.georef_method && ref.georef_method.startsWith('gcp') && Number(ref.residual_error) > maxRmse) throw new Error(`Sai số nắn chỉnh RMSE ${ref.residual_error} m vượt ngưỡng ${maxRmse} m – trả về bước hiệu chỉnh`);
+  if (d.georeferenced && ref && ref.georef_method === 'auto_shape' && Number(ref.residual_error) > AUTO_MAX_ERR_M) throw new Error(`Sai số tự định vị ${ref.residual_error} m vượt ngưỡng ${AUTO_MAX_ERR_M} m – cần nắn chỉnh bằng điểm khống chế`);
   const of = await originalFile(id, d.current_version);
   const vno = ((await db.query('SELECT COALESCE(MAX(version_no), 0) v FROM maps.map_versions WHERE dataset_id = $1', [id])).rows[0].v) + 1;
   await db.query(`INSERT INTO maps.map_versions (dataset_id, version_no, approved_by, approved_at, release_note, published_file_id, snapshot) VALUES ($1,$2,$3,now(),$4,$5,$6)`,
     [id, vno, user.username, note || null, of ? of.id : null, JSON.stringify({ overlay_url: d.overlay_url, overlay_bounds: d.overlay_bounds, display: d.display, georeferenced: d.georeferenced, file_version: d.current_version })]);
   await setStatus(id, 'published', user, note);
+  if (d.display && d.display.layer_pending) await db.query("UPDATE maps.map_datasets SET display = display - 'layer_pending' WHERE id = $1", [id]);
 }
 
 async function remove(id, user) {
@@ -338,9 +381,13 @@ async function remove(id, user) {
 // ---------- public ----------
 async function publishedLayers() {
   if (!enabled()) return [];
-  const r = await db.query(`SELECT d.id, d.title, d.category, d.map_year, d.source_org, d.overlay_url, d.overlay_bounds, d.display, d.description, s.georef_method, s.residual_error
+  const r = await db.query(`SELECT d.id, d.title, d.category, d.map_year, d.source_org, d.overlay_url, d.overlay_bounds, d.display, d.description, d.format, s.georef_method, s.residual_error
     FROM maps.map_datasets d LEFT JOIN maps.map_spatial_refs s ON s.dataset_id = d.id
-    WHERE d.status = 'published' AND d.access = 'public' AND d.georeferenced AND d.overlay_url IS NOT NULL ORDER BY d.category, d.map_year`);
+    WHERE d.status = 'published' AND d.access = 'public' AND d.georeferenced AND d.overlay_url IS NOT NULL AND d.format <> 'pdf'
+      AND COALESCE(d.display->>'layer_pending', 'false') <> 'true'
+      AND (s.georef_method IS NULL OR s.georef_method = 'embedded'
+        OR (s.georef_method LIKE 'gcp%' AND s.residual_error <= $1) OR (s.georef_method = 'auto_shape' AND s.residual_error <= $2))
+    ORDER BY d.category, d.map_year`, [MAX_RMSE_M(), AUTO_MAX_ERR_M]);
   return r.rows.map((x) => ({ ...x, categoryLabel: CATEGORIES[x.category] || x.category }));
 }
 
@@ -378,5 +425,5 @@ async function fileForRequest(fileId, user) {
 
 function start() { if (enabled()) { pump(); setInterval(pump, 30e3).unref(); } }
 
-module.exports = { FORMATS, STATUS, CATEGORIES, LIMITS, enabled, list, get, create, registerExisting, updateMeta, replaceFile, configure, georeference, submit, publish, setStatus, remove,
+module.exports = { MAX_RMSE_M, autoGeoref, runWorker, originalFile, resolveKey, AUTO_MIN_IOU, AUTO_MAX_ERR_M, FORMATS, STATUS, CATEGORIES, LIMITS, enabled, list, get, create, registerExisting, updateMeta, replaceFile, configure, georeference, submit, publish, setStatus, remove,
   publishedLayers, publishedDocuments, fileForRequest, tilePath, audit, start, pump, MAP_DIR };

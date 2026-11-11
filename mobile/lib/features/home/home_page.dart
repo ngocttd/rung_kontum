@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
+import '../../core/app_update.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/outbox.dart';
@@ -64,6 +65,7 @@ class HomePage extends ConsumerWidget {
           await ref.read(homeProvider.future);
         },
         child: ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
+          const AppUpdateBanner(),
           _Banner(),
           const SizedBox(height: 12),
           GridView.count(

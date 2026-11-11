@@ -9,7 +9,7 @@
 
   // ---------- bottom charts ----------
   KT.getJSON('/api/public/forest/summary').then((s) => {
-    KT.donut('ch-plan', ['Rừng đặc dụng', 'Rừng phòng hộ', 'Rừng sản xuất'], [s.special_use_ha, s.protection_ha, s.production_ha], ['#006b38', '#75bb25', '#f8ce42'], ['Tổng', `${KT.num(s.planning_ha)} ha`]);
+    KT.donut('ch-plan', ['Quy hoạch đặc dụng', 'Quy hoạch phòng hộ', 'Quy hoạch sản xuất'], [s.special_use_ha, s.protection_ha, s.production_ha], ['#006b38', '#75bb25', '#f8ce42'], ['Tổng', `${KT.num(s.planning_ha)} ha`]);
   });
   let hsChart = null; let hsFeatures = [];
   function drawHotspot7(code) {
@@ -79,7 +79,8 @@
   // ---------- layers ----------
   P.overlays.forEach((o) => v.define(`ov-${o.id}`, KT.layers.overlay(o)));
   v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province()).define('candidates', KT.layers.candidates())
-    .define('reports', { ...KT.layers.reports(), visible: false }).define('samples', KT.layers.samples()).define('weather', KT.layers.weather()).define('hotspots', KT.layers.hotspots());
+    .define('reports', { ...KT.layers.reports(), visible: false }).define('samples', KT.layers.samples()).define('weather', KT.layers.weather()).define('hotspots', KT.layers.hotspots())
+    .define('wind-du-bao', KT.layers.wind('du-bao')).define('wind-era5', KT.layers.wind('era5'));
   P.custom.forEach((l) => v.define(`custom-${l.id}`, KT.layers.custom(l)));
   v.onChoropleth = () => { renderDanger(); updateLegend(); };
   v.onBuilt = () => { if (v.choropleth === 'danger') renderDanger(); };
@@ -186,13 +187,22 @@
   KT.onCommuneSearch = (code) => { selectCommune(code); showTab('forest'); };
 
   // ---------- tools ----------
-  let stopMeasure = null; let coordMode = false;
+  let stopMeasure = null; let coordMode = false; let toolMode = null; let routeFrom = null; let clearTool = null;
   const toolbar = document.querySelector('.toolbar');
   toolbar.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b || !b.dataset.tool) return;
     toolbar.querySelectorAll('[data-tool]').forEach((x) => x.classList.toggle('on', x === b));
     if (stopMeasure) { stopMeasure(); stopMeasure = null; v.measuring = false; }
+    if (clearTool) { clearTool(); clearTool = null; }
     coordMode = b.dataset.tool === 'coord';
+    toolMode = ['near', 'route'].includes(b.dataset.tool) ? b.dataset.tool : null; routeFrom = null;
+    v.measuring = Boolean(toolMode); map.getCanvas().style.cursor = toolMode ? 'crosshair' : '';
+    if (toolMode === 'near') { status.textContent = 'Nhấp một điểm (ví dụ điểm cháy) để xem khoảng cách tới khu dân cư, đường và cơ sở ứng cứu gần nhất'; return; }
+    if (toolMode === 'route') {
+      status.innerHTML = 'Nhấp <b>điểm đi</b> trên bản đồ, hoặc <button type="button" class="btn btn-outline btn-sm" id="route-me">dùng vị trí của tôi</button>';
+      document.getElementById('route-me').onclick = () => navigator.geolocation && navigator.geolocation.getCurrentPosition((pos) => { routeFrom = [pos.coords.longitude, pos.coords.latitude]; status.textContent = 'Đã lấy vị trí của bạn – nhấp điểm đến'; }, () => { status.textContent = 'Không lấy được vị trí – nhấp điểm đi trên bản đồ'; });
+      return;
+    }
     if (b.dataset.tool === 'length' || b.dataset.tool === 'area') {
       v.measuring = true;
       status.textContent = 'Nhấp các điểm trên bản đồ để đo';
@@ -200,6 +210,26 @@
         status.textContent = b.dataset.tool === 'area' ? `Diện tích: ${KT.num(val / 1e4, 2)} ha (${KT.num(val / 1e6, 3)} km²) · ${n} điểm` : `Khoảng cách: ${val > 1000 ? `${KT.num(val / 1000, 2)} km` : `${KT.num(val)} m`} · ${n} điểm`;
       });
     } else status.textContent = coordMode ? 'Di chuyển chuột để xem tọa độ; nhấp để sao chép' : 'Nhấp vào bản đồ để xem thông tin';
+  });
+  map.on('click', async (e) => {
+    if (!toolMode) return;
+    const p = [e.lngLat.lng, e.lngLat.lat];
+    try {
+      if (toolMode === 'near') {
+        status.textContent = 'Đang tính…';
+        const r = await KT.showNearest(map, p[0], p[1]); clearTool = () => KT.scratch(map, 'tool', { type: 'FeatureCollection', features: [] });
+        new mapboxgl.Popup({ maxWidth: '340px' }).setLngLat(e.lngLat).setHTML(KT.nearHtml(r)).addTo(map);
+        status.textContent = r.settlements[0] ? `Khu dân cư gần nhất: ${r.settlements[0].name} – ${KT.fmtDist(r.settlements[0].distance_m)} (đường chim bay)` : 'Không có dữ liệu khu dân cư';
+      } else if (!routeFrom) {
+        routeFrom = p; KT.scratch(map, 'tool', { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: { kind: 'start', label: 'Điểm đi' } }] });
+        clearTool = () => KT.scratch(map, 'tool', { type: 'FeatureCollection', features: [] });
+        status.textContent = 'Đã chọn điểm đi – nhấp điểm đến';
+      } else {
+        status.textContent = 'Đang tìm đường…';
+        const r = await KT.showRoute(map, routeFrom, p); clearTool = () => KT.scratch(map, 'tool', { type: 'FeatureCollection', features: [] });
+        status.textContent = `${KT.routeText(r.summary)} – nhấp để chọn lại điểm đi`; routeFrom = null;
+      }
+    } catch (err) { status.textContent = err.message; routeFrom = null; }
   });
   map.on('mousemove', (e) => { if (coordMode) status.textContent = `Vĩ độ ${e.lngLat.lat.toFixed(5)}, Kinh độ ${e.lngLat.lng.toFixed(5)} (WGS84)`; });
   map.on('click', (e) => { if (coordMode) { const t = `${e.lngLat.lat.toFixed(5)}, ${e.lngLat.lng.toFixed(5)}`; if (navigator.clipboard) navigator.clipboard.writeText(t); status.textContent = `Đã sao chép: ${t}`; } });

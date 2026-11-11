@@ -2,8 +2,10 @@
 <% if (newPassword) { %><div class="flash ok">Mật khẩu tạm của <b><%= newPassword.username %></b>: <code style="font-size:15px"><%= newPassword.pass %></code> — chỉ hiển thị một lần, hãy chuyển cho người dùng qua kênh an toàn và yêu cầu đổi mật khẩu.</div><% } %>
 <section class="card">
   <div class="card-h"><h2><%- ic('people-fill') %> Danh sách người dùng</h2></div>
-  <div class="card-b table-wrap"><table class="tbl" data-page-size="15"><thead><tr><th>STT</th><th>Họ tên</th><th>Tên đăng nhập</th><th>Vai trò / phạm vi</th><th>Đăng nhập gần nhất</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
-    <% users.forEach((u, i) => { %><tr><td><%= i + 1 %></td><td><%= u.name || '—' %><div class="src"><%= u.email || '' %></div></td><td><%= u.username %></td>
+  <div class="card-b table-wrap"><table class="tbl" data-page-size="15"><thead><tr><th>STT</th><th>Họ tên</th><th>Tên đăng nhập</th><th>Vai trò / phạm vi</th><th>Đăng nhập gần nhất</th><th>Trạng thái</th><th data-sort="off">Thao tác</th></tr></thead><tbody>
+    <% users.forEach((u, i) => { %><tr><td><%= i + 1 %></td><td><%= u.name || '—' %><div class="src"><%= u.email || '' %><%= u.phone ? ' · ' + u.phone : '' %></div>
+      <details class="row-edit"><summary class="src"><%- ic('pencil-fill') %> Sửa</summary><form method="post" action="/quan-tri/nguoi-dung/<%= u.id %>" class="grid" style="gap:6px;margin-top:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="edit">
+        <input class="input" name="name" value="<%= u.name || '' %>" placeholder="Họ tên"><input class="input" name="email" type="email" value="<%= u.email || '' %>" placeholder="Email"><input class="input" name="phone" value="<%= u.phone || '' %>" placeholder="Điện thoại"><button class="btn btn-primary btn-sm">Lưu</button></form></details></td><td><%= u.username %></td>
       <td><form method="post" action="/quan-tri/nguoi-dung/<%= u.id %>" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="role">
         <select class="input" name="role"><% Object.entries(ROLES).forEach(([k, l]) => { %><option value="<%= k %>" <%= u.role === k ? 'selected' : '' %>><%= l %></option><% }) %></select>
         <select class="input" name="scope"><option value="">Toàn vùng</option><% communes.forEach(c => { %><option value="<%= c.code %>" <%= u.scope === c.code ? 'selected' : '' %>><%= c.fullName %></option><% }) %></select><button class="btn btn-outline btn-sm">Lưu</button></form></td>

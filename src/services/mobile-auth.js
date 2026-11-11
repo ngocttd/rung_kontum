@@ -94,7 +94,8 @@ function failed(username) {
 }
 
 const norm = (s) => String(s || '').trim().toLowerCase();
-async function login({ username, password, device_id: deviceId }) {
+// kiểm tra tên đăng nhập (hoặc SĐT/email) + mật khẩu, có khoá tạm theo tài khoản; dùng chung cho MobileGIS và đăng nhập web
+async function verifyCredentials({ username, password }, channel = 'mobile') {
   await store.refresh('users').catch(() => {});
   const name = norm(username);
   const mins = lockedFor(name);
@@ -103,16 +104,22 @@ async function login({ username, password, device_id: deviceId }) {
   const ok = u && u.active && await bcrypt.compare(String(password || ''), u.password_hash);
   if (!ok) {
     failed(name);
-    store.audit(null, 'mobile.auth.failed', name.slice(0, 60));
+    store.audit(null, `${channel}.auth.failed`, name.slice(0, 60));
     const left = LOCK_MAX - (fails.get(name) || { n: 0 }).n;
     return { error: left > 0 ? `Tên đăng nhập hoặc mật khẩu không đúng (còn ${left} lần thử).` : 'Tài khoản tạm khoá 15 phút do đăng nhập sai nhiều lần.', status: left > 0 ? 401 : 429, code: left > 0 ? 'INVALID_CREDENTIALS' : 'LOCKED' };
   }
   fails.delete(name);
-  store.audit({ username: u.username, role: u.role }, 'mobile.auth.login', u.username);
-  return issue(u, deviceId);
+  return { user: u };
+}
+async function login({ username, password, device_id: deviceId }) {
+  const v = await verifyCredentials({ username, password });
+  if (v.error) return v;
+  store.audit({ username: v.user.username, role: v.user.role }, 'mobile.auth.login', v.user.username);
+  return issue(v.user, deviceId);
 }
 
-async function register({ name, phone, email, password }) {
+// tạo tài khoản người dân (dùng chung MobileGIS và trang web /dang-ky)
+async function createCitizen({ name, phone, email, password }, channel = 'mobile') {
   const p = String(phone || '').replace(/[^\d+]/g, '');
   const e = norm(email);
   if (!String(name || '').trim()) return { error: 'Vui lòng nhập họ tên.', status: 400, code: 'VALIDATION' };
@@ -123,8 +130,12 @@ async function register({ name, phone, email, password }) {
   if (store.find('users', (x) => x.username === username || (p && x.phone === p) || (e && norm(x.email) === e))) return { error: 'Số điện thoại/email đã được đăng ký.', status: 409, code: 'EXISTS' };
   const u = store.insert('users', { username, name: String(name).trim().slice(0, 120), phone: p || null, email: e || null, role: 'citizen', scope: null, active: true, password_hash: await bcrypt.hash(String(password), 11) });
   await store.drain();
-  store.audit({ username, role: 'citizen' }, 'mobile.auth.register', username);
-  return issue(u);
+  store.audit({ username, role: 'citizen' }, `${channel}.auth.register`, username);
+  return { user: u };
+}
+async function register(body) {
+  const r = await createCitizen(body);
+  return r.error ? r : issue(r.user);
 }
 
 async function refresh({ refresh_token: token }) {
@@ -187,4 +198,4 @@ async function demoLogin({ role, device_id: deviceId }) {
 }
 const demoRoles = () => Object.entries(DEMO_USERS).map(([key, d]) => ({ key, role: d.role, name: d.name, username: d.username }));
 
-module.exports = { verifyAccess, sidActive, login, register, refresh, logout, changePassword, demoLogin, demoEnabled, demoRoles, ensureDemoUsers, publicUser, permissionsOf, ACCESS_TTL };
+module.exports = { verifyAccess, sidActive, login, register, verifyCredentials, createCitizen, refresh, logout, changePassword, demoLogin, demoEnabled, demoRoles, ensureDemoUsers, publicUser, permissionsOf, ACCESS_TTL };

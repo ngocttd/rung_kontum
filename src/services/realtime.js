@@ -11,7 +11,7 @@ const notifier = require('./notifier');
 
 let io = null;
 const TABLES = {
-  'ops.reports': 'reports', 'ops.decisions': 'alerts', 'fire.manual_points': 'alerts', 'ops.articles': 'news', 'ops.documents': 'documents', 'spatial.map_layers': 'layers',
+  'ops.reports': 'reports', 'ops.decisions': 'alerts', 'fire.manual_points': 'alerts', 'imagery.change_runs': 'alerts', 'ops.articles': 'news', 'ops.documents': 'documents', 'spatial.map_layers': 'layers',
   'mobile.field_assignments': 'assignments', 'mobile.field_surveys': 'surveys', 'mobile.incident_verifications': 'verifications', 'mobile.verification_reviews': 'verifications',
 };
 // những thay đổi chỉ cán bộ cần biết

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
 import '../../core/format.dart';
@@ -11,6 +10,7 @@ import '../../core/session.dart';
 import '../../widgets/common.dart';
 import '../field/verification_page.dart';
 import 'map_page.dart';
+import 'route_page.dart';
 
 /// Đối tượng được chọn trên bản đồ/danh sách.
 class ObjectRef {
@@ -83,7 +83,7 @@ class ObjectPage extends ConsumerWidget {
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.directions_outlined),
                     label: const Text('Chỉ đường'),
-                    onPressed: () => launchUrl(Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${data.point.latitude},${data.point.longitude}'), mode: LaunchMode.externalApplication),
+                    onPressed: () => context.push('/route', extra: RouteArgs(data.point, title: title)),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -161,6 +161,7 @@ class ObjectPage extends ConsumerWidget {
             KV('Vị trí (làm tròn)', coord),
             KV('Nội dung', p['description']?.toString()),
             if (p['response'] != null) KV('Phản hồi', p['response']?.toString()),
+            if (((p['same_location_count'] as num?) ?? 0) > 0) KV('Cùng vị trí', '${(p['same_location_count'] as num) + 1} người đã phản ánh sự việc tại khu vực này'),
           ])),
           if (tl.isNotEmpty) ...[const SizedBox(height: 10), SectionCard(title: 'Lịch sử xử lý', child: Column(children: [for (final t in tl) KV(fmtDateTime(t['at']), '${t['label'] ?? t['status']}${t['note'] != null ? ' – ${t['note']}' : ''}')]))],
           const SizedBox(height: 10),

@@ -22,6 +22,7 @@ import '../features/home/home_page.dart';
 import '../features/imagery/imagery_page.dart';
 import '../features/map/map_page.dart';
 import '../features/map/object_page.dart';
+import '../features/map/route_page.dart';
 import '../features/news/news_page.dart';
 import '../features/profile/notifications_page.dart';
 import '../features/profile/profile_page.dart';
@@ -73,6 +74,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(path: '/object', parentNavigatorKey: _rootKey, builder: (_, s) => ObjectPage(data: s.extra as ObjectRef)),
+      GoRoute(path: '/route', parentNavigatorKey: _rootKey, builder: (_, s) => RoutePage(args: s.extra as RouteArgs)),
       GoRoute(path: '/forest', parentNavigatorKey: _rootKey, builder: (_, _) => const ForestPage()),
       GoRoute(path: '/imagery', parentNavigatorKey: _rootKey, builder: (_, _) => const ImageryPage()),
       GoRoute(path: '/news', parentNavigatorKey: _rootKey, builder: (_, _) => const NewsPage(standalone: true)),

@@ -11,7 +11,11 @@
   KT.RISK = { 1: '#007b4b', 2: '#81cb1a', 3: '#ffd21f', 4: '#ff8a00', 5: '#f02d2d' };
   KT.LEVEL = { 1: 'Cấp I – Thấp', 2: 'Cấp II – Trung bình', 3: 'Cấp III – Cao', 4: 'Cấp IV – Nguy hiểm', 5: 'Cấp V – Cực kỳ nguy hiểm' };
   KT.RISK_LABEL = { 1: 'Rất thấp', 2: 'Thấp', 3: 'Trung bình', 4: 'Cao', 5: 'Rất cao' };
-  KT.getJSON = async (url) => { const r = await fetch(url, { headers: { Accept: 'application/json' } }); if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.json(); };
+  KT.getJSON = async (url) => {
+    const r = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!r.ok) { let m = `${url}: ${r.status}`; try { const j = await r.json(); if (j && j.error) m = j.error; } catch (e) { /* không phải JSON */ } throw new Error(m); }
+    return r.json();
+  };
 
   // Navigation toggle (mobile)
   document.addEventListener('click', (e) => {
@@ -70,7 +74,7 @@
   // data-page-size (paginates its element children). Re-paginates after sorting/filtering (childList changes);
   // rows hidden by a filter should carry data-filtered="1".
   KT.paginate = function paginate(el) {
-    const size = Number(el.dataset.pageSize) || 10;
+    const sz = () => (el.dataset.pageSize === 'all' ? 1e9 : Number(el.dataset.pageSize) || 10);
     const body = el.tagName === 'TABLE' ? el.tBodies[0] : el;
     if (!body) return;
     let page = 1;
@@ -78,6 +82,7 @@
     const anchor = el.tagName === 'TABLE' && el.parentElement.classList.contains('table-wrap') ? el.parentElement : el;
     anchor.after(nav);
     function render() {
+      const size = sz();
       const rows = [...body.children].filter((r) => r.dataset.filtered !== '1');
       const pages = Math.max(1, Math.ceil(rows.length / size));
       page = Math.min(page, pages);
@@ -94,10 +99,56 @@
     new MutationObserver(() => { page = 1; render(); }).observe(body, { childList: true });
     el.repaginate = (toPage) => { if (toPage) page = toPage; render(); };
     // jump to the page that contains a given element (e.g. a row selected on the map)
-    el.showItem = (item) => { const rows = [...body.children].filter((r) => r.dataset.filtered !== '1'); const i = rows.indexOf(item); if (i >= 0) { page = Math.floor(i / size) + 1; render(); } };
+    el.showItem = (item) => { const rows = [...body.children].filter((r) => r.dataset.filtered !== '1'); const i = rows.indexOf(item); if (i >= 0) { page = Math.floor(i / sz()) + 1; render(); } };
     render();
   };
   document.querySelectorAll('[data-page-size]').forEach((el) => KT.paginate(el));
+
+  // Công cụ bảng/danh sách trong quản trị: tìm kiếm, sắp xếp theo cột (nhấp tiêu đề), chọn số dòng mỗi trang.
+  // Bật cho mọi bảng phân trang trong trang quản trị (body.admin) hoặc phần tử có data-tools="placeholder"; tắt bằng data-tools="off".
+  const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+  KT.tableTools = function tableTools(el) {
+    if (el.dataset.tools === 'off' || el._tools) return;
+    el._tools = true;
+    const body = el.tagName === 'TABLE' ? el.tBodies[0] : el;
+    if (!body) return;
+    const anchor = el.tagName === 'TABLE' && el.parentElement.classList.contains('table-wrap') ? el.parentElement : el;
+    const bar = document.createElement('div'); bar.className = 'tbl-tools';
+    const sizes = [10, 15, 25, 50];
+    const cur = el.dataset.pageSize || '10';
+    bar.innerHTML = `<span class="tt-search">${KT.ic('search')}<input type="search" placeholder="${KT.esc(el.dataset.tools && el.dataset.tools !== 'on' ? el.dataset.tools : 'Tìm trong danh sách…')}" aria-label="Tìm trong danh sách"></span>`
+      + `<span class="tt-count src"></span>`
+      + `<label class="src">Hiển thị <select class="input" aria-label="Số dòng mỗi trang">${[...new Set([...sizes, Number(cur)])].sort((a, b) => a - b).map((n) => `<option value="${n}" ${String(n) === cur ? 'selected' : ''}>${n}</option>`).join('')}<option value="all">Tất cả</option></select> dòng</label>`;
+    anchor.before(bar);
+    const input = bar.querySelector('input'); const count = bar.querySelector('.tt-count');
+    const filter = () => {
+      const q = norm(input.value.trim()); let n = 0;
+      [...body.children].forEach((r) => { const hit = !q || norm(r.textContent).includes(q); r.dataset.filtered = hit ? '' : '1'; if (hit) n++; if (!el.repaginate) r.hidden = !hit; });
+      count.textContent = q ? `${n} kết quả` : '';
+      if (el.repaginate) el.repaginate(1);
+    };
+    input.addEventListener('input', filter);
+    bar.querySelector('select').addEventListener('change', (e) => { el.dataset.pageSize = e.target.value; if (el.repaginate) el.repaginate(1); });
+    // sắp xếp theo cột cho bảng
+    if (el.tagName === 'TABLE' && el.tHead) {
+      const ths = [...el.tHead.rows[0].cells];
+      ths.forEach((th, i) => {
+        if (!th.textContent.trim() || th.dataset.sort === 'off') return;
+        th.classList.add('sortable'); th.tabIndex = 0; th.title = 'Nhấp để sắp xếp';
+        const go = () => {
+          const dir = th.dataset.dir === 'asc' ? 'desc' : 'asc';
+          ths.forEach((x) => { delete x.dataset.dir; }); th.dataset.dir = dir;
+          const val = (r) => { const c = r.cells[i]; if (!c) return ''; const t = (c.dataset.sort || c.textContent).trim(); const n = Number(t.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')); return /^[\d.,\s%-]+(ha|m|km|MB|KB|GB|B)?$/.test(t) && Number.isFinite(n) && t !== '' ? n : norm(t); };
+          const rows = [...body.rows];
+          rows.sort((a, b) => { const x = val(a); const y = val(b); const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'vi'); return dir === 'asc' ? c : -c; });
+          rows.forEach((r) => body.appendChild(r));
+          if (el.repaginate) el.repaginate(1);
+        };
+        th.addEventListener('click', go); th.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+      });
+    }
+  };
+  document.querySelectorAll(document.body.classList.contains('admin') ? 'table.tbl[data-page-size], [data-tools]' : '[data-tools]').forEach((el) => KT.tableTools(el));
 
   // Chart.js defaults & helpers (loaded only on pages that include Chart.js)
   KT.chartDefaults = () => {

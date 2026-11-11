@@ -1,6 +1,11 @@
 <%- include('_top', { needsMap: true }) %>
 <%
   const t = d.tech || {}; const ref = d.ref || {}; const disp = d.display || {};
+  const gcpList = Array.isArray(ref.gcps) ? ref.gcps : (ref.gcps && ref.gcps.points) || [];
+  const ag = t.auto_georef || null; const isAuto = ref.georef_method === 'auto_shape';
+  const layerPending = Boolean(disp.layer_pending);
+  const qualityOk = !ref.georef_method || ref.georef_method === 'embedded' || (ref.georef_method === 'auto_shape' ? Number(ref.residual_error) <= M.AUTO_MAX_ERR_M : Number(ref.residual_error) <= M.MAX_RMSE_M());
+  const onMap = d.status === 'published' && d.access === 'public' && d.georeferenced && d.overlay_url && !layerPending && qualityOk && d.format !== 'pdf';
   const isDocType = d.format === 'pdf' || d.format === 'raster_image';
   const busy = d.status === 'processing' || (d.jobs[0] && ['queued', 'running'].includes(d.jobs[0].status));
   const curFiles = d.files.filter(f => f.version_no === d.current_version);
@@ -14,6 +19,14 @@
 %>
 <%- include('_map-stepper', { current: step, labels }) %>
 <% if (busy) { %><div class="flash" style="background:#eaf4fd;border:1px solid #bcd9f3;color:#1d4d78" id="busy"><%- ic('hourglass-split') %> Đang xử lý nền (<%= d.jobs[0] ? d.jobs[0].job_type : '' %>)… trang sẽ tự cập nhật khi xong.</div><% } %>
+<% if (!busy) { %><div class="note <%= onMap ? 'ok' : 'info' %>" style="margin-bottom:12px"><%- ic(onMap ? 'check-circle-fill' : 'info-circle-fill') %>
+  <% if (onMap) { %> Đang hiển thị trên <a href="/ban-do" target="_blank">Bản đồ WebGIS</a> – nhóm “Bản đồ chuyên đề”, bật/tắt và chỉnh độ trong suốt như các lớp khác.
+  <% } else if (d.format === 'pdf') { %> Bản đồ PDF: xuất bản vào mục Tài liệu – Bản đồ PDF (không chồng lên bản đồ).
+  <% } else if (d.georeferenced && d.overlay_url && !qualityOk) { %> Lớp đã tạo nhưng <b>sai số vượt ngưỡng</b> (<%= ref.georef_method === 'auto_shape' ? 'tự định vị ≤ ' + M.AUTO_MAX_ERR_M : 'RMSE ≤ ' + M.MAX_RMSE_M() %> m) nên <b>không được công bố</b> – cần nắn chỉnh lại.
+  <% } else if (d.georeferenced && d.overlay_url && layerPending && d.status === 'published') { %> Lớp mới định vị đang <b>chờ duyệt hiển thị</b> (bản đồ vẫn công bố trong mục Tài liệu). Người có quyền xuất bản xem kết quả chồng trên bản đồ nền rồi bấm “Duyệt hiển thị lớp”.
+  <% } else if (d.georeferenced && d.overlay_url) { %> Đã có lớp hiển thị. Để hiện trên Bản đồ WebGIS: <b>Gửi duyệt → Duyệt và xuất bản</b><%= d.access === 'internal' ? ' (đang đặt Nội bộ – chỉ cán bộ xem)' : '' %>.
+  <% } else if (d.format === 'package') { %> Gói bản đồ ArcGIS: lưu trữ để tải về, không hiển thị trên WebGIS.
+  <% } else { %> Chưa có toạ độ: dùng <b>Tự định vị theo hình tỉnh</b> (ảnh bản đồ toàn tỉnh Kon Tum) hoặc nắn chỉnh bằng điểm khống chế để tạo lớp trên bản đồ.<% } %></div><% } %>
 <% if (d.jobs[0] && d.jobs[0].status === 'failed') { %><div class="flash error">Xử lý lỗi (<%= d.jobs[0].error_code %>): <%= d.jobs[0].error_message %></div><% } %>
 
 <div class="grid" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
@@ -28,7 +41,20 @@
     </section>
     <% } %>
 
-    <% if (isDocType) { %>
+    <% if (d.format === 'raster_image') { %>
+    <section class="card">
+      <div class="card-h"><h2><%- ic('crosshair') %> Tự định vị theo hình tỉnh</h2><span class="more muted" style="font-weight:400"><%= isAuto ? 'Đang dùng kết quả tự định vị' : '' %></span></div>
+      <div class="card-b">
+        <p class="src" style="margin-bottom:8px">Dành cho ảnh bản đồ thể hiện toàn bộ vùng Kon Tum (xuất từ bố cục, không có toạ độ): hệ thống tách hình tỉnh trong ảnh, khớp với ranh giới tỉnh, tạo lớp hiển thị cắt theo ranh giới (bỏ khung, chú giải). Đạt khi độ khớp IoU ≥ <%= M.AUTO_MIN_IOU %> và sai số đường biên ≤ <%= M.AUTO_MAX_ERR_M %> m.</p>
+        <% if (ag) { %><table class="kv"><tr><td>Kết quả gần nhất</td><td><span class="badge <%= ag.ok && ag.iou >= M.AUTO_MIN_IOU && ag.boundary_error_m <= M.AUTO_MAX_ERR_M ? 'b-green' : 'b-orange' %>"><%= ag.ok ? (ag.iou >= M.AUTO_MIN_IOU && ag.boundary_error_m <= M.AUTO_MAX_ERR_M ? 'Đạt' : 'Chưa đạt') : 'Không nhận ra hình tỉnh' %></span> <%= fmt.dateTime(ag.at) %></td></tr>
+          <% if (ag.ok) { %><tr><td>Độ khớp hình tỉnh (IoU)</td><td><b><%= ag.iou %></b></td></tr><tr><td>Sai số đường biên</td><td>~<%= fmt.num(ag.boundary_error_m) %> m</td></tr><tr><td>Phép chiếu nhận dạng</td><td><%= ag.projection === 'EPSG:4326' ? 'Kinh/vĩ độ (WGS84)' : 'UTM 48N' %></td></tr><% } %>
+          <% if (ag.template_from) { %><tr><td>Theo mẫu bố cục</td><td><%= ag.template_from %></td></tr><% } %>
+          <% if (ag.error) { %><tr><td>Lý do</td><td><%= ag.error %></td></tr><% } %></table><% } %>
+        <% if (can('maps.manage')) { %><form method="post" action="/quan-tri/ban-do/<%= d.id %>/tu-dinh-vi" style="margin-top:8px"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-sm" <%= busy ? 'disabled' : '' %>><%- ic('crosshair') %> <%= ag ? 'Tự định vị lại' : 'Tự định vị theo hình tỉnh' %></button></form><% } %>
+      </div>
+    </section>
+    <% } %>
+    <% if (isDocType && d.format !== 'pdf') { %>
     <section class="card" id="nan-chinh">
       <div class="card-h"><h2><%- ic('geo-alt-fill') %> Gán toạ độ (nắn chỉnh) bằng điểm khống chế</h2><span class="more muted" style="font-weight:400"><%= d.georeferenced ? 'Đã nắn chỉnh – có thể làm lại' : 'Chưa định vị: chỉ xem như tài liệu' %></span></div>
       <div class="card-b">
@@ -69,7 +95,7 @@
         <tr><td>Hệ toạ độ</td><td><%= t.crs || (ref.georef_method && ref.georef_method.startsWith('gcp') ? 'EPSG:4326 (nắn chỉnh)' : 'Chưa có – cần nắn chỉnh') %></td></tr>
         <% if (t.pixel_size) { %><tr><td>Độ phân giải</td><td><%= fmt.num(t.pixel_size[0], t.units === 'deg' ? 6 : 1) %> <%= t.units === 'deg' ? '°' : 'm' %></td></tr><% } %>
         <% if (t.bounds4326 || ref.bbox_json) { const b = t.bounds4326 || ref.bbox_json; %><tr><td>Phạm vi (WGS84)</td><td><%= b.map(x => Number(x).toFixed(4)).join(', ') %></td></tr><% } %>
-        <% if (ref.georef_method) { %><tr><td>Phương pháp định vị</td><td><%= { embedded: 'Toạ độ nhúng trong tệp', gcp_affine: 'Điểm khống chế – affine', gcp_poly2: 'Điểm khống chế – đa thức bậc 2' }[ref.georef_method] %><%= ref.residual_error !== null && ref.residual_error !== undefined ? ' · RMSE ' + fmt.num(ref.residual_error, 2) + ' m' : '' %><%= ref.gcps ? ' · ' + ref.gcps.length + ' điểm' : '' %></td></tr><% } %>
+        <% if (ref.georef_method) { %><tr><td>Phương pháp định vị</td><td><%= { embedded: 'Toạ độ nhúng trong tệp', gcp_affine: 'Điểm khống chế – affine', gcp_poly2: 'Điểm khống chế – đa thức bậc 2', auto_shape: 'Tự định vị theo hình tỉnh' }[ref.georef_method] %><%= ref.residual_error !== null && ref.residual_error !== undefined ? (isAuto ? ' · sai số biên ~' + fmt.num(ref.residual_error) + ' m' : ' · RMSE ' + fmt.num(ref.residual_error, 2) + ' m') : '' %><%= gcpList.length ? ' · ' + gcpList.length + ' điểm' : '' %></td></tr><% } %>
         <tr><td>Dung lượng</td><td><%= original ? fmt.bytes(original.size_bytes) : '—' %></td></tr>
         <tr><td>SHA-256</td><td class="src" style="word-break:break-all"><%= original && original.sha256 ? original.sha256 : 'đang tính…' %></td></tr>
         <tr><td>Phiên bản tệp</td><td>v<%= d.current_version %></td></tr>
@@ -108,8 +134,9 @@
             <label class="field"><span>Ghi chú phát hành / lý do trả về</span><textarea class="input" name="note" rows="2"></textarea></label>
             <div style="display:flex;gap:8px"><button class="btn btn-primary" formaction="/quan-tri/ban-do/<%= d.id %>/xuat-ban"><%- ic('check-lg') %> Duyệt và xuất bản</button><button class="btn btn-outline" formaction="/quan-tri/ban-do/<%= d.id %>/tra-ve"><%- ic('arrow-repeat') %> Trả về hiệu chỉnh</button></div></form>
         <% } else if (d.status === 'pending_review') { %><p class="src">Đang chờ quản trị viên kiểm duyệt.</p><% } %>
+        <% if (can('maps.publish') && d.status === 'published' && layerPending && qualityOk && d.format !== 'pdf') { %><form method="post" action="/quan-tri/ban-do/<%= d.id %>/duyet-lop" style="margin-top:8px"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary"><%- ic('check-lg') %> Duyệt hiển thị lớp trên bản đồ</button></form><% } %>
         <% if (can('maps.publish') && d.status === 'published') { %><form method="post" action="/quan-tri/ban-do/<%= d.id %>/thu-hoi" style="margin-top:8px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input class="input" name="note" placeholder="Lý do thu hồi" style="margin-bottom:6px"><button class="btn btn-outline"><%- ic('x-circle-fill') %> Thu hồi</button></form><% } %>
-        <p class="src" style="margin-top:8px">Quyền xuất bản được kiểm tra ở máy chủ. Bản đồ nắn chỉnh có RMSE vượt <%= process.env.MAP_MAX_RMSE_M || 50 %> m không được xuất bản.</p>
+        <p class="src" style="margin-top:8px">Quyền xuất bản được kiểm tra ở máy chủ. Bản đồ nắn chỉnh có RMSE vượt <%= process.env.MAP_MAX_RMSE_M || 50 %> m, hoặc tự định vị có sai số biên vượt <%= M.AUTO_MAX_ERR_M %> m, không được xuất bản.</p>
       </div>
     </section>
 
@@ -155,6 +182,6 @@
 </div>
 <%- include('_bottom') %>
 <%- include('../partials/mapjs') %>
-<%- include('../partials/page-data', { pageData: { id: d.id, overlay: d.overlay_url, bounds: d.overlay_bounds, opacity: disp.opacity || 0.8, footprint: ref.footprint || null, gcps: (ref.gcps || []).map(g => ({ px: g.px, py: g.py, fx: g.fx, fy: g.fy, lon: g.lon, lat: g.lat, residual_m: g.residual_m })), busy, method: ref.georef_method === 'gcp_poly2' ? 'poly2' : 'affine' } }) %>
+<%- include('../partials/page-data', { pageData: { id: d.id, overlay: d.overlay_url, bounds: d.overlay_bounds, opacity: disp.opacity || 0.8, footprint: ref.footprint || null, gcps: gcpList.map(g => ({ px: g.px, py: g.py, fx: g.fx, fy: g.fy, lon: g.lon, lat: g.lat, residual_m: g.residual_m })), busy, method: ref.georef_method === 'gcp_poly2' ? 'poly2' : 'affine' } }) %>
 <script src="/js/pages/map-detail.js"></script>
 </body></html>

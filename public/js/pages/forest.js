@@ -5,13 +5,13 @@
   KT.chart('ch-origin', {
     type: 'doughnut',
     data: {
-      labels: ['Đặc dụng', 'Phòng hộ', 'Sản xuất'],
+      labels: ['QH đặc dụng', 'QH phòng hộ', 'QH sản xuất'],
       datasets: [
         { data: [P.summary.special_use_ha, P.summary.protection_ha, P.summary.production_ha], backgroundColor: ['#006b38', '#75bb25', '#f8ce42'], borderColor: '#fff', borderWidth: 2 },
         { data: [P.summary.natural_forest_ha, P.summary.plantation_ha], backgroundColor: ['#176c35', '#b567d7'], borderColor: '#fff', borderWidth: 2 },
       ],
     },
-    options: { cutout: '42%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` ${c.datasetIndex ? ['Rừng tự nhiên', 'Rừng trồng'][c.dataIndex] : ['Đặc dụng', 'Phòng hộ', 'Sản xuất'][c.dataIndex]}: ${KT.num(c.parsed)} ha` } } } },
+    options: { cutout: '42%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` ${c.datasetIndex ? ['Rừng tự nhiên', 'Rừng trồng'][c.dataIndex] : ['Quy hoạch đặc dụng', 'Quy hoạch phòng hộ', 'Quy hoạch sản xuất'][c.dataIndex]}: ${KT.num(c.parsed)} ha` } } } },
   });
 
   // right chart: Hansen loss or NDVI series
@@ -50,7 +50,7 @@
   function drawPlan() {
     if (done.plan) return; done.plan = true;
     KT.chart('ch-plan', { type: 'bar', data: { labels: P.plan.map((x) => x.name), datasets: [
-      { label: 'Đặc dụng', data: P.plan.map((x) => x.sp), backgroundColor: '#006b38' }, { label: 'Phòng hộ', data: P.plan.map((x) => x.pr), backgroundColor: '#75bb25' }, { label: 'Sản xuất', data: P.plan.map((x) => x.pd), backgroundColor: '#f8ce42' }] },
+      { label: 'QH đặc dụng', data: P.plan.map((x) => x.sp), backgroundColor: '#006b38' }, { label: 'QH phòng hộ', data: P.plan.map((x) => x.pr), backgroundColor: '#75bb25' }, { label: 'QH sản xuất', data: P.plan.map((x) => x.pd), backgroundColor: '#f8ce42' }] },
       options: { scales: { x: { stacked: true, ticks: { autoSkip: false, maxRotation: 70, font: { size: 10 } } }, y: { stacked: true } } } });
     const colors = { 10: '#006400', 20: '#ffbb22', 30: '#ffff4c', 40: '#f096ff', 50: '#fa0000', 60: '#b4b4b4', 80: '#0064c8', 90: '#0096a0' };
     const ks = Object.keys(P.wc.aoi_worldcover_ha).sort((a, b) => P.wc.aoi_worldcover_ha[b] - P.wc.aoi_worldcover_ha[a]);

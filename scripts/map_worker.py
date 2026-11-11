@@ -116,7 +116,7 @@ def fit(gcps, method):
     # degrees of freedom: with exactly the minimum number of points RMSE is 0 by construction
     return dict(fx=fx, fy=fy, ix=ix, iy=iy, design=design, rmse=rmse, residuals=resid.tolist(), exact=len(gcps) == need)
 
-def georef_image(img, gcps, method, odir, opacity):
+def georef_image(img, gcps, method, odir, opacity, clip=False):
     f = fit(gcps, method)
     h, w = img.shape[:2]
     corners = np.array([[0, 0], [w, 0], [w, h], [0, h]], dtype='float64')
@@ -133,6 +133,8 @@ def georef_image(img, gcps, method, odir, opacity):
     inside = (sx >= 0) & (sx < w) & (sy >= 0) & (sy < h)
     sxi = np.clip(sx.astype('int32'), 0, w - 1); syi = np.clip(sy.astype('int32'), 0, h - 1)
     rgba = np.zeros((OH, OW, 4), dtype='uint8'); rgba[..., :3] = img[syi, sxi, :3]; rgba[..., 3] = np.where(inside, 255, 0)
+    if clip:  # bản đồ bố cục: bỏ khung, chú giải, vùng ngoài tỉnh – chỉ giữ nội dung trong ranh giới tỉnh
+        rgba[..., 3] &= geometry_mask([transform_geom('EPSG:4326', 'EPSG:3857', AOI)], (OH, OW), otr, invert=True).astype('uint8') * 255
     Image.fromarray(rgba).save(odir / 'overlay.png')
     # georeferenced raster (EPSG:3857, RGBA) for download / GIS use
     with rasterio.open(odir / 'georef.tif', 'w', driver='GTiff', width=OW, height=OH, count=4, dtype='uint8', crs='EPSG:3857', transform=otr, compress='deflate', photometric='RGB', alpha='YES') as d:
@@ -161,6 +163,98 @@ def load_image(src, page):
         pv = max(d.width, d.height) / 1800 if max(d.width, d.height) > 1800 else 1
         return img.astype('uint8'), (1 / s if s > 1 else 1) * pv
 
+# ---------------------------------------------------------------- tự định vị (ảnh bản đồ toàn tỉnh Kon Tum)
+# Ảnh/PDF bản đồ xuất từ bố cục (không có toạ độ) nhưng thể hiện toàn bộ vùng Kon Tum: tách hình tỉnh trong ảnh
+# (vùng có màu dữ liệu), khớp với ranh giới tỉnh thật (data/boundaries) bằng cách tối ưu phép biến đổi (tỷ lệ x/y,
+# dịch chuyển) cho độ trùng khớp IoU lớn nhất, thử cả hai cách thể hiện (kinh/vĩ độ và UTM 48N). Đầu ra là các
+# điểm khống chế để quy trình nắn chỉnh sẵn có xử lý; độ khớp IoU và sai số đường biên (m) dùng để duyệt.
+def province_mask(img, kind='colored', alpha=None):
+    from scipy import ndimage
+    a = img.astype('float32') / 255
+    mx = a.max(2); mn = a.min(2); sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1e-6), 0)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    hue = np.degrees(np.arctan2(np.sqrt(3) * (g - b), 2 * r - g - b)) % 360
+    light_blue = (hue > 165) & (hue < 225) & (mx > 0.72) & (sat < 0.65)   # sông hồ / vùng đệm biên giới ngoài tỉnh
+    if kind == 'alpha' and alpha is not None: m = alpha > 0          # ảnh có kênh trong suốt: vùng dữ liệu = vùng không trong suốt
+    elif kind == 'nonwhite': m = ((mx < 0.93) | (sat > 0.08)) & ~light_blue   # nền trắng, trong tỉnh có cả màu nhạt
+    else: m = (sat > 0.2) & (mx < 0.985) & ~light_blue                 # bố cục có lưới toạ độ, chữ, nền trắng
+    k = max(2, int(max(img.shape[:2]) * 0.004))
+    m = ndimage.binary_opening(m, iterations=1)
+    m = ndimage.binary_closing(m, iterations=k)
+    m = ndimage.binary_fill_holes(m)
+    m = ndimage.binary_opening(m, iterations=k)      # bỏ đường giao thông, lưới toạ độ, chữ ngoài tỉnh
+    lab, n = ndimage.label(m)
+    if not n: return m
+    sizes = ndimage.sum(m, lab, range(1, n + 1))
+    return lab == (int(np.argmax(sizes)) + 1)
+
+def autogeoref(src, page=1):
+    from scipy import ndimage, optimize
+    from rasterio.features import rasterize
+    from rasterio.transform import Affine
+    img, _ = load_image(src, int(page))
+    H0, W0 = img.shape[:2]
+    s = 900 / max(H0, W0)
+    size = (max(1, int(W0 * s)), max(1, int(H0 * s)))
+    small = np.asarray(Image.fromarray(img).resize(size, Image.BILINEAR))
+    alpha = None
+    if Path(src).suffix.lower() in ('.tif', '.tiff'):
+        with rasterio.open(src) as d:
+            if d.count >= 4: alpha = d.read(4, out_shape=(size[1], size[0]), resampling=Resampling.nearest)
+    best = None
+    for kind in (['alpha'] if alpha is not None else []) + ['colored', 'nonwhite']:
+        mask = province_mask(small, kind, alpha)
+        if mask.sum() < 0.03 * mask.size: continue
+        r = _fit_mask(mask)
+        if not best or r['iou'] > best['iou']: best = dict(r, mask=mask, kind=kind)
+    if not best: raise ValueError('Không nhận ra hình tỉnh Kon Tum trong ảnh – cần nắn chỉnh thủ công')
+    mask = best['mask']; h, w = mask.shape; rows, cols = np.nonzero(mask)
+    return _finish(best, mask, rows, cols, h, w, page)
+
+def _fit_mask(mask):
+    from scipy import optimize
+    from rasterio.features import rasterize
+    from rasterio.transform import Affine
+    h, w = mask.shape; rows, cols = np.nonzero(mask)
+    best = None
+    for crs in ('EPSG:4326', 'EPSG:32648'):
+        poly = AOI if crs == 'EPSG:4326' else transform_geom('EPSG:4326', crs, AOI)
+        xs = [p[0] for ring in (poly['coordinates'] if poly['type'] == 'Polygon' else [r for pg in poly['coordinates'] for r in pg]) for p in ring]
+        ys = [p[1] for ring in (poly['coordinates'] if poly['type'] == 'Polygon' else [r for pg in poly['coordinates'] for r in pg]) for p in ring]
+        a0 = (max(xs) - min(xs)) / (cols.max() - cols.min() + 1); e0 = -(max(ys) - min(ys)) / (rows.max() - rows.min() + 1)
+        c0 = min(xs) - a0 * cols.min(); f0 = max(ys) - e0 * rows.min()
+        def tr(p): return Affine(a0 * np.exp(p[0]), 0, c0 + p[2] * a0, 0, e0 * np.exp(p[1]), f0 + p[3] * e0)
+        def iou(p):
+            r = rasterize([poly], out_shape=(h, w), transform=tr(p), fill=0, default_value=1, dtype='uint8').astype(bool)
+            inter = (r & mask).sum(); uni = (r | mask).sum()
+            return inter / uni if uni else 0
+        res = optimize.minimize(lambda p: -iou(p), [0, 0, 0, 0], method='Nelder-Mead', options=dict(xatol=1e-3, fatol=1e-4, maxiter=400, initial_simplex=[[0, 0, 0, 0], [0.03, 0, 0, 0], [0, 0.03, 0, 0], [0, 0, 4, 0], [0, 0, 0, 4]]))
+        score = -res.fun
+        if not best or score > best['iou']: best = dict(iou=score, crs=crs, T=tr(res.x), poly=poly)
+    return best
+
+def _finish(best, mask, rows, cols, h, w, page):
+    from scipy import ndimage
+    from rasterio.features import rasterize
+    T = best['T']; poly = best['poly']
+    # sai số đường biên: khoảng cách trung bình giữa biên hình tỉnh trong ảnh và biên ranh giới thật (m)
+    r = rasterize([poly], out_shape=(h, w), transform=T, fill=0, default_value=1, dtype='uint8').astype(bool)
+    edge = lambda m: m & ~ndimage.binary_erosion(m)
+    de, dr = edge(mask), edge(r)
+    dist = np.concatenate([ndimage.distance_transform_edt(~dr)[de], ndimage.distance_transform_edt(~de)[dr]])
+    px_m = (abs(T.a) * 111320 * math.cos(math.radians(14.6)) + abs(T.e) * 110540) / 2 if best['crs'] == 'EPSG:4326' else (abs(T.a) + abs(T.e)) / 2
+    err_m = float(np.mean(dist)) * px_m
+    # 9 điểm khống chế trên lưới phủ hình tỉnh (toạ độ ảnh dạng tỷ lệ 0–1, toạ độ thực WGS84)
+    gcps = []
+    for fy in np.linspace(rows.min(), rows.max(), 3):
+        for fx in np.linspace(cols.min(), cols.max(), 3):
+            X, Y = T * (fx + 0.5, fy + 0.5)
+            if best['crs'] != 'EPSG:4326': (lon,), (lat,) = warp_points(best['crs'], 'EPSG:4326', [X], [Y])
+            else: lon, lat = X, Y
+            gcps.append(dict(fx=round(float(fx + 0.5) / w, 6), fy=round(float(fy + 0.5) / h, 6), px=round(float(fx + 0.5) / w * 1000, 1), py=round(float(fy + 0.5) / h * 1000, 1), lon=round(float(lon), 6), lat=round(float(lat), 6)))
+    return dict(ok=True, gcps=gcps, method='poly2', projection=best['crs'], iou=round(float(best['iou']), 4), boundary_error_m=round(err_m, 1),
+                mask_fraction=round(float(mask.mean()), 3), mask_kind=best.get('kind'), page=int(page))
+
 # ---------------------------------------------------------------- process
 def process(src, odir, cfg):
     odir = Path(odir); cfg = json.loads(Path(cfg).read_text(encoding='utf-8')) if os.path.exists(cfg) else json.loads(cfg)
@@ -169,7 +263,7 @@ def process(src, odir, cfg):
         h0, w0 = img.shape[:2]
         # fx/fy: position as a fraction of the preview image (independent of preview resolution)
         gcps = [dict(g, px=g['fx'] * w0 if 'fx' in g else g['px'] * k, py=g['fy'] * h0 if 'fy' in g else g['py'] * k) for g in cfg['gcps']]
-        r = georef_image(img, gcps, cfg.get('method', 'affine'), odir, cfg.get('opacity', 0.8))
+        r = georef_image(img, gcps, cfg.get('method', 'affine'), odir, cfg.get('opacity', 0.8), bool(cfg.get('clip')))
         for g, o in zip(r['gcps'], cfg['gcps']): g['px'], g['py'] = o['px'], o['py']  # report in preview pixels
         return out(dict(ok=True, mode='gcp', **r))
     with rasterio.open(src) as d:
@@ -222,6 +316,7 @@ if __name__ == '__main__':
         cmd = sys.argv[1]
         if cmd == 'inspect': inspect(sys.argv[2], sys.argv[3])
         elif cmd == 'process': process(sys.argv[2], sys.argv[3], sys.argv[4])
+        elif cmd == 'autogeoref': out(autogeoref(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else 1))
         else: raise ValueError('unknown command')
     except Exception as e:
         out(dict(ok=False, error_code=type(e).__name__, error=str(e))); sys.exit(2)

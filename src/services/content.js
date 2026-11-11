@@ -71,4 +71,27 @@ function bySlug(slug) {
   return a && visible(a) ? { ...a, categoryLabel: (CATEGORIES[a.category] || {}).label, statusLabel: STATUS[a.status] } : null;
 }
 
-module.exports = { CATEGORIES, STATUS, seed, list, bySlug, visible };
+// ---------- bình luận (duyệt trước khi hiện) ----------
+const COMMENT_STATUS = { pending: 'Chờ duyệt', approved: 'Đã duyệt', hidden: 'Đã ẩn' };
+function addComment(article, { name, body, user }) {
+  const text = String(body || '').trim().replace(/\s+\n/g, '\n');
+  const nm = String((user && user.name) || name || '').trim().slice(0, 80);
+  if (nm.length < 2) throw Object.assign(new Error('Vui lòng nhập họ tên (ít nhất 2 ký tự).'), { status: 400 });
+  if (text.length < 5 || text.length > 1000) throw Object.assign(new Error('Nội dung bình luận 5–1000 ký tự.'), { status: 400 });
+  if (/(https?:\/\/|www\.)/i.test(text) && (text.match(/https?:\/\//gi) || []).length > 2) throw Object.assign(new Error('Bình luận chứa quá nhiều liên kết.'), { status: 400 });
+  return store.insert('comments', { article_id: article.id, name: nm, user_id: user ? user.id : null, body: text, status: 'pending' });
+}
+function comments(articleId, { all = false } = {}) {
+  return store.filter('comments', (c) => (!articleId || c.article_id === articleId) && (all || c.status === 'approved'))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at)).map((c) => ({ ...c, statusLabel: COMMENT_STATUS[c.status] }));
+}
+function moderate(id, status, user) {
+  const c = store.get('comments', id); if (!c) return null;
+  if (status === 'delete') { store.remove('comments', id); store.audit(user, 'comment.delete', id); return true; }
+  if (!COMMENT_STATUS[status]) return null;
+  store.update('comments', id, { status, reviewed_by: user.username });
+  store.audit(user, `comment.${status}`, id);
+  return true;
+}
+
+module.exports = { CATEGORIES, STATUS, COMMENT_STATUS, seed, list, bySlug, visible, addComment, comments, moderate };

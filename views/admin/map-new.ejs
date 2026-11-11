@@ -51,7 +51,8 @@
           <label class="field"><span>Giấy phép sử dụng</span><input class="input" name="license" placeholder="Nội bộ / CC BY 4.0 / ..."></label>
           <label class="field"><span>Quyền truy cập</span><select class="input" name="access"><option value="public">Công khai sau khi xuất bản</option><option value="internal">Nội bộ (chỉ cán bộ)</option></select></label>
         </div>
-        <div class="note info">Sau khi tải lên, hệ thống xử lý nền (đọc metadata, tạo ảnh xem trước, lớp hiển thị). Bản đồ chỉ hiển thị công khai sau khi được người có quyền duyệt và xuất bản.</div>
+        <% if (can('maps.publish')) { %><label class="check" style="margin:4px 0 10px"><input type="checkbox" name="publish_now" checked> Xuất bản ngay khi xử lý xong (bỏ qua bước duyệt) – GeoTIFF/ảnh định vị được hiện ngay trên Bản đồ WebGIS, PDF vào mục Tài liệu</label><% } %>
+        <div class="note info">Sau khi tải lên, hệ thống xử lý nền: đọc metadata, ảnh xem trước, lớp hiển thị. Ảnh bản đồ toàn tỉnh không có toạ độ được <b>tự định vị theo hình tỉnh</b>; PDF chỉ xếp vào Tài liệu. <% if (!can('maps.publish')) { %>Bản đồ hiện trên WebGIS sau khi quản trị viên duyệt và xuất bản.<% } %></div>
       </div>
     </div>
     <div class="flash error" id="err" hidden style="margin-top:10px"></div>

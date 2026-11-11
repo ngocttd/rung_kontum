@@ -52,7 +52,9 @@
         </details>
         <details class="lt-group" open data-lt-group="theme"><summary>Biến động và dự báo mất rừng</summary>
           <%- ovItem('hansen-loss', 'Mất tán cây 2001–2024', sym('change-suspected')) %>
-          <%- vec('candidates', 'Biến động nghi vấn 2026', sym('change-suspected'), false, 'Sentinel-2 chuỗi tháng 100 m – chưa xác minh hiện trường') %>
+          <%- ovItem('change-latest', ov['change-latest'] ? 'Biến động NDVI ' + ov['change-latest'].window.split(' ')[0].replace(/^(\d{4})-(\d{2})\.\.(\d{2})$/, '$2–$3/$1') : 'Biến động NDVI mới nhất', sym('change-suspected')) %>
+          <% overlays.filter(o => o.group === 'change-run').forEach(o => { %><%- ovItem(o.id, o.title.replace('Biến động NDVI ', 'Biến động NDVI '), sym('change-suspected')) %><% }) %>
+          <%- vec('candidates', 'Vùng biến động nghi vấn (Sentinel-2)', sym('change-suspected'), false, 'Sentinel-2 chuỗi tháng 100 m – phân tích tự động theo kỳ, chưa xác minh hiện trường') %>
           <%- ovItem('forest-loss-risk', 'Dự báo nguy cơ mất rừng 2025–26', sym('risk-4')) %>
           <%- choro('risk', 'Xác suất mất rừng', sym('risk-3'), 'Xác suất mất rừng trung bình 2025–2026 (mô hình hiệu chỉnh)') %>
           <%- choro('loss', 'Mất tán cây 2020–2024', sym('risk-5'), 'Hansen GFC – tổng diện tích mất tán cây 2020–2024 theo xã') %>
@@ -64,10 +66,19 @@
           <%- choro('danger', 'Cấp nguy cơ cháy theo ngày', sym('risk-5'), 'Cấp dự báo cháy theo chỉ số P Nesterov – theo ngày chọn ở khung bên phải') %>
           <%- choro('danger7', 'Cấp cao nhất 7 ngày tới', sym('risk-4'), 'Cấp cao nhất trong 7 ngày tới') %>
         </details>
+        <% if (overlays.some(o => o.group === 'fire-env')) { %>
+        <details class="lt-group" data-lt-group="theme"><summary>Yếu tố môi trường gây cháy</summary>
+          <% overlays.filter(o => o.group === 'fire-env').forEach(o => { %><%- ovItem(o.id, o.title, ic2(o.id.startsWith('lst') ? 'temperature' : 'water')) %><% }) %>
+          <%- vec('wind-du-bao', 'Hướng gió 13 giờ hôm nay (theo xã)', ic2('wind'), false, 'Open-Meteo – dự báo tại 40 điểm đại diện xã; mũi tên chỉ hướng gió thổi tới') %>
+        </details>
+        <% } %>
 
         <div class="lt-sec sec-env" data-lt-group="theme"><%- ic('cloud-sun-fill') %> MÔI TRƯỜNG & HIỆN TRƯỜNG</div>
         <details class="lt-group" open data-lt-group="theme"><summary>Thời tiết, phản ánh</summary>
-          <%- vec('weather', 'Nhiệt độ và hướng gió', ic2('wind'), false, 'OpenWeather – thời tiết hiện tại tại điểm đại diện xã') %>
+          <%- vec('weather', 'Nhiệt độ và hướng gió hiện tại', ic2('wind'), false, 'OpenWeather – thời tiết hiện tại tại điểm đại diện xã') %>
+          <% const wxIc = (id) => ic2(id.endsWith('rain') ? 'rain' : id.endsWith('wind') ? 'wind' : 'temperature'); %>
+          <% overlays.filter(o => o.group === 'weather').sort((a, b) => a.id.localeCompare(b.id) * -1).forEach(o => { %><%- ovItem(o.id, o.title, wxIc(o.id)) %><% }) %>
+          <%- vec('wind-era5', 'Hướng gió theo lưới ERA5-Land', ic2('wind'), false, 'ERA5-Land – gió 10 m lúc 12 giờ ngày gần nhất có tái phân tích, lưới ~11 km') %>
           <%- vec('reports', 'Phản ánh hiện trường', mk('report-photo'), false, 'Phản ánh đã được cán bộ cho phép công khai') %>
         </details>
 
@@ -100,6 +111,11 @@
           <%- ovItem('s2-2025-dry-false', 'Giả màu – mùa khô 2025', ic2('satellite')) %>
           <%- ovItem('s2-2025-wet-false', 'Giả màu – mùa mưa 2025', ic2('satellite')) %>
         </details>
+        <% if (overlays.some(o => o.group === 'class')) { %>
+        <details class="lt-group" open data-lt-group="base"><summary>Phân loại ảnh (tự động)</summary>
+          <% overlays.filter(o => o.group === 'class').forEach(o => { %><%- ovItem(o.id, o.title, ic2('forest')) %><% }) %>
+        </details>
+        <% } %>
         <div class="lt-sec sec-base" data-lt-group="base"><%- ic('graph-up-arrow') %> ĐỊA HÌNH & CHỈ SỐ</div>
         <details class="lt-group" open data-lt-group="base"><summary>Địa hình, NDVI</summary>
           <%- ovItem('dem-2024', 'Địa hình (DEM 30 m)', ic2('map')) %>
@@ -127,6 +143,9 @@
           <button type="button" data-tool="length"><%- ic('rulers') %>Đo khoảng cách</button>
           <button type="button" data-tool="area"><%- ic('bounding-box') %>Đo diện tích</button>
           <button type="button" data-tool="coord"><%- ic('geo-alt-fill') %>Tọa độ</button>
+          <button type="button" data-tool="near" title="Nhấp một điểm để xem khoảng cách tới khu dân cư, đường, cơ sở ứng cứu gần nhất"><%- ic('house-fill') %>Khoảng cách dân cư</button>
+          <button type="button" data-tool="route" title="Nhấp điểm đi rồi điểm đến (hoặc dùng vị trí của tôi) để tìm đường ngắn nhất"><%- ic('signpost-split-fill') %>Chỉ đường</button>
+          <a class="tb-link" href="/so-sanh-anh"><%- ic('layout-split') %>So sánh ảnh</a>
           <button type="button" data-act="export"><%- ic('image-fill') %>Xuất bản đồ</button>
           <button type="button" data-act="share"><%- ic('share-fill') %>Chia sẻ</button>
           <button type="button" data-act="print"><%- ic('file-earmark-pdf-fill') %>In</button>
@@ -179,12 +198,13 @@
       <div class="card"><div class="card-h"><h3>Chuỗi thời gian điểm nóng cháy (7 ngày qua)</h3>
         <select class="input" id="hs-commune" style="width:auto;margin-left:auto;padding:4px 8px;font-size:12.5px"><option value="">Toàn vùng</option></select></div>
         <div class="card-b" style="padding-top:8px"><div class="chart-box short"><canvas id="ch-hot"></canvas></div></div></div>
-      <div class="card"><div class="card-h"><h3>Diện tích rừng theo loại</h3></div><div class="card-b" style="padding-top:8px">
+      <div class="card"><div class="card-h"><h3>Diện tích quy hoạch 3 loại rừng</h3></div><div class="card-b" style="padding-top:8px">
         <div class="donut-wrap" style="grid-template-columns:150px minmax(0,1fr)"><div class="chart-box" style="height:150px"><canvas id="ch-plan"></canvas></div>
         <ul class="risk-list" style="font-size:12px">
-          <li><span class="dot" style="background:#006b38"></span>Rừng đặc dụng<span class="v"><%= fmt.num(summary.special_use_ha) %> ha (<%= fmt.num(summary.special_use_ha / summary.planning_ha * 100, 1) %>%)</span></li>
-          <li><span class="dot" style="background:#75bb25"></span>Rừng phòng hộ<span class="v"><%= fmt.num(summary.protection_ha) %> ha (<%= fmt.num(summary.protection_ha / summary.planning_ha * 100, 1) %>%)</span></li>
-          <li><span class="dot" style="background:#f8ce42"></span>Rừng sản xuất<span class="v"><%= fmt.num(summary.production_ha) %> ha (<%= fmt.num(summary.production_ha / summary.planning_ha * 100, 1) %>%)</span></li>
+          <li><span class="dot" style="background:#006b38"></span>Quy hoạch đặc dụng<span class="v"><%= fmt.num(summary.special_use_ha) %> ha (<%= fmt.num(summary.special_use_ha / summary.planning_ha * 100, 1) %>%)</span></li>
+          <li><span class="dot" style="background:#75bb25"></span>Quy hoạch phòng hộ<span class="v"><%= fmt.num(summary.protection_ha) %> ha (<%= fmt.num(summary.protection_ha / summary.planning_ha * 100, 1) %>%)</span></li>
+          <li><span class="dot" style="background:#f8ce42"></span>Quy hoạch sản xuất<span class="v"><%= fmt.num(summary.production_ha) %> ha (<%= fmt.num(summary.production_ha / summary.planning_ha * 100, 1) %>%)</span></li>
+          <li class="src" style="list-style:none;margin-top:4px">Diện tích quy hoạch (gồm cả đất chưa có rừng), khác diện tích có rừng <%= fmt.num(summary.established_forest_ha) %> ha.</li>
         </ul></div></div></div>
       <div class="card"><div class="card-h"><h3>Ảnh vệ tinh mới nhất</h3></div><div class="card-b" style="padding-top:8px">
         <span class="src"><%= latest ? 'Sentinel-2 (' + latest.month.slice(5) + '/' + latest.month.slice(0, 4) + ')' : 'Sentinel-2' %></span>

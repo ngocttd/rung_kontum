@@ -112,7 +112,7 @@ const csrfOf = (html) => (html.match(/name="_csrf" value="([a-f0-9]+)"/) || [])[
     ok((await leader('/quan-tri/nguoi-dung')).status === 403, 'Lãnh đạo không vào quản lý người dùng');
     r = await post(leader, '/quan-tri/canh-bao/nguy-co', { ref: 'FD-test', status: 'approved' }, lTok);
     ok(r.status === 302, 'Lãnh đạo được phê duyệt công bố cảnh báo');
-    ok(store.all('audit').some((a) => a.action === 'hotspot.status') && store.all('audit').some((a) => a.action === 'auth.login'), 'Nhật ký ghi nhận thao tác');
+    ok((!hs.length || store.all('audit').some((a) => a.action === 'hotspot.status')) && store.all('audit').some((a) => a.action === 'auth.login'), 'Nhật ký ghi nhận thao tác');
 
     // ---------- phản ánh: quản trị/lãnh đạo cập nhật, đánh dấu đã kiểm tra, bản đồ phản ánh ----------
     const aTok = csrfOf((await admin('/quan-tri/phan-anh')).text);

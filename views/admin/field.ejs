@@ -15,14 +15,14 @@
 <div class="grid" style="grid-template-columns:minmax(0,1fr) 380px">
   <section class="card"><div class="card-h"><h2><%- ic('geo-alt-fill') %> Nhiệm vụ hiện trường</h2><span class="more muted" style="font-weight:400">Mới giao → Đã nhận → Đang thực hiện → Đã nộp → Đã duyệt / Trả lại</span></div>
     <div class="card-b table-wrap"><% if (!assignments.length) { %><div class="empty-state">Chưa có nhiệm vụ. Giao nhiệm vụ từ khung bên phải hoặc từ trang Cảnh báo.</div><% } else { %>
-    <table class="tbl"><thead><tr><th>Mã</th><th>Loại</th><th>Nội dung</th><th>Địa bàn</th><th>Người thực hiện</th><th>Hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>
-      <% const pg = paginate(assignments, query.trang, 15); pg.items.forEach(a => { const c = communes.find(x => x.code === a.scope_id); %><tr>
+    <table class="tbl" data-page-size="15"><thead><tr><th>Mã</th><th>Loại</th><th>Nội dung</th><th>Địa bàn</th><th>Người thực hiện</th><th>Hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+      <% const pg = { items: assignments, offset: 0 }; pg.items.forEach(a => { const c = communes.find(x => x.code === a.scope_id); %><tr>
         <td><b><%= a.code %></b></td><td><%= KIND[a.kind] %></td><td><%= a.title %><% if (a.lat) { %><div class="src"><a href="/ban-do#<%= a.lon %>,<%= a.lat %>,14" target="_blank"><%= Number(a.lat).toFixed(4) %>, <%= Number(a.lon).toFixed(4) %></a></div><% } %></td>
         <td><%= c ? c.fullName : (a.scope_id || 'Toàn vùng') %></td><td><%= a.assignee_name || a.assignee || 'Cán bộ địa bàn nhận' %></td>
         <td><%= a.due_at ? fmt.dateTime(a.due_at) : '—' %><% if (a.overdue) { %><div class="src" style="color:#c0392b">Quá hạn</div><% } %></td>
         <td><span class="badge <%= aB[a.status] %>"><%= AS[a.status] %></span></td>
         <td><% if (can('tasks.assign') && !['approved','cancelled'].includes(a.status)) { %><form method="post" action="/quan-tri/hien-truong/<%= a.id %>/huy" onsubmit="return confirm('Huỷ nhiệm vụ <%= a.code %>?')"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm">Huỷ</button></form><% } %></td></tr><% }) %>
-    </tbody></table><%- include('../partials/pager', { pg }) %><% } %></div></section>
+    </tbody></table><% } %></div></section>
 
   <section class="card" id="giao"><div class="card-h"><h2><%- ic('plus-lg') %> Giao nhiệm vụ</h2></div>
     <div class="card-b"><% if (!can('tasks.assign')) { %><div class="note info">Giao nhiệm vụ do cán bộ chuyên môn hoặc lãnh đạo thực hiện.</div><% } else { %>
@@ -47,8 +47,8 @@
 <% if (tab === 'xac-minh') { %>
 <section class="card"><div class="card-h"><h2><%- ic('check-circle-fill') %> Kết quả xác minh từ MobileGIS</h2><span class="more muted" style="font-weight:400">Bản ghi xác minh là lịch sử bất biến; duyệt/trả lại tạo bản ghi duyệt riêng</span></div>
   <div class="card-b table-wrap"><% if (!verifications.length) { %><div class="empty-state">Chưa có kết quả xác minh.</div><% } else { %>
-  <table class="tbl"><thead><tr><th>Mã</th><th>Đối tượng</th><th>Kết luận</th><th>Mức độ / DT cháy</th><th>Kiến nghị</th><th>Người xác minh</th><th>GPS</th><th>Trạng thái</th><th>Duyệt</th></tr></thead><tbody>
-    <% const pg = paginate(verifications, query.trang, 15); pg.items.forEach(v => { %><tr>
+  <table class="tbl" data-page-size="15"><thead><tr><th>Mã</th><th>Đối tượng</th><th>Kết luận</th><th>Mức độ / DT cháy</th><th>Kiến nghị</th><th>Người xác minh</th><th>GPS</th><th>Trạng thái</th><th>Duyệt</th></tr></thead><tbody>
+    <% const pg = { items: verifications, offset: 0 }; pg.items.forEach(v => { %><tr>
       <td><b><%= v.code %></b><div class="src"><a href="/quan-tri/api/hien-truong/xac-minh/<%= v.id %>" target="_blank">Bằng chứng</a></div></td>
       <td><%= KIND[v.alert_kind] %><div class="src" style="word-break:break-all"><%= v.alert_id %></div></td>
       <td><b><%= v.verdict_label %></b><div class="src"><%= (v.evidence && v.evidence.description) || '' %></div></td>
@@ -57,15 +57,15 @@
       <td><%= v.lat ? `${Number(v.lat).toFixed(5)}, ${Number(v.lon).toFixed(5)}` : '—' %><div class="src"><%= v.gps_accuracy ? `±${Math.round(v.gps_accuracy)} m` : '' %> <%= v.evidence && v.evidence.location_source !== 'gps' ? '(chọn tay)' : '' %></div></td>
       <td><span class="badge <%= rB[v.review_status] %>"><%= { pending: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Trả lại' }[v.review_status] %></span></td>
       <td><% if (v.review_status === 'pending' && can('field.review')) { %><form method="post" action="/quan-tri/hien-truong/xac-minh/<%= v.id %>" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input class="input" name="note" placeholder="Ý kiến duyệt"><button class="btn btn-primary btn-sm" name="decision" value="approved">Duyệt</button><button class="btn btn-outline btn-sm" name="decision" value="rejected">Trả lại</button></form><% } else { %>—<% } %></td></tr><% }) %>
-  </tbody></table><%- include('../partials/pager', { pg }) %><% } %>
+  </tbody></table><% } %>
   <p class="src">Duyệt “Có cháy rừng” chuyển điểm nóng sang “Xác nhận cháy”; duyệt biến động “Xác nhận mất rừng / Rụng lá theo mùa” cập nhật trạng thái tương ứng. Không tự duyệt kết quả của chính mình.</p></div></section>
 <% } %>
 
 <% if (tab === 'khao-sat') { %>
 <section class="card"><div class="card-h"><h2><%- ic('tree-fill') %> Khảo sát, cập nhật hiện trạng rừng</h2></div>
   <div class="card-b table-wrap"><% if (!surveys.length) { %><div class="empty-state">Chưa có khảo sát.</div><% } else { %>
-  <table class="tbl"><thead><tr><th>Mã</th><th>Hình học</th><th>Loại rừng</th><th>Mùa / tán lá</th><th>Nguyên nhân biến động</th><th>Ghi chú</th><th>Người khảo sát</th><th>Trạng thái</th><th>Duyệt</th></tr></thead><tbody>
-    <% const pg = paginate(surveys, query.trang, 15); pg.items.forEach(s => { %><tr>
+  <table class="tbl" data-page-size="15"><thead><tr><th>Mã</th><th>Hình học</th><th>Loại rừng</th><th>Mùa / tán lá</th><th>Nguyên nhân biến động</th><th>Ghi chú</th><th>Người khảo sát</th><th>Trạng thái</th><th>Duyệt</th></tr></thead><tbody>
+    <% const pg = { items: surveys, offset: 0 }; pg.items.forEach(s => { %><tr>
       <td><b><%= s.code %></b></td><td><%= { point: 'Điểm', line: 'Đường', polygon: 'Vùng' }[s.geom_type] %><div class="src"><%= s.area_ha ? `${Number(s.area_ha).toFixed(2)} ha` : s.length_m ? `${Math.round(s.length_m)} m` : '' %> <%= s.gps_accuracy ? `· ±${Math.round(s.gps_accuracy)} m` : '' %></div></td>
       <td><%= s.forest_type_label || '—' %><% if (s.is_dipterocarp) { %> <span class="badge b-yellow">Rừng khộp</span><% } %></td>
       <td><%= s.season === 'dry' ? 'Mùa khô' : 'Mùa mưa' %> / <%= { full: 'đủ lá', partial: 'rụng một phần', leafless: 'rụng hết lá', unknown: 'không rõ' }[s.leaf_state] || '—' %></td>
@@ -73,7 +73,7 @@
       <td><%= s.surveyor %><div class="src"><%= fmt.dateTime(s.observed_at) %></div></td>
       <td><span class="badge <%= rB[s.status] %>"><%= { pending_review: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Từ chối' }[s.status] %></span></td>
       <td><% if (s.status === 'pending_review' && can('field.review')) { %><form method="post" action="/quan-tri/hien-truong/khao-sat/<%= s.id %>" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input class="input" name="note" placeholder="Ý kiến"><button class="btn btn-primary btn-sm" name="decision" value="approved">Chấp thuận</button><button class="btn btn-outline btn-sm" name="decision" value="rejected">Từ chối</button></form><% } else { %><%= s.review_note || '—' %><% } %></td></tr><% }) %>
-  </tbody></table><%- include('../partials/pager', { pg }) %><% } %>
+  </tbody></table><% } %>
   <p class="src">Rừng khộp khảo sát mùa khô: hệ thống tự ghi chú “chưa đủ căn cứ kết luận mất rừng” nếu chỉ dựa vào tán lá/NDVI thấp. Mỗi lần chỉnh sửa lưu lịch sử phiên bản.</p></div></section>
 <% } %>
 

@@ -3,7 +3,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
 import '../../core/data.dart';
@@ -13,6 +12,7 @@ import '../../core/session.dart';
 import '../../widgets/common.dart';
 import '../../widgets/items.dart';
 import '../map/map_page.dart';
+import '../map/route_page.dart';
 import 'verification_page.dart';
 
 /// M15 – Chi tiết nhiệm vụ: đối tượng cần xác minh, vị trí, hạn; nhận / bắt đầu; mở biểu mẫu xác minh / khảo sát.
@@ -73,7 +73,7 @@ class TaskDetailPage extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               Row(children: [
-                Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.directions), label: const Text('Chỉ đường'), onPressed: () => launchUrl(Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${pt.latitude},${pt.longitude}'), mode: LaunchMode.externalApplication))),
+                Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.directions), label: const Text('Chỉ đường'), onPressed: () => context.push('/route', extra: RouteArgs(pt, title: (a['title'] ?? 'Nhiệm vụ').toString())))),
                 const SizedBox(width: 8),
                 Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.map_outlined), label: const Text('Mở bản đồ'), onPressed: () => context.go('/map', extra: MapFocus(pt, zoom: 15)))),
               ]),

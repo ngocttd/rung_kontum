@@ -1,0 +1,27 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<main class="container page" style="max-width:640px">
+  <div class="crumbs"><a href="/"><%- ic('house-fill') %></a> › <span>Đăng ký tài khoản</span></div>
+  <form class="card" method="post" action="/dang-ky" style="margin-top:10px" autocomplete="on">
+    <div class="card-h"><h2><%- ic('person-plus-fill') %> Đăng ký tài khoản người dân</h2></div>
+    <div class="card-b grid" style="gap:10px">
+      <p class="src" style="margin:0">Tài khoản dùng chung cho trang web và ứng dụng <b>MobileGIS</b>: theo dõi phản ánh đã gửi, nhận thông báo xử lý, gửi bình luận tin bài. Cần số điện thoại <b>hoặc</b> email để đăng nhập.</p>
+      <% if (error) { %><div class="flash error"><%= error %></div><% } %>
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="next" value="<%= next %>">
+      <div style="position:absolute;left:-5000px" aria-hidden="true"><input name="website" tabindex="-1" autocomplete="off"></div>
+      <label class="field"><span>Họ và tên *</span><input class="input" name="name" required maxlength="120" value="<%= form.name || '' %>" autocomplete="name"></label>
+      <div class="grid cols-2" style="gap:10px">
+        <label class="field"><span>Số điện thoại</span><input class="input" name="phone" inputmode="tel" value="<%= form.phone || '' %>" placeholder="0912345678" autocomplete="tel"></label>
+        <label class="field"><span>Email</span><input class="input" type="email" name="email" value="<%= form.email || '' %>" autocomplete="email"></label>
+      </div>
+      <div class="grid cols-2" style="gap:10px">
+        <label class="field"><span>Mật khẩu * (≥ 8 ký tự)</span><input class="input" type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+        <label class="field"><span>Nhập lại mật khẩu *</span><input class="input" type="password" name="password2" required minlength="8" autocomplete="new-password"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="agree" value="1" required> Tôi đồng ý cung cấp thông tin chính xác; thông tin liên hệ chỉ cán bộ xử lý phản ánh được xem.</label>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn btn-primary"><%- ic('person-plus-fill') %> Đăng ký</button><span class="src">Đã có tài khoản? <a href="/dang-nhap?next=<%= encodeURIComponent(next) %>">Đăng nhập</a></span></div>
+    </div>
+  </form>
+</main>
+<%- include('../partials/footer') %>
+</body></html>

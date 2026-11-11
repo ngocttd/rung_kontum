@@ -5,14 +5,15 @@
   const risk = fcg.forecast.risk_by_commune;
   const highHa = Object.values(risk).filter(Boolean).reduce((a, r) => a + r.high_risk_ha, 0);
   const expHa = Object.values(risk).filter(Boolean).reduce((a, r) => a + r.expected_loss_ha, 0);
-  const wet = fcg.candidates.windows[0], dry = fcg.candidates.windows[1];
+  const wins = fcg.candidates.windows || []; const candN = wins.reduce((a, w) => a + w.candidates, 0); const candHa = wins.reduce((a, w) => a + w.area_ha, 0);
+  const lm = fcg.candidates.latest_month; const lmLabel = lm ? lm.slice(5) + '/' + lm.slice(0, 4) : '';
   const ov = Object.fromEntries(overlays.map(o => [o.id, o]));
   const statusBadge = { unverified: 'b-red', verifying: 'b-orange', confirmed: 'b-purple', rejected: 'b-gray', seasonal: 'b-yellow' };
 %>
 <%- include('../partials/banner', { banner: 'p03-forest', heading: 'Biến động và dự báo mất rừng', crumb: 'Tài nguyên rừng › Biến động và dự báo',
   lead: 'Phát hiện biến động nghi vấn từ chuỗi ảnh Sentinel-2, lịch sử mất tán cây 2001–2024 và bản đồ dự báo nguy cơ mất rừng giai đoạn 2025–2026 có kiểm định.',
   kpis: [
-    { icon: 'exclamation-triangle-fill', value: String(wet.candidates + dry.candidates), label: 'Vùng biến động nghi vấn 2026', tone: 'warn', sub: fmt.num(wet.area_ha + dry.area_ha) + ' ha · chưa xác minh' },
+    { icon: 'exclamation-triangle-fill', value: String(candN), label: 'Vùng biến động nghi vấn' + (lmLabel ? ' (ảnh đến ' + lmLabel + ')' : ''), tone: 'warn', sub: fmt.num(candHa) + ' ha · ' + wins.length + ' kỳ so sánh · chưa xác minh' },
     { icon: 'graph-up-arrow', value: fmt.num(highHa) + ' ha', label: 'Rừng nguy cơ cao/rất cao', tone: 'fire', sub: 'dự báo 2025–2026' },
     { icon: 'tree-fill', value: fmt.num(fcg.history.aoi_annual_loss_ha['2024']) + ' ha', label: 'Mất tán cây năm 2024', tone: 'green', sub: 'Hansen GFC v1.12' },
     { icon: 'check-circle-fill', value: 'AUC ' + fmt.num(fv.auc, 2), label: 'Kiểm định mô hình 2023–2024', tone: 'blue', sub: '10% ô nguy cơ cao nhất chứa ' + fmt.num(fv.top10pct_capture * 100, 0) + '% diện tích mất' },
@@ -35,7 +36,7 @@
     <section class="card">
       <div class="card-h"><h2><%- ic('map-fill') %> Bản đồ biến động và nguy cơ mất rừng</h2>
         <div class="seg" style="margin-left:auto" id="mode">
-          <button class="on" data-mode="risk">Dự báo nguy cơ</button><button data-mode="loss">Mất tán cây</button><button data-mode="cand">Nghi vấn 2026</button><button data-mode="lc">1991–2023</button><button data-mode="img">Ảnh vệ tinh</button>
+          <button class="on" data-mode="risk">Dự báo nguy cơ</button><button data-mode="loss">Mất tán cây</button><button data-mode="cand">Biến động mới</button><button data-mode="lc">1991–2023</button><button data-mode="img">Ảnh vệ tinh</button>
         </div></div>
       <div class="map-shell" style="height:590px;border-radius:0 0 10px 10px">
         <div id="map" class="map"></div>

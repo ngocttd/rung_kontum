@@ -43,7 +43,7 @@
       <img class="ai-ic" src="/assets/symbols/change-suspected.svg" alt="">
       <div class="ai-b"><span class="ai-t">${KT.esc(c.commune_name || 'Ngoài ranh xã')} · ${KT.num(c.area_ha)} ha</span>
       <span class="ai-d">ΔNDVI ${c.mean_dndvi} · ${KT.esc(c.window.split(' ')[0])}</span>
-      <div class="meta"><span class="badge ${P.statusBadge[c.status]}">${KT.esc(c.statusLabel)}</span>${c.seasonal_leaf_fall_possible ? '<span class="badge b-yellow">mùa khô</span>' : ''}</div></div></div>`).join('')
+      <div class="meta"><span class="badge ${P.statusBadge[c.status]}">${KT.esc(c.statusLabel)}</span>${c.seasonal_leaf_fall_possible ? '<span class="badge b-yellow">mùa khô</span>' : ''}${c.low_confidence ? '<span class="badge b-gray" title="Chỉ có 1 năm ảnh đối chứng cùng kỳ">đối chứng 1 năm</span>' : ''}</div></div></div>`).join('')
       || '<div class="empty-state">Không có vùng phù hợp bộ lọc.</div>';
   }
   fWin.addEventListener('change', renderList); fSt.addEventListener('change', renderList);
@@ -70,12 +70,12 @@
   const legend = document.getElementById('legend');
   P.overlays.forEach((o) => v.define(`ov-${o.id}`, { ...KT.layers.overlay(o), visible: o.id === 'forest-loss-risk' }));
   v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province()).define('candidates', { ...KT.layers.candidates(), visible: true });
-  const MODES = { risk: ['forest-loss-risk'], loss: ['hansen-loss'], cand: [], img: ['s2-2025-wet-true'], lc: ['lc-forest-change-1991-2023'] };
+  const MODES = { risk: ['forest-loss-risk'], loss: ['hansen-loss'], cand: ['change-latest'], img: ['s2-2025-wet-true'], lc: ['lc-forest-change-1991-2023'] };
   function setMode(m) {
     document.querySelectorAll('#mode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
     P.overlays.forEach((o) => v.setVisible(`ov-${o.id}`, MODES[m].includes(o.id)));
     const ovs = P.overlays.filter((o) => MODES[m].includes(o.id));
-    legend.innerHTML = ovs.map((o) => KT.overlayLegendHtml(o)).join('') + '<div style="margin-top:8px"><h4>Biến động nghi vấn 2026</h4><div class="row"><span class="sw" style="background:#ff3d7f"></span>Chưa xác minh</div><div class="row"><span class="sw" style="background:#b81725"></span>Xác nhận mất rừng</div></div>';
+    legend.innerHTML = ovs.map((o) => KT.overlayLegendHtml(o)).join('') + '<div style="margin-top:8px"><h4>Vùng biến động nghi vấn</h4><div class="row"><span class="sw" style="background:#ff3d7f"></span>Chưa xác minh</div><div class="row"><span class="sw" style="background:#b81725"></span>Xác nhận mất rừng</div></div>';
   }
   setMode('risk');
   document.getElementById('mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });

@@ -1,0 +1,37 @@
+<%- include('../partials/head', { needsMap: true }) %>
+<%- include('../partials/header') %>
+<%- include('../partials/banner', { banner: 'p03-forest', heading: 'So sánh ảnh vệ tinh', crumb: 'Bản đồ › So sánh ảnh vệ tinh',
+  lead: 'Kéo thanh trượt để so sánh hai thời điểm hoặc hai sản phẩm ảnh (màu tự nhiên, giả màu hồng ngoại, NDVI, lớp phủ, phân loại) trên cùng khu vực.' }) %>
+<% const ml = (m) => m.slice(5) + '/' + m.slice(0, 4);
+   const opts = [];
+   months.slice().reverse().forEach(m => Object.entries(modes).forEach(([k, l]) => opts.push({ v: 'm:' + m + ':' + k, l: 'Sentinel-2 ' + ml(m) + ' – ' + l, g: 'Ảnh tháng Sentinel-2 (100 m)' })));
+   overlays.filter(o => /^(s2-|ndvi-|lc-|worldcover|class-|ndmi|lst)/.test(o.id) && o.id !== 's2-latest').forEach(o => opts.push({ v: 'o:' + o.id, l: o.title, g: o.group === 'class' ? 'Phân loại ảnh (đã công bố)' : 'Sản phẩm ảnh khác' }));
+   const groups = [...new Set(opts.map(o => o.g))];
+   const sel = (side, def) => `<select class="input" id="cmp-${side}">${groups.map(g => `<optgroup label="${g}">${opts.filter(o => o.g === g).map(o => `<option value="${o.v}" ${o.v === def ? 'selected' : ''}>${o.l}</option>`).join('')}</optgroup>`).join('')}</select>`;
+   const last = months[months.length - 1]; const prevYear = last ? (Number(last.slice(0, 4)) - 1) + last.slice(4) : null;
+   const defL = months.includes(prevYear) ? 'm:' + prevYear + ':true' : 'm:' + months[0] + ':true'; const defR = 'm:' + last + ':true'; %>
+<main class="container page">
+  <section class="card">
+    <div class="card-h cmp-bar">
+      <h2><%- ic('layout-split') %> So sánh</h2>
+      <div class="cmp-ctl">
+        <label><span class="src">Bên trái</span><%- sel('left', defL) %></label>
+        <label><span class="src">Bên phải</span><%- sel('right', defR) %></label>
+        <button class="btn btn-outline btn-sm" type="button" id="cmp-swap" title="Đổi bên"><%- ic('arrow-down-up') %></button>
+        <a class="btn btn-outline btn-sm" id="cmp-dl" href="#" download><%- ic('download') %> Tải ảnh bên phải</a>
+      </div>
+    </div>
+    <div class="cmp-shell" id="cmp-shell">
+      <div id="map-left" class="map cmp-map"></div>
+      <div id="map-right" class="map cmp-map cmp-top"></div>
+      <div class="cmp-handle" id="cmp-handle" role="slider" aria-label="Vị trí thanh so sánh" tabindex="0"><span><%- ic('chevron-left') %><%- ic('chevron-right') %></span></div>
+      <div class="cmp-tag left" id="tag-left"></div><div class="cmp-tag right" id="tag-right"></div>
+    </div>
+    <div class="card-f src">Ảnh Sentinel-2 SR Harmonized (Copernicus, qua Google Earth Engine) – tổ hợp median tháng, lọc mây; vùng trống là pixel bị mây che cả tháng. Ảnh tháng được dựng khi chọn lần đầu (vài giây). Cán bộ tải GeoTIFF gốc ở mục Quản trị › Ảnh vệ tinh.</div>
+  </section>
+</main>
+<%- include('../partials/footer') %>
+<%- include('../partials/mapjs') %>
+<%- include('../partials/page-data', { pageData: { overlays: overlays.filter(o => /^(s2-|ndvi-|lc-|worldcover|class-|ndmi|lst)/.test(o.id)), bounds: [[107.33, 15.43], [108.56, 15.43], [108.56, 13.91], [107.33, 13.91]] } }) %>
+<script src="/js/pages/compare.js"></script>
+</body></html>

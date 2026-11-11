@@ -11,24 +11,24 @@ const store = require('../data/store');
 const JOBS = {
   'update-forecast': {
     title: 'Cập nhật khí tượng Open-Meteo và chỉ số nguy cơ cháy (P Nesterov, FWI)',
-    steps: [{ script: 'collect_openmeteo.py', optional: true }, { script: 'tag_hotspots.py' }, { script: 'build_fire_danger.py' }],
-    db: ['hotspots', 'danger'], every: 3, note: 'Dự báo thời tiết theo giờ thay đổi nhiều lần mỗi ngày',
+    steps: [{ script: 'collect_openmeteo.py', optional: true }, { script: 'tag_hotspots.py' }, { script: 'build_fire_danger.py' }, { script: 'build_env_layers.py' }, { script: 'to_webp.cjs' }],
+    db: ['hotspots', 'danger'], every: 3, note: 'Dự báo thời tiết theo giờ thay đổi nhiều lần mỗi ngày; dựng lại bản đồ nhiệt độ, mưa, gió hôm nay',
   },
   'update-era5': {
     title: 'Cập nhật tái phân tích ERA5-Land (GEE) và tính lại chuỗi nguy cơ cháy',
-    steps: [{ script: 'collect_hourly_weather.py', optional: true, timeout: 90 }, { script: 'prepare_forecast_inputs.py' }, { script: 'build_fire_danger.py' }],
-    db: ['danger'], every: 24, note: 'ERA5-Land có độ trễ khoảng 5 ngày, cập nhật 1 lần/ngày là đủ',
+    steps: [{ script: 'collect_hourly_weather.py', optional: true, timeout: 90 }, { script: 'collect_lst.py', optional: true, timeout: 30 }, { script: 'prepare_forecast_inputs.py' }, { script: 'build_fire_danger.py' }, { script: 'build_env_layers.py' }, { script: 'to_webp.cjs' }],
+    db: ['danger'], every: 24, note: 'ERA5-Land có độ trễ khoảng 5 ngày, cập nhật 1 lần/ngày là đủ; kèm nhiệt độ bề mặt MODIS (LST 8 ngày) và bản đồ thời tiết ngày gần nhất',
   },
   'forest-change': {
-    title: 'Ảnh Sentinel-2 tháng mới, biến động nghi vấn và dự báo nguy cơ mất rừng',
-    steps: [{ script: 'collect_monitoring_series.py', optional: true, timeout: 120 }, { script: 'build_forest_change.py', timeout: 120 }, { script: 'build_latest_overlay.py' }, { script: 'to_webp.cjs' }],
+    title: 'Ảnh Sentinel-2 tháng mới → phân tích biến động rừng → công bố lớp bản đồ; dự báo nguy cơ mất rừng',
+    steps: [{ script: 'collect_monitoring_series.py', optional: true, timeout: 120 }, { script: 'build_forest_change.py', timeout: 120 }, { script: 'build_latest_overlay.py' }, { script: 'build_env_layers.py' }, { script: 'to_webp.cjs' }],
     // ảnh quang học hay bị mây: không đặt chu kỳ ngày/tuần; chạy theo lịch tháng/quý khi ảnh tổng hợp kỳ trước đã đủ
     db: ['change'], every: 720, periods: [720, 2160], calendar: { day: 5, hour: 2 },
-    note: 'Ảnh Sentinel-2 tổng hợp theo tháng, hay bị mây che: chạy theo tháng hoặc quý (ngày 5, lúc 02:00) khi ảnh kỳ trước đã đủ',
+    note: 'Tải ảnh Sentinel-2 tháng mới (GEE), phân tích biến động NDVI/NBR cho mọi kỳ có ≥ 2 tháng ảnh so với cùng kỳ 1–2 năm trước, xuất vùng nghi vấn + lớp “Biến động NDVI” lên Bản đồ WebGIS. Ảnh hay bị mây nên chạy theo tháng/quý (ngày 5, 02:00)',
   },
   'web-data': {
     title: 'Dựng lại lớp ảnh bản đồ, ranh giới và danh mục tài liệu',
-    steps: [{ script: 'build_web_data.py' }, { script: 'build_latest_overlay.py' }, { script: 'to_webp.cjs' }, { script: 'build_tiles.py', timeout: 60 }],
+    steps: [{ script: 'build_web_data.py' }, { script: 'build_latest_overlay.py' }, { script: 'build_env_layers.py' }, { script: 'to_webp.cjs' }, { script: 'build_tiles.py', timeout: 60 }],
     db: ['boundaries', 'statistics'], every: 0, note: 'Chạy khi dữ liệu nền thay đổi',
   },
 };
@@ -79,6 +79,9 @@ async function run(key, user, { trigger = 'manual' } = {}) {
     if (ok && def.db && require('../db/pool').enabled) {
       log.push(`$ đồng bộ PostGIS: ${def.db.join(', ')}`);
       try { log.push(JSON.stringify(await require('../db/sync').run(def.db))); } catch (e) { ok = false; log.push(`! DB: ${e.message}`); }
+    }
+    if (ok && key === 'forest-change') {
+      try { const runs = require('./changeRuns'); runs.auto.onGenerated(); log.push(runs.auto.state().mode === 'auto' ? '→ Đã công bố kết quả biến động (chế độ tự động)' : '→ Kết quả biến động mới đang CHỜ DUYỆT công bố (Quản trị → Phân tích → Kết quả phân tích tự động)'); } catch (e) { log.push(`! công bố: ${e.message}`); }
     }
     store.update('jobs', job.id, { status: ok ? 'succeeded' : 'failed', finished_at: store.now(), duration_s: Math.round((Date.now() - t0) / 1000), warnings, log: log.slice(-200) });
     current = null;

@@ -1,12 +1,16 @@
 <%- include('_top') %>
 <section class="card">
   <div class="card-h"><h2><%- ic('file-earmark-pdf-fill') %> Tài liệu và bản đồ PDF</h2></div>
-  <div class="card-b table-wrap"><table class="tbl"><thead><tr><th></th><th>Tên tài liệu</th><th>Loại</th><th>Số hiệu</th><th>Ngày ban hành</th><th>Cơ quan</th><th>Dung lượng</th><th>Nguồn</th><th></th></tr></thead><tbody>
-    <% const pg = paginate(docs, query.trang, 15); pg.items.forEach(d => { %><tr><td><% if (d.thumbnail) { %><img src="<%= d.thumbnail %>" alt="" style="width:40px;height:52px;object-fit:cover;border:1px solid var(--line)"><% } else { %><img src="/assets/icons/colored/<%= d.type === 'xlsx' ? 'excel' : 'pdf' %>.svg" width="32" alt=""><% } %></td>
+  <div class="card-b table-wrap"><table class="tbl" data-page-size="15"><thead><tr><th></th><th>Tên tài liệu</th><th>Loại</th><th>Số hiệu</th><th>Ngày ban hành</th><th>Cơ quan</th><th>Dung lượng</th><th>Nguồn</th><th></th></tr></thead><tbody>
+    <% const pg = { items: docs, offset: 0 }; pg.items.forEach(d => { %><tr><td><% if (d.thumbnail) { %><img src="<%= d.thumbnail %>" alt="" style="width:40px;height:52px;object-fit:cover;border:1px solid var(--line)"><% } else { %><img src="/assets/icons/colored/<%= d.type === 'xlsx' ? 'excel' : 'pdf' %>.svg" width="32" alt=""><% } %></td>
       <td><a href="/tai-lieu?id=<%= d.id %>" target="_blank"><%= d.title %></a></td><td><%= d.categoryLabel %></td><td><%= d.number || '—' %></td><td><%= d.issued ? fmt.ymd(d.issued) : '—' %></td><td><%= d.issuer || '—' %></td><td><%= fmt.bytes(d.bytes) %></td>
       <td class="src"><%= d.origin === 'upload' ? 'Tải lên bởi ' + d.uploaded_by : 'Thu thập từ cổng công khai' %></td>
-      <td><% if (d.origin === 'upload' && can('docs.manage')) { %><form method="post" action="/quan-tri/tai-lieu/<%= d.id %>/xoa"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" onclick="return confirm('Gỡ tài liệu?')"><%- ic('trash-fill') %></button></form><% } %></td></tr><% }) %>
-  </tbody></table><%- include('../partials/pager', { pg: pg }) %></div>
+      <td><% if (d.origin === 'upload' && can('docs.manage')) { %><form method="post" action="/quan-tri/tai-lieu/<%= d.id %>/xoa"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" onclick="return confirm('Gỡ tài liệu?')"><%- ic('trash-fill') %></button></form>
+        <details class="row-edit"><summary class="src"><%- ic('pencil-fill') %> Sửa</summary><form method="post" action="/quan-tri/tai-lieu/<%= d.id %>/sua" class="grid" style="gap:6px;margin-top:6px;min-width:240px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+          <input class="input" name="title" value="<%= d.title %>" required><select class="input" name="category"><% Object.entries(categories).forEach(([k, l]) => { %><option value="<%= k %>" <%= d.category === k ? 'selected' : '' %>><%= l %></option><% }) %></select>
+          <input class="input" name="number" value="<%= d.number || '' %>" placeholder="Số hiệu"><input class="input" type="date" name="issued" value="<%= d.issued || '' %>"><input class="input" name="issuer" value="<%= d.issuer || '' %>" placeholder="Cơ quan ban hành">
+          <textarea class="input" name="description" rows="2" placeholder="Mô tả"><%= d.description || '' %></textarea><button class="btn btn-primary btn-sm">Lưu</button></form></details><% } %></td></tr><% }) %>
+  </tbody></table></div>
 </section>
 <% if (can('docs.manage')) { %>
 <form class="card" style="margin-top:16px" method="post" action="/quan-tri/tai-lieu/tai-len" enctype="multipart/form-data">

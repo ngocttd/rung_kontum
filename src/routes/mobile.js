@@ -70,6 +70,8 @@ r.post('/auth/forgot', rateLimit('m-forgot', 5, 3600e3), (req, res) => {
   res.json({ ok: true, message: 'Yêu cầu đã được ghi nhận. Vui lòng liên hệ Hạt Kiểm lâm/Sở NN&MT để được cấp lại mật khẩu (cán bộ) hoặc gọi đường dây nóng (người dân).' });
 });
 r.get('/me', requireAuth(), (req, res) => res.json(auth.publicUser(store.get('users', req.auth.sub))));
+// phiên bản ứng dụng mới nhất (?current=x.y.z): update = có bản mới, force = bản đang dùng thấp hơn mức tối thiểu
+r.get('/app-version', (req, res) => res.json(require('../services/appRelease').check(req.query.current)));
 
 // ---------- bootstrap: config, permissions, catalogs ----------
 r.get('/bootstrap', optionalAuth, (req, res) => {

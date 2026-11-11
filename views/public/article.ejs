@@ -13,6 +13,20 @@
       <div class="body"><% String(a.body).split(/\n+/).forEach(p => { %><p><%= p %></p><% }) %></div>
       <% if (a.source_url) { %><p class="src">Nguồn tham khảo: <a href="<%= a.source_url %>" target="_blank" rel="noopener"><%= a.source_url %></a><%= a.source_date ? ' · ' + fmt.ymd(a.source_date) : '' %></p><% } %>
       <div style="display:flex;gap:8px;margin-top:14px"><a class="btn btn-outline btn-sm" href="/tin-tuc"><%- ic('chevron-left') %> Danh sách tin</a><button class="btn btn-outline btn-sm" onclick="navigator.share ? navigator.share({ title: document.title, url: location.href }) : navigator.clipboard.writeText(location.href)"><%- ic('share-fill') %> Chia sẻ</button></div>
+      <section id="binh-luan" style="margin-top:22px;border-top:1px solid var(--line);padding-top:14px">
+        <h2 style="font-size:17px"><%- ic('chat-dots-fill') %> Bình luận (<%= comments.length %>)</h2>
+        <% if (sent) { %><div class="flash ok">Cảm ơn bạn! Bình luận sẽ hiển thị sau khi được biên tập viên duyệt.</div><% } %>
+        <% if (!comments.length) { %><p class="muted">Chưa có bình luận nào.</p><% } %>
+        <% comments.forEach(c => { %><div class="comment"><div class="c-h"><b><%= c.name %></b><% if (c.user_id) { %> <span class="badge b-green" title="Người dùng có tài khoản">đã xác thực</span><% } %><span class="src"><%= fmt.dateTime(c.created_at) %></span></div><div class="c-b"><% c.body.split(/\n+/).forEach(p => { %><p><%= p %></p><% }) %></div></div><% }) %>
+        <% if (a.status === 'published') { %>
+        <form method="post" action="/tin-tuc/<%= a.slug %>/binh-luan" class="grid" style="gap:8px;margin-top:12px">
+          <input type="hidden" name="_csrf" value="<%= csrf %>"><div style="position:absolute;left:-5000px" aria-hidden="true"><input name="website" tabindex="-1" autocomplete="off"></div>
+          <% if (citizen) { %><p class="src" style="margin:0">Bình luận với tên <b><%= citizen.name %></b> (<a href="/tai-khoan">tài khoản</a>)</p><% } else { %>
+          <label class="field"><span>Họ tên *</span><input class="input" name="name" required minlength="2" maxlength="80"></label><p class="src" style="margin:0"><a href="/dang-nhap?next=/tin-tuc/<%= a.slug %>%23binh-luan">Đăng nhập</a> hoặc <a href="/dang-ky?next=/tin-tuc/<%= a.slug %>%23binh-luan">đăng ký</a> để bình luận bằng tài khoản.</p><% } %>
+          <label class="field"><span>Nội dung *</span><textarea class="input" name="body" rows="3" required minlength="5" maxlength="1000" placeholder="Ý kiến của bạn (bình luận được duyệt trước khi hiển thị)"></textarea></label>
+          <div><button class="btn btn-primary btn-sm"><%- ic('send-fill') %> Gửi bình luận</button></div>
+        </form><% } %>
+      </section>
     </article>
     <aside class="card">
       <div class="card-h"><h2><%- ic('newspaper') %> Tin liên quan</h2></div>

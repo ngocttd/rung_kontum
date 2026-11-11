@@ -1,0 +1,19 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<main class="container page" style="max-width:560px">
+  <div class="crumbs"><a href="/"><%- ic('house-fill') %></a> › <span>Đăng nhập</span></div>
+  <form class="card" method="post" action="/dang-nhap" style="margin-top:10px">
+    <div class="card-h"><h2><%- ic('box-arrow-in-right') %> Đăng nhập tài khoản người dân</h2></div>
+    <div class="card-b grid" style="gap:10px">
+      <% if (error) { %><div class="flash error"><%= error %><% if (typeof staff !== 'undefined' && staff) { %> <a href="/quan-tri/dang-nhap">Mở trang đăng nhập quản trị</a><% } %></div><% } %>
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="next" value="<%= next %>">
+      <label class="field"><span>Số điện thoại hoặc email</span><input class="input" name="username" required value="<%= username %>" autocomplete="username"></label>
+      <label class="field"><span>Mật khẩu</span><input class="input" type="password" name="password" required autocomplete="current-password"></label>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn btn-primary"><%- ic('box-arrow-in-right') %> Đăng nhập</button>
+        <span class="src">Chưa có tài khoản? <a href="/dang-ky?next=<%= encodeURIComponent(next) %>">Đăng ký</a></span></div>
+      <p class="src" style="margin:4px 0 0">Cán bộ quản lý, lãnh đạo, quản trị hệ thống: <a href="/quan-tri/dang-nhap">đăng nhập trang Quản trị</a>. Có thể gửi phản ánh mà không cần tài khoản.</p>
+    </div>
+  </form>
+</main>
+<%- include('../partials/footer') %>
+</body></html>

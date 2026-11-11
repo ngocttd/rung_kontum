@@ -39,7 +39,7 @@ async function savePhotos(files) {
   return out;
 }
 
-async function create(input, files) {
+async function create(input, files, user) {
   const lat = Number(input.lat); const lon = Number(input.lon);
   const commune = Number.isFinite(lat) && Number.isFinite(lon) ? repo.communeAt(lon, lat) : null;
   const photos = await savePhotos(files);
@@ -50,7 +50,7 @@ async function create(input, files) {
     commune_code: commune ? commune.code : null, commune_name: commune ? commune.fullName : null,
     observed_at: input.observed_at || null,
     reporter: { name: String(input.name || '').slice(0, 120), phone: String(input.phone || '').slice(0, 30), email: String(input.email || '').slice(0, 120) },
-    photos, status: 'received', public: false, public_photos: false, assigned_to: null, response: null,
+    photos, status: 'received', public: false, public_photos: false, assigned_to: null, response: null, created_by: user ? user.id : null, source: user ? 'web-account' : 'web',
     timeline: [{ at: store.now(), status: 'received', note: 'Hệ thống tiếp nhận phản ánh', by: 'system' }],
   });
   return row;
@@ -58,6 +58,17 @@ async function create(input, files) {
 
 function decorate(r) {
   return { ...r, typeLabel: TYPES[r.type].label, marker: TYPES[r.type].marker, statusLabel: STATUS[r.status].label, statusTone: STATUS[r.status].tone };
+}
+
+// Số phản ánh khác (người gửi khác) trong bán kính SAME_M và ±SAME_DAYS ngày – giúp cán bộ thấy nhiều người cùng báo một sự việc.
+const SAME_M = 500; const SAME_DAYS = 14;
+function sameLocation(r) {
+  if (r.lat === null || r.lon === null || r.lat === undefined) return { count: 0, codes: [] };
+  const t = new Date(r.created_at).getTime(); const k = Math.cos((r.lat * Math.PI) / 180);
+  const near = store.filter('reports', (x) => x.id !== r.id && x.lat !== null && x.lat !== undefined && Math.abs(new Date(x.created_at).getTime() - t) <= SAME_DAYS * 864e5
+    && Math.hypot((x.lon - r.lon) * 111320 * k, (x.lat - r.lat) * 110574) <= SAME_M
+    && !(x.created_by && x.created_by === r.created_by) && !(x.reporter && r.reporter && x.reporter.phone && x.reporter.phone === r.reporter.phone));
+  return { count: near.length, codes: near.map((x) => x.code), radius_m: SAME_M, days: SAME_DAYS };
 }
 
 // Public view: no reporter data, coordinates rounded to ~1 km, internal notes removed.
@@ -69,6 +80,7 @@ function publicView(r) {
     lat: d.lat !== null ? Math.round(d.lat * 100) / 100 : null, lon: d.lon !== null ? Math.round(d.lon * 100) / 100 : null,
     photos: d.public_photos ? d.photos.map((p) => `/phan-anh/anh/${p}`) : [], response: d.response,
     timeline: d.timeline.map((t) => ({ at: t.at, status: t.status, label: STATUS[t.status] ? STATUS[t.status].label : t.status, note: t.public_note || null })),
+    same_location_count: sameLocation(r).count,
   };
 }
 
@@ -85,4 +97,4 @@ function counts() {
   return { total: all.length, public: all.filter((r) => r.public).length, open: all.filter((r) => ['received', 'verifying', 'processing'].includes(r.status)).length, byType };
 }
 
-module.exports = { TYPES, STATUS, create, decorate, publicView, listPublic, byCode, counts, PHOTO_DIR };
+module.exports = { TYPES, STATUS, create, decorate, publicView, listPublic, byCode, counts, sameLocation, PHOTO_DIR };

@@ -28,6 +28,8 @@ const mobileWeb = path.join(__dirname, 'mobile', 'build', 'web');
 if (require('fs').existsSync(mobileWeb)) app.use('/mobile-app', express.static(mobileWeb, { maxAge: 0 }));
 // XYZ tiles outside the data are not written (scripts/make_tiles.py): answer 204 so the map draws nothing
 app.get(/^\/tiles\/[\w-]+\/\d+\/\d+\/\d+\.png$/, (req, res) => res.set('Cache-Control', 'public, max-age=86400').status(204).end());
+// API quản lý lớp (Bearer token, JSON đến 25 MB) – gắn trước bộ đọc body 200 kB chung
+app.use('/api/v1', require('./src/routes/api-v1').router);
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use(express.json({ limit: '200kb' }));
 // Sessions live outside synced folders (OneDrive locks files during rename).
@@ -47,6 +49,7 @@ app.use((req, res, next) => {
   res.locals.paginate = require('./src/lib/paginate').paginate;
   res.locals.pageUrl = (n, key = 'trang') => { const u = new URL(req.originalUrl, 'http://x'); u.searchParams.set(key, n); return u.pathname + u.search; };
   res.locals.user = req.session.user || null;
+  res.locals.citizen = req.session.citizen || null;
   res.locals.can = (perm) => security.can(req.session.user, perm);
   res.locals.mapboxToken = config.mapboxToken;
   res.locals.path = req.path;
@@ -94,6 +97,7 @@ if (require.main === module) {
     firms.start();
     maps.start();
     jobs.startScheduler();
+    require('./src/services/changeRuns').start(); // phân tích biến động theo yêu cầu + kiểm soát công bố kết quả tự động
     require('./src/services/notifier').start();
     // HOST=127.0.0.1 khi chạy sau reverse proxy (Caddy) trên VPS – không mở cổng 3000 ra ngoài
     const server = app.listen(config.port, config.host, () => console.log(`WebGIS rừng Kon Tum: http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`));

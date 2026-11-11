@@ -79,44 +79,27 @@ r.get('/du-lieu', requirePerm('dashboard.view'), (req, res) => {
   res.render('admin/layers', { title: 'Quản lý dữ liệu không gian', section: 'layers', layers, custom: repo.customLayers(true), manifest: readJson(path.join(paths.boundaries, 'manifest.json')) });
 });
 
-function validateGeoJSON(gj) {
-  const errors = [];
-  if (!gj || !['FeatureCollection', 'Feature'].includes(gj.type)) return { errors: ['Không phải GeoJSON FeatureCollection/Feature'] };
-  const feats = gj.type === 'Feature' ? [gj] : gj.features || [];
-  if (!feats.length) errors.push('Không có đối tượng');
-  if (gj.crs && !/4326|CRS84/i.test(JSON.stringify(gj.crs))) errors.push('Hệ tọa độ phải là EPSG:4326 (WGS84)');
-  const types = new Set(); let outside = 0; let bad = 0;
-  const visit = (c, depth) => { if (typeof c[0] === 'number') { const [x, y] = c; if (!(x >= 102 && x <= 110 && y >= 8 && y <= 24)) outside += 1; return; } c.forEach((cc) => visit(cc, depth + 1)); };
-  feats.forEach((f) => {
-    if (!f.geometry || !f.geometry.coordinates) { bad += 1; return; }
-    types.add(f.geometry.type);
-    try { visit(f.geometry.coordinates, 0); } catch { bad += 1; }
-  });
-  if (bad) errors.push(`${bad} đối tượng thiếu/hỏng hình học`);
-  if (outside) errors.push(`${outside} tọa độ nằm ngoài phạm vi Việt Nam – kiểm tra hệ tọa độ (cần lon/lat WGS84)`);
-  return { errors, count: feats.length, types: [...types], fc: gj.type === 'Feature' ? { type: 'FeatureCollection', features: [gj] } : gj };
-}
+const layersSvc = require('../services/layers');
+const { convertLayer, LAYER_EXT } = layersSvc;
 
-r.post('/du-lieu/tai-len', requirePerm('data.manage'), memUpload(25, /json|geojson/i).single('file'), checkCsrf, (req, res) => {
-  if (!req.file) { flash(req, 'error', 'Chọn tệp GeoJSON (.geojson/.json) tối đa 25 MB.'); return res.redirect('/quan-tri/du-lieu'); }
-  let gj;
-  try { gj = JSON.parse(req.file.buffer.toString('utf8')); } catch { flash(req, 'error', 'Tệp không phải JSON hợp lệ.'); return res.redirect('/quan-tri/du-lieu'); }
-  const v = validateGeoJSON(gj);
-  const row = store.insert('layers', {
-    title: String(req.body.title || req.file.originalname).slice(0, 160), source: String(req.body.source || '').slice(0, 200), description: String(req.body.description || '').slice(0, 1000),
-    style: { color: /^#[0-9a-f]{6}$/i.test(req.body.color || '') ? req.body.color : '#00bcd4' }, original_name: req.file.originalname,
-    status: v.errors.length ? 'invalid' : 'staging', validation: { errors: v.errors, count: v.count, types: v.types }, geojson: v.errors.length ? null : v.fc, uploaded_by: me(req).username,
-  });
-  store.audit(me(req), 'layer.upload', row.title, row.validation);
-  flash(req, v.errors.length ? 'error' : 'ok', v.errors.length ? `Kiểm tra không đạt: ${v.errors.join('; ')}` : `Đã tải lên ${v.count} đối tượng vào vùng chờ duyệt (staging).`);
+r.post('/du-lieu/tai-len', requirePerm('data.manage'), memUpload(25, /json|geojson|zip|sheet|excel|csv|octet-stream/i).single('file'), checkCsrf, (req, res) => {
+  if (!req.file || !LAYER_EXT.test(req.file.originalname)) { flash(req, 'error', 'Chọn tệp GeoJSON, Shapefile nén .zip, Excel .xlsx hoặc .csv (tối đa 25 MB).'); return res.redirect('/quan-tri/du-lieu#them'); }
+  let gj; let info = null;
+  try { ({ gj, info } = convertLayer(req.file.buffer, req.file.originalname, req.body.crs)); } catch (e) { flash(req, 'error', e.message); return res.redirect('/quan-tri/du-lieu#them'); }
+  const { v } = layersSvc.create(me(req), { title: req.body.title, source: req.body.source, description: req.body.description, color: req.body.color, gj, info, originalName: req.file.originalname });
+  flash(req, v.errors.length ? 'error' : 'ok', v.errors.length ? `Kiểm tra không đạt: ${v.errors.join('; ')}` : `Đã nhập ${v.count} đối tượng (${info ? info.format.slice(1).toUpperCase() : 'GeoJSON'}, hệ toạ độ nguồn ${info ? info.source_crs : 'WGS84'}) vào vùng chờ duyệt.${(v.warnings || []).length ? ' Lưu ý: ' + v.warnings.slice(0, 3).join(' ') : ''}`);
   return res.redirect('/quan-tri/du-lieu');
 });
 
+r.post('/du-lieu/:id/sua', requirePerm('data.manage'), (req, res) => {
+  if (layersSvc.update(me(req), req.params.id, req.body)) flash(req, 'ok', 'Đã cập nhật thông tin lớp.');
+  return res.redirect('/quan-tri/du-lieu');
+});
 r.post('/du-lieu/:id/trang-thai', requirePerm('data.manage'), (req, res) => {
-  const l = store.get('layers', req.params.id);
-  if (!l) return res.redirect('/quan-tri/du-lieu');
-  if (req.body.action === 'delete') { store.remove('layers', l.id); store.audit(me(req), 'layer.delete', l.title); }
-  else if (['published', 'staging'].includes(req.body.action) && l.status !== 'invalid') { store.update('layers', l.id, { status: req.body.action, reviewed_by: me(req).username }); store.audit(me(req), `layer.${req.body.action}`, l.title); }
+  try {
+    if (req.body.action === 'delete') layersSvc.remove(me(req), req.params.id);
+    else layersSvc.setStatus(me(req), req.params.id, req.body.action);
+  } catch (e) { flash(req, 'error', e.message); }
   return res.redirect('/quan-tri/du-lieu');
 });
 
@@ -134,7 +117,30 @@ r.get('/anh-ve-tinh', requirePerm('dashboard.view'), (req, res) => {
     const cat = readJson(path.join(paths.collected, 'earth-engine', `sentinel-${k}-catalog.json`));
     return { key: k, catalog: cat };
   });
-  res.render('admin/imagery', { title: 'Quản lý ảnh vệ tinh', section: 'imagery', months, seasonal, overlays: repo.overlays(), sensor: req.query.cam_bien || 'Sentinel-2' });
+  const imagery = require('../services/imagery');
+  res.render('admin/imagery', { title: 'Quản lý ảnh vệ tinh', section: 'imagery', months, seasonal, overlays: repo.overlays(), sensor: req.query.cam_bien || 'Sentinel-2',
+    classes: imagery.classifications(), classStatus: imagery.status() });
+});
+// tải GeoTIFF gốc (median tháng 100 m, 6 băng + số quan sát) cho cán bộ
+r.get('/anh-ve-tinh/tai/:file', requirePerm('dashboard.view'), (req, res, next) => {
+  const m = String(req.params.file).match(/^(\d{4}-\d{2})\.tif$/);
+  const f = m && require('../services/imagery').monthTif(m[1]);
+  if (!f) return next();
+  store.audit(me(req), 'imagery.download', m[1]);
+  return res.download(f, `sentinel2-kontum-${m[1]}-100m.tif`);
+});
+r.get('/anh-ve-tinh/phan-loai/:file', requirePerm('dashboard.view'), (req, res, next) => {
+  const m = String(req.params.file).match(/^(\d{4}-\d{2})\.tif$/);
+  const f = m && require('../services/imagery').classFile(m[1], 'tif');
+  return f ? res.download(f, `phan-loai-kontum-${m[1]}-100m.tif`) : next();
+});
+r.post('/anh-ve-tinh/phan-loai', requirePerm('jobs.run'), (req, res) => {
+  try { require('../services/imagery').classify(String(req.body.month || ''), me(req)); req.session.flash = { type: 'ok', text: `Đã đưa phân loại tháng ${req.body.month} vào hàng đợi (khoảng 1–2 phút).` }; } catch (e) { req.session.flash = { type: 'error', text: e.message }; }
+  res.redirect('/quan-tri/anh-ve-tinh#phan-loai');
+});
+r.post('/anh-ve-tinh/phan-loai/:month/cong-bo', requirePerm('data.manage'), (req, res) => {
+  try { require('../services/imagery').setPublished(req.params.month, req.body.on === '1', me(req)); req.session.flash = { type: 'ok', text: req.body.on === '1' ? 'Đã công bố lớp phân loại lên Bản đồ WebGIS.' : 'Đã gỡ lớp phân loại khỏi bản đồ.' }; } catch (e) { req.session.flash = { type: 'error', text: e.message }; }
+  res.redirect('/quan-tri/anh-ve-tinh#phan-loai');
 });
 
 // ---------- A04 forest resources ----------
@@ -185,7 +191,58 @@ r.get('/api/hien-truong/xac-minh/:id', requirePerm('dashboard.view'), async (req
 
 r.get('/huong-dan', requirePerm('dashboard.view'), (req, res) => res.render('admin/guide', { title: 'Hướng dẫn sử dụng', section: 'guide', guide: require('../content/guide').adminGuide }));
 r.get('/phan-tich', requirePerm('dashboard.view'), (req, res) => {
-  res.render('admin/analysis', { title: 'Phân tích rừng (Python)', section: 'analysis', jobs: jobs.list(), defs: jobs.JOBS, running: jobs.isRunning(), plan: jobs.plan(), periods: jobs.PERIODS, schedulerOn: jobs.schedulerOn(), firmsSt: require('../services/firms').status(), fcg: repo.forestChange(), fd: repo.fireDanger(), job: req.query.job ? store.get('jobs', req.query.job) : null });
+  const runs = require('../services/changeRuns');
+  res.render('admin/analysis', { title: 'Phân tích rừng (Python)', section: 'analysis', jobs: jobs.list(), defs: jobs.JOBS, running: jobs.isRunning(), plan: jobs.plan(), periods: jobs.PERIODS,
+    runs: runs.list(), autoState: runs.auto.state(), autoDraft: runs.auto.draft(), autoPending: runs.auto.pending(), form: req.session.runForm || {}, monthsAvail: monthsAvailable(), schedulerOn: jobs.schedulerOn(), firmsSt: require('../services/firms').status(), fcg: repo.forestChange(), fd: repo.fireDanger(), job: req.query.job ? store.get('jobs', req.query.job) : null });
+});
+// ---------- phân tích biến động: chạy theo yêu cầu (thủ công) và kiểm soát công bố kết quả tự động ----------
+function monthsAvailable() {
+  try { return fs.readdirSync(path.join(config.paths.collected, 'monitoring-series')).map((f) => (f.match(/^sentinel-(\d{4})-(\d{2})-100m\.tif$/) || [])).filter((m) => m[1]).map((m) => `${m[1]}-${m[2]}`).sort(); } catch { return []; }
+}
+r.post('/phan-tich/bien-dong', requirePerm('jobs.run'), (req, res) => {
+  const runs = require('../services/changeRuns');
+  try {
+    const run = runs.create(me(req), { ...req.body, canApprove: can(me(req), 'alerts.approve') });
+    delete req.session.runForm;
+    flash(req, 'ok', `Đã đưa kỳ phân tích ${run.code} (${run.title}) vào hàng chạy.`);
+    return res.redirect(`/quan-tri/phan-tich/bien-dong/${run.id}`);
+  } catch (e) {
+    if (!(e instanceof runs.InputError)) throw e;
+    req.session.runForm = req.body; flash(req, 'error', e.message); return res.redirect('/quan-tri/phan-tich#bien-dong');
+  }
+});
+r.get('/phan-tich/bien-dong/:id', requirePerm('dashboard.view'), (req, res, next) => {
+  const runs = require('../services/changeRuns');
+  const run = runs.get(req.params.id);
+  if (!run) return next();
+  return res.render('admin/change-run', { title: `Kỳ phân tích ${run.code}`, section: 'analysis', run, needsMap: true });
+});
+r.get('/phan-tich/bien-dong/:id/vung.geojson', requirePerm('dashboard.view'), (req, res, next) => {
+  const runs = require('../services/changeRuns');
+  const run = runs.get(req.params.id);
+  return run ? res.json(runs.candidates(run)) : next();
+});
+r.get('/phan-tich/tu-dong/vung.geojson', requirePerm('dashboard.view'), (req, res) => res.json(readJson(path.join(config.paths.data, 'web', 'change-candidates.geojson')) || { type: 'FeatureCollection', features: [] }));
+r.post('/phan-tich/bien-dong/:id/cong-bo', requirePerm('alerts.approve'), (req, res) => {
+  const runs = require('../services/changeRuns');
+  try { runs.publish(req.params.id, me(req), req.body.on !== '0', String(req.body.note || '').slice(0, 500)); flash(req, 'ok', req.body.on !== '0' ? 'Đã công bố kỳ phân tích ra Bản đồ WebGIS, trang Biến động rừng và MobileGIS.' : 'Đã thu hồi công bố.'); }
+  catch (e) { flash(req, 'error', e.message); }
+  return res.redirect(`/quan-tri/phan-tich/bien-dong/${req.params.id}`);
+});
+r.post('/phan-tich/bien-dong/:id/xoa', requirePerm('jobs.run'), (req, res) => {
+  const runs = require('../services/changeRuns');
+  try { runs.remove(req.params.id, me(req)); flash(req, 'ok', 'Đã xoá kỳ phân tích.'); return res.redirect('/quan-tri/phan-tich#bien-dong'); }
+  catch (e) { flash(req, 'error', e.message); return res.redirect(`/quan-tri/phan-tich/bien-dong/${req.params.id}`); }
+});
+r.post('/phan-tich/tu-dong/che-do', requirePerm('alerts.approve'), (req, res) => {
+  require('../services/changeRuns').auto.setMode(req.body.mode, me(req));
+  flash(req, 'ok', req.body.mode === 'auto' ? 'Kết quả phân tích tự động sẽ được công bố ngay sau mỗi lần chạy.' : 'Kết quả phân tích tự động sẽ chờ duyệt trước khi công bố.');
+  return res.redirect('/quan-tri/phan-tich#bien-dong');
+});
+r.post('/phan-tich/tu-dong/cong-bo', requirePerm('alerts.approve'), (req, res) => {
+  try { require('../services/changeRuns').auto.approve(me(req), String(req.body.note || '').slice(0, 500)); flash(req, 'ok', 'Đã công bố kết quả phân tích tự động mới nhất.'); }
+  catch (e) { flash(req, 'error', e.message); }
+  return res.redirect('/quan-tri/phan-tich#bien-dong');
 });
 r.post('/phan-tich/chay', requirePerm('jobs.run'), async (req, res) => {
   try { const j = await jobs.run(req.body.key, me(req)); store.audit(me(req), 'job.run', req.body.key); flash(req, 'ok', `Đã bắt đầu: ${j.title}`); return res.redirect(`/quan-tri/phan-tich?job=${j.id}`); }
@@ -210,7 +267,7 @@ r.get('/api/jobs/:id', requirePerm('dashboard.view'), (req, res) => res.json(sto
 r.get('/canh-bao', requirePerm('dashboard.view'), (req, res) => {
   res.render('admin/alerts', {
     title: 'Quản lý cảnh báo', section: 'alerts', tab: req.query.tab || 'diem-nong',
-    hotspots: repo.hotspots({ staff: true }), dangerAlerts: alerts.fireDangerAlerts(3), candidates: repo.changeCandidates().features.map((f) => f.properties).sort((a, b) => b.area_ha - a.area_ha),
+    hotspots: repo.hotspots({ staff: true }), dangerAlerts: alerts.fireDangerAlerts(3), candidates: repo.changeCandidates({ staff: true }).features.map((f) => f.properties).sort((a, b) => b.area_ha - a.area_ha),
     HS: repo.HOTSPOT_STATUS, CS: repo.CANDIDATE_STATUS, DS: alerts.DANGER_STATUS, users: store.all('users').filter((u) => u.active),
     filter: req.query, SOURCES: firepoints.SOURCES, form: req.session.fpForm || {},
   });
@@ -271,7 +328,8 @@ r.post('/canh-bao/nguy-co', requirePerm('alerts.approve'), (req, res) => {
 r.get('/tin-tuc', requirePerm('dashboard.view'), (req, res) => {
   let list = content.list({ includeAll: true, category: req.query.muc, q: req.query.q });
   if (req.query.trang_thai) list = list.filter((a) => a.status === req.query.trang_thai);
-  res.render('admin/news', { title: 'Quản lý tin tức', section: 'news', list, categories: content.CATEGORIES, statuses: content.STATUS, filter: req.query });
+  const comments = content.comments(null, { all: true }).reverse().map((c) => ({ ...c, article: store.get('articles', c.article_id) || {} }));
+  res.render('admin/news', { title: 'Quản lý tin tức', section: 'news', list, categories: content.CATEGORIES, statuses: content.STATUS, filter: req.query, comments, commentStatus: content.COMMENT_STATUS });
 });
 r.get('/tin-tuc/moi', requirePerm('news.manage'), (req, res) => res.render('admin/news-form', { title: 'Thêm tin mới', section: 'news', a: null, categories: content.CATEGORIES, statuses: content.STATUS }));
 r.get('/tin-tuc/:id', requirePerm('news.manage'), (req, res, next) => {
@@ -313,6 +371,10 @@ r.post('/tin-tuc/luu', requirePerm('news.manage'), imgUpload.single('image'), ch
     return res.redirect('/quan-tri/tin-tuc');
   } catch (e) { return next(e); }
 });
+r.post('/tin-tuc/binh-luan/:id', requirePerm('news.manage'), (req, res) => {
+  if (!content.moderate(req.params.id, String(req.body.status || ''), me(req))) flash(req, 'error', 'Không tìm thấy bình luận.');
+  return res.redirect('/quan-tri/tin-tuc?tab=binh-luan#binh-luan');
+});
 r.post('/tin-tuc/:id/trang-thai', requirePerm('news.manage'), (req, res) => {
   const a = store.get('articles', req.params.id);
   if (!a) return res.redirect('/quan-tri/tin-tuc');
@@ -337,14 +399,14 @@ r.get('/phan-anh', requirePerm('reports.view'), (req, res) => {
     id: x.id, code: x.code, type: x.type, typeLabel: x.typeLabel, marker: x.marker, status: x.status, statusLabel: x.statusLabel, statusTone: x.statusTone,
     lat: x.lat, lon: x.lon, commune: x.commune_name, created_at: x.created_at, reviewed: Boolean(x.reviewed_at), description: String(x.description || '').slice(0, 160),
   })) : [];
-  res.render('admin/reports', { title: 'Quản lý phản ánh hiện trường', section: 'reports', list, types: reports.TYPES, statuses: reports.STATUS, filter: req.query, view, points, needsMap: view === 'map' });
+  res.render('admin/reports', { title: 'Quản lý phản ánh hiện trường', section: 'reports', list, types: reports.TYPES, statuses: reports.STATUS, filter: req.query, view, points, needsMap: view === 'map', sameLoc: reports.sameLocation });
 });
 r.get('/phan-anh/:id', requirePerm('reports.view'), (req, res, next) => {
-  const x = store.get('reports', req.params.id);
+  const x = store.get('reports', req.params.id) || reports.byCode(req.params.id);
   if (!x) return next();
   store.audit(me(req), 'report.view', x.code);
   const fp = x.fire_point ? repo.hotspots().find((h) => h.manual && h.manual.code === x.fire_point) : null;
-  return res.render('admin/report-detail', { title: `Phản ánh ${x.code}`, section: 'reports', x: reports.decorate(x), statuses: reports.STATUS, users: store.all('users').filter((u) => u.active && u.role === 'specialist'), fp, HS: repo.HOTSPOT_STATUS });
+  return res.render('admin/report-detail', { title: `Phản ánh ${x.code}`, section: 'reports', x: reports.decorate(x), statuses: reports.STATUS, users: store.all('users').filter((u) => u.active && u.role === 'specialist'), fp, HS: repo.HOTSPOT_STATUS, same: reports.sameLocation(x) });
 });
 r.post('/phan-anh/:id', requirePerm('reports.manage'), async (req, res, next) => {
   const x = store.get('reports', req.params.id);
@@ -412,6 +474,16 @@ r.post('/tai-lieu/tai-len', requirePerm('docs.manage'), memUpload(40, /pdf/i).si
   flash(req, 'ok', 'Đã tải lên tài liệu.');
   return res.redirect('/quan-tri/tai-lieu');
 });
+r.post('/tai-lieu/:id/sua', requirePerm('docs.manage'), (req, res) => {
+  const d = store.get('documents', req.params.id);
+  if (!d) return res.redirect('/quan-tri/tai-lieu');
+  const b = req.body;
+  store.update('documents', d.id, { title: String(b.title || d.title).slice(0, 250), category: repo.DOC_CATEGORIES[b.category] ? b.category : d.category, issuer: String(b.issuer || '').slice(0, 200),
+    number: String(b.number || '').slice(0, 80), issued: /^\d{4}-\d{2}-\d{2}$/.test(b.issued || '') ? b.issued : null, description: String(b.description || '').slice(0, 1000) });
+  store.audit(me(req), 'doc.edit', d.title);
+  flash(req, 'ok', 'Đã cập nhật tài liệu.');
+  return res.redirect('/quan-tri/tai-lieu');
+});
 r.post('/tai-lieu/:id/xoa', requirePerm('docs.manage'), (req, res) => {
   const d = store.get('documents', req.params.id);
   if (d) { store.update('documents', d.id, { status: 'deleted' }); store.audit(me(req), 'doc.delete', d.title); }
@@ -446,6 +518,12 @@ r.post('/nguoi-dung/:id', requirePerm('users.manage'), async (req, res) => {
     const pass = crypto.randomBytes(9).toString('base64url');
     store.update('users', u.id, { password_hash: await bcrypt.hash(pass, 11) }); store.audit(me(req), 'user.reset_password', u.username);
     req.session.newPassword = { username: u.username, pass };
+  } else if (b.action === 'edit') {
+    const email = String(b.email || '').trim().toLowerCase();
+    if (email && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(email)) { flash(req, 'error', 'Email không hợp lệ.'); return res.redirect('/quan-tri/nguoi-dung'); }
+    store.update('users', u.id, { name: String(b.name || '').slice(0, 120), email: email || null, phone: String(b.phone || '').replace(/[^\d+]/g, '').slice(0, 15) || null });
+    store.audit(me(req), 'user.edit', u.username);
+    flash(req, 'ok', `Đã cập nhật thông tin ${u.username}.`);
   } else if (b.action === 'role' && ROLES[b.role]) {
     if (u.id === me(req).id && b.role !== 'admin') { flash(req, 'error', 'Không thể tự hạ quyền quản trị của mình.'); return res.redirect('/quan-tri/nguoi-dung'); }
     store.update('users', u.id, { role: b.role, scope: b.scope || null }); store.audit(me(req), 'user.role', u.username, { role: b.role, scope: b.scope });
@@ -470,7 +548,16 @@ r.get('/nhat-ky', requirePerm('audit.view'), (req, res) => {
   if (req.query.action) rows = rows.filter((x) => x.action.startsWith(req.query.action));
   res.render('admin/audit', { title: 'Nhật ký hệ thống', section: 'audit', rows, total: rows.length, filter: req.query, users: [...new Set(store.all('audit').map((x) => x.user))] });
 });
+r.post('/phien-ban-ung-dung', requirePerm('users.manage'), async (req, res) => {
+  const rel = require('../services/appRelease');
+  try {
+    if (req.body.action === 'notify') { const out = await rel.notify(me(req)); flash(req, 'ok', out.created ? `Đã gửi thông báo phiên bản ${out.release.version} tới mọi thiết bị.` : 'Thông báo cho phiên bản này đã gửi trước đó.'); }
+    else { const r2 = rel.set(me(req), req.body); flash(req, 'ok', `Đã lưu phiên bản ${r2.version}. Ứng dụng sẽ báo cập nhật khi mở; bấm “Gửi thông báo” để đẩy tới thiết bị.`); }
+  } catch (e) { flash(req, 'error', e.message); }
+  return res.redirect('/quan-tri/cai-dat#phien-ban');
+});
 r.get('/cai-dat', async (req, res) => res.render('admin/settings', {
+  release: require('../services/appRelease').get(),
   db: { ...(await require('../db/pool').ping()), store: store.status() },
   push: await require('../services/notifier').stats().catch(() => null), realtime: await require('../services/realtime').stats().catch(() => ({ connections: 0 })),
   title: 'Cài đặt hệ thống', section: 'settings', freshness: repo.dataFreshness(), weather: weatherSvc.status(), firms: firmsSvc.status(),

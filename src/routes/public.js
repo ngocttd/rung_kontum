@@ -76,6 +76,15 @@ r.get('/tai-nguyen-rung', (req, res) => {
   });
 });
 
+r.get('/bien-dong/lop/:id.webp', (req, res) => {
+  const runs = require('../services/changeRuns');
+  const run = runs.get(req.params.id);
+  const f = run && runs.overlayFile(run.id);
+  if (!f || !(run.published || (req.session && req.session.user))) return res.status(404).end();
+  res.set('Cache-Control', run.published ? 'public, max-age=300' : 'no-store');
+  return res.sendFile(f);
+});
+
 r.get('/bien-dong-rung', (req, res) => {
   const fcg = repo.forestChange();
   const cands = repo.changeCandidates();
@@ -111,7 +120,87 @@ r.get('/tin-tuc/:slug', (req, res, next) => {
   if (!a) return next();
   const row = store.get('articles', a.id);
   store.update('articles', a.id, { views: (row.views || 0) + 1 });
-  return res.render('public/article', { title: a.title, nav: 'news', a, related: content.list({ category: a.category }).filter((x) => x.id !== a.id).slice(0, 4), photos: repo.photos() });
+  return res.render('public/article', { title: a.title, nav: 'news', a, related: content.list({ category: a.category }).filter((x) => x.id !== a.id).slice(0, 4), photos: repo.photos(),
+    comments: content.comments(a.id), sent: req.query.da_gui === '1' });
+});
+r.post('/tin-tuc/:slug/binh-luan', rateLimit('comment', 6, 3600e3), (req, res) => {
+  const a = content.bySlug(req.params.slug);
+  if (!a || a.status !== 'published') return res.redirect('/tin-tuc');
+  if (req.body.website) return res.redirect(`/tin-tuc/${a.slug}`); // honeypot
+  try {
+    const c = content.addComment(a, { name: req.body.name, body: req.body.body, user: req.session.citizen || null });
+    store.audit(req.session.citizen ? { username: req.session.citizen.username, role: 'citizen' } : null, 'comment.create', c.id, { article: a.slug });
+    return res.redirect(`/tin-tuc/${a.slug}?da_gui=1#binh-luan`);
+  } catch (e) { req.session.flash = { type: 'error', text: e.message }; return res.redirect(`/tin-tuc/${a.slug}#binh-luan`); }
+});
+
+// ---------- tài khoản người dân trên web (dùng chung tài khoản MobileGIS) ----------
+const mobileAuth = require('../services/mobile-auth');
+const safeNext = (n, d) => { const s = String(n || ''); return s.startsWith('/') && !s.startsWith('//') && !s.startsWith('/quan-tri') ? s : d; };
+r.get('/dang-ky', (req, res) => {
+  if (req.session.citizen) return res.redirect('/tai-khoan');
+  return res.render('public/register', { title: 'Đăng ký tài khoản', nav: '', form: {}, error: null, next: safeNext(req.query.next, '/tai-khoan') });
+});
+r.post('/dang-ky', rateLimit('register', 5, 3600e3), async (req, res, next) => {
+  try {
+    const b = req.body; const nextUrl = safeNext(b.next, '/tai-khoan');
+    const fail = (error) => res.status(400).render('public/register', { title: 'Đăng ký tài khoản', nav: '', form: { name: b.name, phone: b.phone, email: b.email }, error, next: nextUrl });
+    if (b.website) return res.redirect('/'); // honeypot
+    if (String(b.password || '') !== String(b.password2 || '')) return fail('Mật khẩu nhập lại không khớp.');
+    if (!b.agree) return fail('Vui lòng đồng ý với điều khoản sử dụng.');
+    const out = await mobileAuth.createCitizen({ name: b.name, phone: b.phone, email: b.email, password: b.password }, 'web');
+    if (out.error) return fail(out.error);
+    return req.session.regenerate(() => {
+      req.session.citizen = { id: out.user.id, username: out.user.username, name: out.user.name };
+      req.session.flash = { type: 'ok', text: 'Đăng ký thành công. Bạn có thể dùng tài khoản này trên ứng dụng MobileGIS.' };
+      res.redirect(nextUrl);
+    });
+  } catch (e) { return next(e); }
+});
+r.get('/dang-nhap', (req, res) => {
+  if (req.session.citizen) return res.redirect('/tai-khoan');
+  return res.render('public/signin', { title: 'Đăng nhập', nav: '', error: null, username: '', next: safeNext(req.query.next, '/tai-khoan') });
+});
+r.post('/dang-nhap', rateLimit('citizen-login', 10, 15 * 60e3), async (req, res, next) => {
+  try {
+    const nextUrl = safeNext(req.body.next, '/tai-khoan');
+    const v = await mobileAuth.verifyCredentials({ username: req.body.username, password: req.body.password }, 'web');
+    if (v.error) return res.status(v.status || 401).render('public/signin', { title: 'Đăng nhập', nav: '', error: v.error, username: String(req.body.username || '').slice(0, 80), next: nextUrl });
+    const u = v.user;
+    if (u.role !== 'citizen') { // tài khoản cán bộ: chuyển sang đăng nhập quản trị
+      return res.render('public/signin', { title: 'Đăng nhập', nav: '', error: 'Đây là tài khoản cán bộ – vui lòng đăng nhập tại trang Quản trị.', username: u.username, next: nextUrl, staff: true });
+    }
+    return req.session.regenerate(() => {
+      req.session.citizen = { id: u.id, username: u.username, name: u.name };
+      store.update('users', u.id, { last_login: store.now() });
+      store.audit({ username: u.username, role: 'citizen' }, 'web.auth.login', u.username);
+      res.redirect(nextUrl);
+    });
+  } catch (e) { return next(e); }
+});
+r.post('/dang-xuat', (req, res) => { delete req.session.citizen; res.redirect('/'); });
+r.get('/tai-khoan', (req, res) => {
+  if (!req.session.citizen) return res.redirect('/dang-nhap?next=/tai-khoan');
+  const u = store.get('users', req.session.citizen.id);
+  if (!u || !u.active) { delete req.session.citizen; return res.redirect('/dang-nhap'); }
+  const mine = store.filter('reports', (x) => x.created_by === u.id).sort((a, b) => b.created_at.localeCompare(a.created_at)).map(reports.publicView);
+  const myComments = store.filter('comments', (c) => c.user_id === u.id).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 20)
+    .map((c) => ({ ...c, article: (store.get('articles', c.article_id) || {}), statusLabel: content.COMMENT_STATUS[c.status] }));
+  return res.render('public/account', { title: 'Tài khoản của tôi', nav: '', u, mine, myComments });
+});
+r.post('/tai-khoan', rateLimit('citizen-account', 20, 3600e3), async (req, res, next) => {
+  try {
+    if (!req.session.citizen) return res.redirect('/dang-nhap');
+    const u = store.get('users', req.session.citizen.id); const b = req.body;
+    if (b.action === 'password') {
+      const out = await mobileAuth.changePassword({ sub: u.id }, { current: b.current, password: b.password });
+      req.session.flash = out && out.error ? { type: 'error', text: out.error } : { type: 'ok', text: 'Đã đổi mật khẩu.' };
+    } else {
+      const name = String(b.name || '').trim().slice(0, 120);
+      if (name.length >= 2) { store.update('users', u.id, { name }); req.session.citizen.name = name; req.session.flash = { type: 'ok', text: 'Đã cập nhật thông tin.' }; }
+    }
+    return res.redirect('/tai-khoan');
+  } catch (e) { return next(e); }
 });
 
 r.get('/phan-anh', (req, res) => {
@@ -128,10 +217,29 @@ r.post('/phan-anh', rateLimit('report', 5, 3600e3), upload.array('photos', 5), c
     if (req.body.website) return res.redirect('/phan-anh'); // honeypot
     const desc = String(req.body.description || '').trim();
     if (desc.length < 10) { req.session.flash = { type: 'error', text: 'Vui lòng mô tả hiện trạng (ít nhất 10 ký tự).' }; return res.redirect('/phan-anh#gui'); }
-    const row = await reports.create(req.body, req.files);
-    store.audit(null, 'report.create', row.code);
+    const row = await reports.create(req.body, req.files, req.session.citizen || null);
+    store.audit(req.session.citizen ? { username: req.session.citizen.username, role: 'citizen' } : null, 'report.create', row.code);
     return res.redirect(`/phan-anh?da_gui=${row.code}&ma=${row.code}`);
   } catch (e) { return next(e); }
+});
+
+// ---------- So sánh ảnh vệ tinh, ảnh tháng, lớp phân loại ----------
+const imagery = require('../services/imagery');
+r.get('/so-sanh-anh', (req, res) => {
+  res.render('public/compare', { title: 'So sánh ảnh vệ tinh', nav: 'map', months: imagery.months(), modes: imagery.MODES, overlays: repo.overlays() });
+});
+r.get('/anh-ve-tinh/thang/:file', async (req, res, next) => {
+  const m = String(req.params.file).match(/^(\d{4}-\d{2})-(true|false|ndvi)\.webp$/);
+  if (!m) return next();
+  try { const f = await imagery.monthImage(m[1], m[2]); res.set('Cache-Control', 'public, max-age=86400'); return res.sendFile(f); } catch (e) { return e.status === 404 ? next() : next(e); }
+});
+r.get('/anh-ve-tinh/phan-loai/:file', (req, res, next) => {
+  const m = String(req.params.file).match(/^(\d{4}-\d{2})\.webp$/);
+  if (!m) return next();
+  const c = imagery.classifications().find((x) => x.month === m[1]);
+  if (!c || (!c.published && !req.session.user)) return next();
+  const f = imagery.classFile(m[1], 'webp');
+  return f ? res.sendFile(f) : next();
 });
 
 r.get('/phan-anh/anh/:file', (req, res, next) => {

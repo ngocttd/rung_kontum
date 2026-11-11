@@ -17,6 +17,8 @@ const MAP = {
   jobs: { table: 'ops.jobs', cols: ['id', 'key', 'title', 'status', 'started_at', 'finished_at', 'by', 'log', 'created_at', 'updated_at'], json: ['log'] },
   layers: { table: 'spatial.map_layers', cols: ['id', 'title', 'source', 'description', 'status', 'style', 'validation', 'original_name', 'uploaded_by', 'reviewed_by', 'created_at', 'updated_at'], json: ['style', 'validation'], features: true },
   fire_points: { table: 'fire.manual_points', cols: ['id', 'code', 'observed_at', 'source_kind', 'description', 'area_ha', 'commune_code', 'commune_name', 'report_code', 'created_by', 'created_at', 'updated_at'], geom: true },
+  change_runs: { table: 'imagery.change_runs', cols: ['id', 'code', 'title', 'status', 'params', 'summary', 'published', 'published_by', 'published_at', 'created_by', 'created_at', 'updated_at'], json: ['params', 'summary'] },
+  comments: { table: 'ops.article_comments', cols: ['id', 'article_id', 'name', 'user_id', 'body', 'status', 'reviewed_by', 'created_at', 'updated_at'] },
   counters: { table: 'ops.counters', cols: ['key', 'value'], pk: 'key', noData: true, from: (r) => ({ id: r.key, ...r }) },
 };
 

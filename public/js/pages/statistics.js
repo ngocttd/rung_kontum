@@ -5,7 +5,7 @@
   const ys = Object.keys(P.loss).filter((y) => y >= '2015');
   const lossChart = KT.chart('ch-loss', { type: 'line', data: { labels: ys, datasets: [{ label: 'Mất tán cây (ha)', data: ys.map((y) => P.loss[y]), borderColor: '#e11d48', backgroundColor: 'rgba(225,29,72,.12)', fill: true, tension: 0.3 }] },
     options: { plugins: { legend: { display: false } } } });
-  const struct = KT.donut('ch-struct', ['Đặc dụng', 'Phòng hộ', 'Sản xuất'], [S.special_use_ha, S.protection_ha, S.production_ha], ['#006b38', '#75bb25', '#f8ce42']);
+  const struct = KT.donut('ch-struct', ['Quy hoạch đặc dụng', 'Quy hoạch phòng hộ', 'Quy hoạch sản xuất'], [S.special_use_ha, S.protection_ha, S.production_ha], ['#006b38', '#75bb25', '#f8ce42']);
   KT.hotspotChart('ch-hot', P.hot, { ticks: 12 });
   if (P.dangerMonthly) {
     const c = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };

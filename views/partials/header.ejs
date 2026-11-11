@@ -43,8 +43,10 @@
       </div>
       <% if (user) { %>
         <a class="btn btn-primary" href="/quan-tri"><%- ic('gear-fill') %> Quản trị</a>
+      <% } else if (citizen) { %>
+        <a class="btn btn-primary" href="/tai-khoan" title="Tài khoản của tôi"><%- ic('person-circle') %> <%= String(citizen.name || 'Tài khoản').split(' ').slice(-1)[0] %></a>
       <% } else { %>
-        <a class="btn btn-primary" href="/quan-tri/dang-nhap">Đăng nhập</a>
+        <a class="btn btn-primary" href="/dang-nhap">Đăng nhập</a>
       <% } %>
       <div class="lang" role="group" aria-label="Ngôn ngữ">
         <a class="on" href="<%= path %>" aria-current="true"><img src="/img/flag-vn.svg" alt="">VI</a>

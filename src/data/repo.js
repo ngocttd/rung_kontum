@@ -24,7 +24,15 @@ function communeAt(lon, lat) {
 // ---------- official forest statistics (QĐ 1047/QĐ-UBND, số liệu 31/12/2025) ----------
 function officialStats() { return readJson(P('processed', 'forest-statistics-2025-kon-tum-communes.json')) || []; }
 function landcover() { return readJson(P('web', 'commune-landcover-terrain.json')); }
-function forestChange() { return readJson(P('web', 'forest-change.json')); }
+// trang/API công khai: kỳ so sánh lấy theo bản đã công bố (không lộ bản nháp chờ duyệt) + kỳ tuỳ chọn đã công bố
+function forestChange() {
+  const fc = readJson(P('web', 'forest-change.json'));
+  if (!fc) return fc;
+  const runs = require('../services/changeRuns');
+  const st = runs.auto.state();
+  const custom = runs.published().map((r) => ({ window: r.summary.window, months: r.summary.period, candidates: r.summary.candidates, area_ha: r.summary.area_ha, dry_season: r.summary.dry_season, low_confidence: r.summary.low_confidence, custom: true, code: r.code }));
+  return { ...fc, candidates: { ...fc.candidates, windows: [...(st.windows || []), ...custom], latest_month: st.latest_month || null } };
+}
 // Dữ liệu thực tế dự án: lớp phủ 1991/2014/2023 và mẫu thực địa 2025 (data/Data_thuc_te)
 function landcoverHistory() { return readJson(P('web', 'landcover-history.json')); }
 function fieldSamples() { return readJson(P('web', 'field-samples.geojson')) || { type: 'FeatureCollection', features: [] }; }
@@ -242,9 +250,13 @@ function burnedHistory() {
 
 // ---------- change candidates ----------
 const CANDIDATE_STATUS = { unverified: 'Nghi vấn – chưa xác minh', verifying: 'Đang xác minh', confirmed: 'Xác nhận mất rừng', rejected: 'Không phải mất rừng', seasonal: 'Rụng lá theo mùa' };
-function changeCandidates() {
-  const fc = readJson(P('web', 'change-candidates.geojson'));
-  if (!fc) return { type: 'FeatureCollection', features: [] };
+// Vùng biến động nghi vấn ĐÃ CÔNG BỐ: kết quả tự động đã duyệt + các kỳ phân tích tuỳ chọn đã công bố.
+// staff: true → bản nháp mới nhất của luồng tự động (để xác minh/duyệt) + mọi kỳ tuỳ chọn đã chạy xong.
+function changeCandidates({ staff = false } = {}) {
+  const runs = require('../services/changeRuns');
+  const base = staff ? (readJson(P('web', 'change-candidates.geojson')) || { features: [] }) : runs.auto.publicCandidates();
+  const extra = runs.list().filter((r) => r.status === 'succeeded' && (staff || r.published)).flatMap((r) => runs.candidates(r).features.map((f) => ({ ...f, properties: { ...f.properties, run_id: r.id, run_code: r.code, run_published: r.published } })));
+  const fc = { features: [...(base.features || []), ...extra] };
   return {
     type: 'FeatureCollection',
     features: fc.features.map((f) => {
@@ -324,7 +336,18 @@ function ndviSeries(code) {
 // ---------- overlays, content ----------
 // classified layers also have XYZ tiles (scripts/build_tiles.py) so they stay sharp when zoomed in
 function overlays() {
-  return (readJson(P('web', 'overlays.json')) || []).map((o) => {
+  const runs = require('../services/changeRuns');
+  const st = runs.auto.state();
+  const list = (readJson(P('web', 'overlays.json')) || []).filter((o) => o.id !== 'change-latest');
+  if (st.overlay) list.splice(1, 0, st.overlay); // lớp biến động NDVI: chỉ bản đã công bố
+  for (const r of runs.published()) {
+    list.push({ id: `chg-${r.id}`, url: `/bien-dong/lop/${r.id}.webp`, title: `Biến động NDVI ${r.summary.window} (${r.code})`, group: 'change-run',
+      source: 'Copernicus Sentinel-2 SR (GEE) – phân tích theo yêu cầu, Python', meaning: `Kỳ phân tích ${r.code} do ${r.created_by} chạy, ${r.published_by} công bố. Đỏ = NDVI giảm (nghi vấn, cần xác minh), xanh = tăng.`,
+      legend: [{ value: -0.3, color: '#a50026' }, { value: -0.15, color: '#f46d43' }, { value: 0, color: '#f7f7f7' }, { value: 0.15, color: '#66bd63' }, { value: 0.3, color: '#006837' }],
+      resolution: '100 m', coordinates: r.summary.overlay_coordinates });
+  }
+  list.push(...require('../services/imagery').classOverlays());
+  return list.map((o) => {
     const tj = readJson(path.join(ROOT, 'public', 'tiles', o.id, 'tilejson.json'));
     return tj ? { ...o, resolution: String(o.resolution || o.scale || '').replace(/\s*\(hiển thị[^)]*\)/, '') || o.resolution, tiles: { url: `/tiles/${o.id}/{z}/{x}/{y}.png`, minzoom: tj.minzoom, maxzoom: tj.maxzoom, bounds: tj.bounds } } : o;
   });

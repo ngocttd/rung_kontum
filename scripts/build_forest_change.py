@@ -1,8 +1,10 @@
 """Forest-change history, current change candidates and a validated loss-risk forecast on a 100 m grid.
 
 1) Hansen GFC v1.12 tree-cover loss 2001-2024 per commune (tree cover 2000 >= 30 %).
-2) Change candidates: same-season Sentinel-2 NDVI/NBR drop of the latest months against 2024 and 2025 baselines,
-   inside Hansen forest that was still standing at end-2024. Unverified; dry-season windows flagged for leaf-fall.
+2) Change candidates: same-season Sentinel-2 NDVI/NBR drop for every seasonal window (01–04, 05–06, 07–09, 10–12) that
+   has ≥ 2 months of imagery in the last 12 months, against the same months of the 1–2 previous years, inside Hansen
+   forest still standing at end-2024. Stable ids (window + centroid cell). Unverified; dry-season windows flagged.
+   Also writes the ΔNDVI map of the latest window as public overlay 'change-latest'.
 3) Loss-risk forecast: Random Forest trained on loss 2019-2020 from features at end-2018, temporally validated on
    loss 2023-2024 from features at end-2022, then applied to features at end-2024 for horizon 2025-2026.
 Outputs: data/processed/forest-*.tif|csv, data/web/forest-change.json, data/web/change-candidates.geojson
@@ -137,29 +139,97 @@ def season(year,months):
  if not nd:return None,None,None
  with np.errstate(all='ignore'):return np.nanmedian(nd,0),np.nanmedian(nb,0),np.array(nd)
 standing=agg(forest_at(2024))>=0.5
-windows=[('2026-07..09 so với cùng kỳ 2024–2025',[7,8,9],False),('2026-01..04 so với cùng kỳ 2024–2025',[1,2,3,4],True)]
-features_out=[];cand_summary=[]
+def auto_thresholds(dn,db,mask,n_months):
+ """Ngưỡng tự thích nghi: mức nghiêm ngặt hơn giữa ngưỡng chuẩn (ΔNDVI −0,15; ΔNBR −0,10) và trung vị − 3×MAD của rừng ổn định trong kỳ."""
+ out={}
+ for k,a,base in (('dndvi',dn,-0.15),('dnbr',db,-0.10)):
+  v=a[mask&np.isfinite(a)]
+  if v.size<1000:out[k]=base;continue
+  med=float(np.median(v));mad=1.4826*float(np.median(np.abs(v-med)))
+  out[k]=round(min(base,med-3*mad),3)
+ out['persist']=2 if n_months>=2 else 1;out['min_ha']=3;out['mode']='auto'
+ return out
+# lưu mặt nạ rừng còn đến 2024 (lưới 100 m) cho phân tích biến động theo thời gian tuỳ chọn (analyze_change_custom.py)
+with rasterio.open(P/'forest-standing-2024-100m.tif','w',driver='GTiff',width=SH[1],height=SH[0],count=1,dtype='uint8',crs=CRS,transform=T100,compress='deflate') as d:d.write((standing&inside).astype('uint8'),1)
+# Kỳ so sánh tự sinh theo dữ liệu thực có (không gán cứng): mỗi năm chia 4 kỳ theo mùa; kỳ nào có ≥ 2 tháng ảnh
+# và kết thúc trong 12 tháng gần nhất thì được phân tích, so với cùng các tháng của 1–2 năm trước (loại dao động mùa vụ).
+SEASONS=[('01..04',[1,2,3,4],'mùa khô'),('05..06',[5,6],'đầu mùa mưa'),('07..09',[7,8,9],'mùa mưa'),('10..12',[10,11,12],'cuối mùa mưa – đầu mùa khô')]
+DRY={11,12,1,2,3,4}
+avail={(int(f.stem.split('-')[1]),int(f.stem.split('-')[2])) for f in MS.glob('sentinel-*-100m.tif')}
+if not avail:raise SystemExit('Chưa có ảnh Sentinel-2 tháng nào trong data/collected/monitoring-series')
+latest=max(avail);mi=lambda ym:ym[0]*12+ym[1]
+windows=[]
+for y in range(2025,latest[0]+1):
+ for code,months,label in SEASONS:
+  have=[m for m in months if (y,m) in avail]
+  if len(have)<2 or mi(latest)-mi((y,have[-1]))>=12:continue
+  base=[b for b in (y-1,y-2) if sum((b,m) in avail for m in have)>=2]
+  if not base:continue
+  dry=any(m in DRY for m in have)
+  windows.append(dict(year=y,code=code,months=have,label=label,base=sorted(base),dry=dry,
+   title=f"{y}-{have[0]:02}..{have[-1]:02} so với cùng kỳ {'–'.join(map(str,sorted(base)))}"))
+windows.sort(key=lambda w:(w['year'],w['months'][-1]),reverse=True)
+print(f"Ảnh Sentinel-2 có đến {latest[1]:02}/{latest[0]}; {len(windows)} kỳ so sánh: "+'; '.join(w['title'] for w in windows),flush=True)
+features_out=[];cand_summary=[];latest_dn=None
 from rasterio.transform import xy
-for title,months,dry in windows:
- n26,b26,m26=season(2026,months);n25,b25,_=season(2025,months);n24,b24,_=season(2024,months)
- base_n=np.fmin(n25,n24) if n24 is not None else n25;base_b=np.fmin(b25,b24) if b24 is not None else b25
- dn=n26-base_n;db=b26-base_b
- with np.errstate(invalid='ignore'):persist=((m26-base_n[None])<=-0.10).sum(0)
- cand=standing&inside&np.isfinite(dn)&(dn<=-0.15)&(db<=-0.10)&(persist>=2)
+for w in windows:
+ n_cur,b_cur,m_cur=season(w['year'],w['months'])
+ bases=[season(b,w['months'])[:2] for b in w['base']]
+ bases=[x for x in bases if x[0] is not None]
+ if n_cur is None or not bases:continue
+ with np.errstate(all='ignore'):
+  base_n=np.fmin.reduce([x[0] for x in bases]) if len(bases)>1 else bases[0][0]
+  base_b=np.fmin.reduce([x[1] for x in bases]) if len(bases)>1 else bases[0][1]
+ dn=n_cur-base_n;db=b_cur-base_b
+ with np.errstate(invalid='ignore'):persist=((m_cur-base_n[None])<=-0.10).sum(0)
+ valid=standing&inside&np.isfinite(dn)
+ th=auto_thresholds(dn,db,valid,len(w['months']))
+ cand=valid&(dn<=th['dndvi'])&(db<=th['dnbr'])&(persist>=th['persist'])
+ if latest_dn is None:latest_dn=(w,np.where(standing&inside,dn,np.nan),float(valid.sum())/max(1,float((standing&inside).sum())))
  lab,n=ndimage.label(cand);sizes=ndimage.sum(cand,lab,range(1,n+1))
- keep=np.isin(lab,np.flatnonzero(sizes>=3)+1)
+ keep=np.isin(lab,np.flatnonzero(sizes>=th['min_ha'])+1)
  cnt=0
  for geom,val in shapes(lab.astype('int32'),mask=keep,transform=T100):
-  m=lab==int(val);area=float(m.sum());rows_,cols_=np.nonzero(m);cx,cy=xy(T100,rows_.mean(),cols_.mean())
-  lon,lat=transform(CRS,'EPSG:4326',[cx],[cy]);ci=np.bincount(cgrid[m]).argmax()
+  m=lab==int(val);area=float(m.sum());rows_,cols_=np.nonzero(m);r0,c0=int(round(rows_.mean())),int(round(cols_.mean()))
+  cx,cy=xy(T100,rows_.mean(),cols_.mean());lon,lat=transform(CRS,'EPSG:4326',[cx],[cy]);ci=np.bincount(cgrid[m]).argmax()
   g=transform_geom(CRS,'EPSG:4326',geom)
-  features_out.append(dict(type='Feature',geometry=g,properties=dict(id=f"CC-{'D' if dry else 'W'}-{int(val):05d}",window=title,area_ha=area,
+  # mã ổn định: kỳ + ô lưới tâm vùng → chạy lại (thêm tháng mới) vẫn giữ mã, quyết định xác minh không bị lệch
+  features_out.append(dict(type='Feature',geometry=g,properties=dict(id=f"CC-{w['year']}{w['code'][:2]}-{r0:04d}{c0:04d}",window=w['title'],area_ha=area,
    mean_dndvi=round(float(np.nanmean(dn[m])),3),mean_dnbr=round(float(np.nanmean(db[m])),3),
    commune_code=codes[ci-1] if ci>0 else None,commune_name=names[codes[ci-1]] if ci>0 else None,
-   lon=round(lon[0],5),lat=round(lat[0],5),seasonal_leaf_fall_possible=dry,verification_status='unverified',
-   evidence='Sentinel-2 monthly median 100 m; ΔNDVI ≤ −0.15 và ΔNBR ≤ −0.10 so với giá trị thấp hơn của cùng kỳ 2024/2025, lặp lại ≥ 2 tháng; trong rừng Hansen còn đến 2024')));cnt+=1
- cand_summary.append(dict(window=title,months=months,candidates=cnt,area_ha=float(keep.sum()),dry_season=dry))
- print(title,cnt,float(keep.sum()),flush=True)
+   lon=round(lon[0],5),lat=round(lat[0],5),seasonal_leaf_fall_possible=w['dry'],verification_status='unverified',baseline_years=w['base'],low_confidence=len(w['base'])<2,
+   evidence=f"Sentinel-2 median tháng 100 m, {w['label']}; ΔNDVI ≤ {th['dndvi']} và ΔNBR ≤ {th['dnbr']} (ngưỡng tự thích nghi) so với giá trị thấp hơn của cùng kỳ {', '.join(map(str,w['base']))}, lặp lại ≥ 2 tháng; trong rừng Hansen còn đến 2024")));cnt+=1
+ cand_summary.append(dict(window=w['title'],months=w['months'],year=w['year'],season=w['label'],baseline_years=w['base'],low_confidence=len(w['base'])<2,thresholds=th,candidates=cnt,area_ha=float(keep.sum()),dry_season=w['dry'],valid_fraction=round(float(valid.sum())/max(1,float((standing&inside).sum())),3)))
+ print(f"  {w['title']} ({w['label']}): {cnt} vùng nghi vấn, {float(keep.sum()):.0f} ha",flush=True)
+# lớp bản đồ công khai: ΔNDVI kỳ mới nhất trong rừng còn đến 2024 (đỏ = giảm, xanh = tăng)
+if latest_dn is not None:
+ from rasterio.warp import transform_bounds
+ from rasterio.transform import from_bounds
+ from PIL import Image
+ w,dnv,vf=latest_dn
+ Wb,Sb,Eb,Nb=107.33,13.91,108.56,15.43
+ X0,Y0,X1,Y1=transform_bounds('EPSG:4326','EPSG:3857',Wb,Sb,Eb,Nb);OH=1400;OW=int(round(OH*(X1-X0)/(Y1-Y0)));otr=from_bounds(X0,Y0,X1,Y1,OW,OH)
+ dst=np.full((OH,OW),np.nan,dtype='float32')
+ reproject(dnv.astype('float32'),dst,src_transform=T100,src_crs=CRS,dst_transform=otr,dst_crs='EPSG:3857',resampling=Resampling.nearest,src_nodata=np.nan,dst_nodata=np.nan)
+ stops=[(-0.3,(165,0,38)),(-0.15,(244,109,67)),(-0.05,(254,224,139)),(0.0,(247,247,247)),(0.05,(217,239,139)),(0.15,(102,189,99)),(0.3,(0,104,55))]
+ xs=np.array([s_[0] for s_ in stops]);cs=np.array([s_[1] for s_ in stops],dtype='float32')
+ v=np.clip(np.nan_to_num(dst,nan=0),-0.3,0.3)
+ rgb=np.stack([np.interp(v,xs,cs[:,k]) for k in range(3)],-1).astype('uint8')
+ alpha=np.where(np.isfinite(dst),220,0).astype('uint8')
+ OV=ROOT/'public/generated/overlays';OV.mkdir(parents=True,exist_ok=True)
+ Image.fromarray(np.dstack([rgb,alpha])).save(OV/'change-latest.png')
+ ovf=WEB/'overlays.json';ov=json.loads(ovf.read_text(encoding='utf-8'))
+ ov=[o for o in ov if o['id']!='change-latest']
+ mlabel=f"{w['months'][0]:02}" + (f"–{w['months'][-1]:02}" if len(w['months'])>1 else '')
+ entry=dict(id='change-latest',url='/generated/overlays/change-latest.webp',title=f"Biến động NDVI {mlabel}/{w['year']} so với cùng kỳ {'–'.join(map(str,w['base']))}",
+  source='Copernicus Sentinel-2 SR (GEE), median tháng 100 m – phân tích Python',
+  meaning=f"Chênh lệch NDVI so với giá trị thấp hơn của cùng kỳ các năm trước, chỉ trong rừng còn đến 2024. Đỏ = giảm (nghi vấn mất/suy giảm rừng, cần xác minh), xanh = tăng. {w['label'].capitalize()}" + ('; mùa khô: rừng khộp rụng lá có thể làm NDVI giảm' if w['dry'] else '') + '.',
+  legend=[dict(value=-0.3,color='#a50026'),dict(value=-0.15,color='#f46d43'),dict(value=-0.05,color='#fee08b'),dict(value=0,color='#f7f7f7'),dict(value=0.05,color='#d9ef8b'),dict(value=0.15,color='#66bd63'),dict(value=0.3,color='#006837')],
+  resolution='100 m',coordinates=[[Wb,Nb],[Eb,Nb],[Eb,Sb],[Wb,Sb]],window=w['title'],valid_fraction=round(vf,3),group='change')
+ idx=next((i for i,o in enumerate(ov) if o['id']=='s2-latest'),-1)
+ ov.insert(idx+1 if idx>=0 else 0,entry)
+ ovf.write_text(json.dumps(ov,ensure_ascii=False,indent=1),encoding='utf-8')
+ print(f"Lớp bản đồ: {entry['title']} (phủ {vf*100:.0f}% diện tích rừng)",flush=True)
 (WEB/'change-candidates.geojson').write_text(json.dumps(dict(type='FeatureCollection',features=features_out),ensure_ascii=False),encoding='utf-8')
 payload=dict(generated_at_utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),
  history=dict(source='Hansen/UMD Global Forest Change v1.12 (2000–2024), tree cover ≥ 30 %',license='CC BY 4.0',
@@ -167,6 +237,6 @@ payload=dict(generated_at_utc=datetime.datetime.now(datetime.timezone.utc).isofo
   aoi_annual_loss_ha=aoi_annual,treecover2000_ha=forest2000_ha,annual_loss_by_commune=annual),
  forecast=dict(product='forest_loss_risk',horizon='2025-01-01..2026-12-31',model='RandomForest (scikit-learn) 100 m',features=FEAT,
   validation=validation,risk_by_commune=risk_by_commune,status='model_output_unverified_not_official_warning'),
- candidates=dict(windows=cand_summary,status='unverified_change_candidates'))
+ candidates=dict(windows=cand_summary,latest_month=f'{latest[0]}-{latest[1]:02}',status='unverified_change_candidates'))
 (WEB/'forest-change.json').write_text(json.dumps(payload,ensure_ascii=False),encoding='utf-8')
 print('saved')

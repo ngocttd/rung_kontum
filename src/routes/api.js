@@ -5,6 +5,9 @@ const store = require('../data/store');
 const alerts = require('../services/alerts');
 const content = require('../services/content');
 const reports = require('../services/reports');
+const fs = require('fs');
+const path = require('path');
+const { paths } = require('../config');
 
 const r = express.Router();
 const pub = express.Router();
@@ -149,6 +152,12 @@ pub.get('/weather', (req, res) => {
   const list = repo.weatherSnapshot();
   res.json({ type: 'FeatureCollection', features: list.map((w) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [w.lon, w.lat] }, properties: { code: w.code, name: w.fullName, ...w.current } })) });
 });
+// mũi tên gió theo xã (dự báo hôm nay – Open-Meteo) hoặc theo ô lưới ERA5-Land ngày gần nhất (build_env_layers.py)
+pub.get('/weather/wind', (req, res) => {
+  const f = path.join(paths.web, req.query.nguon === 'era5' ? 'wind-era.geojson' : 'wind-today.geojson');
+  if (!fs.existsSync(f)) return res.status(404).json({ error: 'Chưa có dữ liệu gió' });
+  return res.type('application/json').send(fs.readFileSync(f));
+});
 pub.get('/weather/:code', (req, res) => res.json(repo.dailyForecast(req.params.code)));
 pub.get('/climate', (req, res) => res.json(repo.climateMonthly()));
 pub.get('/ndvi', (req, res) => res.json(repo.ndviSeries(req.query.code || null)));
@@ -163,6 +172,23 @@ pub.get('/layers/custom/:id', (req, res) => {
   const l = store.get('layers', req.params.id);
   if (!l || l.status !== 'published') return res.status(404).json({ error: 'Không tìm thấy' });
   return res.json(l.geojson);
+});
+
+// ---------- công cụ không gian (OSM) ----------
+const geotools = require('../services/geotools');
+const { rateLimit } = require('../middleware/security');
+const ll = (s) => String(s || '').split(',').map(Number);
+// khoảng cách tới khu dân cư, đường và cơ sở ứng cứu gần nhất
+pub.get('/tools/nearest', (req, res) => {
+  try { return res.json(geotools.nearest(req.query.lon, req.query.lat)); } catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
+});
+// đường đi ngắn nhất: ?from=lon,lat&to=lon,lat
+pub.get('/tools/route', rateLimit('route', 120, 60e3), (req, res) => {
+  try {
+    const from = ll(req.query.from); const to = ll(req.query.to);
+    if (from.length !== 2 || to.length !== 2) return res.status(400).json({ error: 'Cần tham số from=lon,lat và to=lon,lat' });
+    return res.json(geotools.route(from, to));
+  } catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
 });
 
 pub.get('/search', (req, res) => {

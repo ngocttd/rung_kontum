@@ -18,8 +18,8 @@
   const ov = Object.fromEntries(overlays.map(o => [o.id, o]));
   const tabs = [['tong-quan','grid-fill','Tổng quan'],['hien-trang','tree-fill','Hiện trạng rừng'],['phan-loai','bar-chart-fill','Phân loại rừng'],['lop-phu','clock-history','Lớp phủ 1991–2023'],['__/bien-dong-rung','graph-up-arrow','Biến động rừng'],
     ['dac-dung','shield-fill-check','Khu bảo tồn và rừng đặc dụng'],['phong-ho','tree-fill','Rừng phòng hộ'],['san-xuat','bar-chart-fill','Rừng sản xuất'],['__/tai-lieu','file-earmark-text-fill','Dữ liệu và tài liệu']];
-  const catPanels = [['dac-dung','special_use_planning_ha','Rừng đặc dụng','special','#006b38'],['phong-ho','protection_planning_ha','Rừng phòng hộ','protection','#75bb25'],['san-xuat','production_planning_ha','Rừng sản xuất','production','#f8ce42']];
-  const filterTypes = [['special','Rừng đặc dụng','#006b38'],['protection','Rừng phòng hộ','#75bb25'],['production','Rừng sản xuất','#4caf50'],['natural','Rừng tự nhiên','#0f5f32'],['plantation','Rừng trồng','#f8b733']];
+  const catPanels = [['dac-dung','special_use_planning_ha','Quy hoạch rừng đặc dụng','special','#006b38'],['phong-ho','protection_planning_ha','Quy hoạch rừng phòng hộ','protection','#75bb25'],['san-xuat','production_planning_ha','Quy hoạch rừng sản xuất','production','#f8ce42']];
+  const filterTypes = [['special','Quy hoạch đặc dụng','#006b38'],['protection','Quy hoạch phòng hộ','#75bb25'],['production','Quy hoạch sản xuất','#4caf50'],['natural','Rừng tự nhiên','#0f5f32'],['plantation','Rừng trồng','#f8b733']];
 %>
 <%- include('../partials/banner', { banner: 'p03-forest', heading: 'Tài nguyên rừng Kon Tum', crumb: 'Tài nguyên rừng',
   lead: 'Thông tin hiện trạng, phân loại, biến động và phân bố tài nguyên rừng phục vụ quản lý, bảo vệ và phát triển rừng bền vững.',
@@ -88,9 +88,10 @@
         <div class="card-b">
           <div class="donut-wrap keep" style="grid-template-columns:150px minmax(0,1fr)"><div class="chart-box" style="height:150px"><canvas id="ch-origin"></canvas></div>
             <ul class="risk-list" style="font-size:12.3px">
-              <li><span class="dot" style="background:#006b38"></span>Rừng đặc dụng<span class="v"><%= fmt.num(s.special_use_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.special_use_ha / s.planning_ha * 100, 1) %>%</span></li>
-              <li><span class="dot" style="background:#75bb25"></span>Rừng phòng hộ<span class="v"><%= fmt.num(s.protection_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.protection_ha / s.planning_ha * 100, 1) %>%</span></li>
-              <li><span class="dot" style="background:#f8ce42"></span>Rừng sản xuất<span class="v"><%= fmt.num(s.production_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.production_ha / s.planning_ha * 100, 1) %>%</span></li>
+              <li><span class="dot" style="background:#006b38"></span>Quy hoạch đặc dụng<span class="v"><%= fmt.num(s.special_use_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.special_use_ha / s.planning_ha * 100, 1) %>%</span></li>
+              <li><span class="dot" style="background:#75bb25"></span>Quy hoạch phòng hộ<span class="v"><%= fmt.num(s.protection_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.protection_ha / s.planning_ha * 100, 1) %>%</span></li>
+              <li><span class="dot" style="background:#f8ce42"></span>Quy hoạch sản xuất<span class="v"><%= fmt.num(s.production_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.production_ha / s.planning_ha * 100, 1) %>%</span></li>
+              <li class="src" style="list-style:none;margin-top:4px">Diện tích quy hoạch 3 loại rừng (gồm cả đất chưa có rừng trong quy hoạch lâm nghiệp) – khác diện tích có rừng; vì vậy tổng quy hoạch lớn hơn tổng diện tích có rừng, và ở một số xã diện tích quy hoạch sản xuất lớn hơn diện tích có rừng.</li>
               <li><span class="dot" style="background:#176c35"></span>Rừng tự nhiên<span class="v"><%= fmt.num(s.natural_forest_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.natural_forest_ha / s.established_forest_ha * 100, 1) %>%</span></li>
               <li><span class="dot" style="background:#b567d7"></span>Rừng trồng<span class="v"><%= fmt.num(s.plantation_ha) %></span><span class="v" style="min-width:42px"><%= fmt.num(s.plantation_ha / s.established_forest_ha * 100, 1) %>%</span></li>
             </ul></div>
@@ -119,7 +120,7 @@
       </section>
       <section class="card">
         <div class="card-h"><h2><%- ic('shield-fill-check') %> Danh sách xã có rừng đặc dụng</h2><a class="more" href="?tab=dac-dung">Xem tất cả <%- ic('chevron-right') %></a></div>
-        <div class="card-b table-wrap"><table class="tbl compact"><thead><tr><th>STT</th><th>Xã/phường</th><th class="num">Đặc dụng (ha)</th><th class="num">Phòng hộ (ha)</th></tr></thead><tbody>
+        <div class="card-b table-wrap"><table class="tbl compact"><thead><tr><th>STT</th><th>Xã/phường</th><th class="num">QH đặc dụng (ha)</th><th class="num">QH phòng hộ (ha)</th></tr></thead><tbody>
           <% byCat('special_use_planning_ha').slice(0,6).forEach((c,i) => { %><tr data-code="<%= c.code %>"><td><%= i+1 %></td><td><%= c.name %></td><td class="num"><%= fmt.num(c.official.special_use_planning_ha) %></td><td class="num"><%= fmt.num(c.official.protection_planning_ha) %></td></tr><% }) %>
         </tbody></table><p class="src">Ranh giới từng khu bảo tồn, vườn quốc gia cần lớp GIS do cơ quan quản lý bàn giao.</p></div>
       </section>

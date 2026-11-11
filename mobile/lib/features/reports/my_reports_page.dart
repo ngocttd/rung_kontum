@@ -62,6 +62,7 @@ class _MyReportsBodyState extends ConsumerState<MyReportsBody> {
             KV('Gửi lúc', fmtDateTime(r['created_at'])),
             KV('Nội dung', r['description']?.toString()),
             if (r['response'] != null) KV('Phản hồi của cơ quan', r['response']?.toString()),
+            if (((r['same_location_count'] as num?) ?? 0) > 0) KV('Cùng vị trí', '${(r['same_location_count'] as num) + 1} người đã phản ánh sự việc tại khu vực này – cơ quan xử lý gộp thông tin'),
             if ((r['photos'] as List?)?.isNotEmpty == true) ...[
               const SizedBox(height: 8),
               SizedBox(height: 96, child: ListView(scrollDirection: Axis.horizontal, children: [for (final p in (r['photos'] as List)) Padding(padding: const EdgeInsets.only(right: 6), child: ClipRRect(borderRadius: BorderRadius.circular(8), child: NetImage(p as String, width: 96, height: 96)))])),

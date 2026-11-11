@@ -1,0 +1,53 @@
+<%- include('_top', { needsMap: true }) %>
+<% const rs = { queued: ['b-gray', 'Chờ chạy'], running: ['b-orange', 'Đang chạy'], succeeded: ['b-green', 'Hoàn thành'], failed: ['b-red', 'Lỗi'] };
+   const p = run.params || {}; const s = run.summary; const b = p.baseline || {}; const th = p.thresholds || {}; %>
+<div class="adm-tabs"><a href="/quan-tri/phan-tich#bien-dong"><%- ic('chevron-left') %> Phân tích (Python)</a></div>
+<% if (['queued', 'running'].includes(run.status)) { %><div class="flash" style="background:#eaf4fd;border:1px solid #bcd9f3;color:#1d4d78"><%- ic('hourglass-split') %> Đang phân tích… trang tự cập nhật khi xong.</div><script>setTimeout(() => location.reload(), 5000);</script><% } %>
+<div class="grid" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
+  <section class="card">
+    <div class="card-h"><h2><%- ic('map-fill') %> <%= run.code %> · <%= run.title %></h2><span class="badge <%= rs[run.status][0] %>" style="margin-left:auto"><%= rs[run.status][1] %></span></div>
+    <div class="map-shell" style="height:560px;border-radius:0 0 10px 10px"><div id="map" class="map"></div>
+      <div class="legend" style="right:12px;bottom:26px"><h4>Biến động NDVI</h4><div class="ramp" style="background:linear-gradient(90deg,#a50026,#f46d43,#fee08b,#f7f7f7,#d9ef8b,#66bd63,#006837)"></div><div class="ramp-l"><span>−0,3 (giảm)</span><span>+0,3</span></div>
+        <div class="row" style="margin-top:6px"><span class="sw" style="background:transparent;border:2px solid #ff1f6b"></span> Vùng nghi vấn</div></div></div>
+  </section>
+  <div class="grid" style="align-content:start">
+    <section class="card"><div class="card-h"><h2><%- ic('info-circle-fill') %> Tham số và kết quả</h2></div>
+      <div class="card-b"><table class="kv">
+        <tr><td>Kỳ phân tích</td><td><%= p.period ? p.period.from + ' → ' + p.period.to : '—' %><% if (s) { %><div class="src">tháng có ảnh: <%= s.period.join(', ') %></div><% } %></td></tr>
+        <tr><td>Kỳ đối chứng</td><td><%= b.mode === 'period' ? b.from + ' → ' + b.to : 'cùng kỳ ' + (b.years || []).join(', ') %></td></tr>
+        <% const tu = s && s.thresholds ? s.thresholds : null; %><tr><td>Ngưỡng (tự xác định)</td><td><%= tu ? 'ΔNDVI ≤ ' + tu.dndvi + ' · ΔNBR ≤ ' + tu.dnbr + ' · lặp lại ≥ ' + tu.persist + ' tháng · vùng ≥ ' + tu.min_ha + ' ha' : 'tính khi chạy' %><div class="src">Mức chặt hơn giữa ngưỡng chuẩn (−0,15 / −0,10) và trung vị − 3×MAD của rừng ổn định trong kỳ.</div></td></tr>
+        <tr><td>Người chạy</td><td><%= run.created_by %> · <%= fmt.dateTime(run.created_at) %></td></tr>
+        <% if (p.note) { %><tr><td>Ghi chú</td><td><%= p.note %></td></tr><% } %>
+        <% if (s) { %><tr><td>Vùng nghi vấn</td><td><b><%= fmt.num(s.candidates) %></b> vùng · <b><%= fmt.num(s.area_ha) %></b> ha</td></tr>
+        <tr><td>Độ phủ ảnh hợp lệ</td><td><%= fmt.num(s.valid_fraction * 100) %>% diện tích rừng còn đến 2024</td></tr>
+        <tr><td>Lưu ý</td><td><%= s.dry_season ? 'Có tháng mùa khô – rừng khộp rụng lá có thể làm NDVI giảm. ' : '' %><%= s.low_confidence ? 'Chỉ 1 năm đối chứng – độ tin cậy thấp hơn.' : '' %><%= !s.dry_season && !s.low_confidence ? '—' : '' %></td></tr><% } %>
+        <tr><td>Công bố</td><td><%= run.published ? 'Đã công bố bởi ' + run.published_by + ' lúc ' + fmt.dateTime(run.published_at) : 'Chưa công bố' %></td></tr>
+      </table>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <% if (can('alerts.approve') && run.status === 'succeeded') { %><form method="post" action="/quan-tri/phan-tich/bien-dong/<%= run.id %>/cong-bo"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="on" value="<%= run.published ? '0' : '1' %>"><button class="btn <%= run.published ? 'btn-outline' : 'btn-primary' %>"><%- ic(run.published ? 'x-circle-fill' : 'check-lg') %> <%= run.published ? 'Thu hồi công bố' : 'Công bố ra bản đồ' %></button></form><% } %>
+        <% if (can('jobs.run') && !run.published && !['queued', 'running'].includes(run.status)) { %><form method="post" action="/quan-tri/phan-tich/bien-dong/<%= run.id %>/xoa" onsubmit="return confirm('Xoá kỳ phân tích này?')"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline">Xoá</button></form><% } %>
+      </div>
+      <p class="src" style="margin-top:8px">Công bố: vùng nghi vấn hiện ở trang Biến động rừng, lớp “Vùng biến động nghi vấn” và lớp “Biến động NDVI” trên Bản đồ WebGIS, MobileGIS – trạng thái “chưa xác minh” cho tới khi cán bộ xác minh.</p></div></section>
+    <section class="card"><div class="card-h"><h2><%- ic('clock-history') %> Nhật ký chạy</h2></div><div class="card-b"><pre class="log-pre"><%= (run.log || []).join('\n') || '—' %></pre></div></section>
+  </div>
+</div>
+<%- include('_bottom') %>
+<%- include('../partials/mapjs') %>
+<script>
+(function () {
+  const id = <%- JSON.stringify(run.id) %>; const done = <%- JSON.stringify(run.status === 'succeeded') %>; const coords = <%- JSON.stringify(s ? s.overlay_coordinates : null) %>;
+  const v = KT.createMap('map', { basemap: 'satellite', padding: 20 });
+  if (!v) return;
+  v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province());
+  if (!done || !coords) return;
+  v.define('ov-run', { ...KT.layers.overlay({ id: 'run', url: `/bien-dong/lop/${id}.webp`, coordinates: coords, opacity: 0.85 }), visible: true });
+  v.map.on('load', async () => {
+    const fc = await KT.getJSON(`/quan-tri/phan-tich/bien-dong/${id}/vung.geojson`);
+    v.map.addSource('cands', { type: 'geojson', data: fc });
+    v.map.addLayer({ id: 'cands-line', type: 'line', source: 'cands', paint: { 'line-color': '#ff1f6b', 'line-width': 1.6 } });
+    v.map.addLayer({ id: 'cands-fill', type: 'fill', source: 'cands', paint: { 'fill-color': '#ff1f6b', 'fill-opacity': 0.15 } });
+    v.map.on('click', 'cands-fill', (e) => { const q = e.features[0].properties; new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<div class="pop"><h4>${KT.esc(q.id)}</h4><table><tr><td>Địa bàn</td><td>${KT.esc(q.commune_name || '—')}</td></tr><tr><td>Diện tích</td><td>${KT.num(q.area_ha)} ha</td></tr><tr><td>ΔNDVI · ΔNBR</td><td>${q.mean_dndvi} · ${q.mean_dnbr}</td></tr></table></div>`).addTo(v.map); });
+  });
+})();
+</script>
+</body></html>

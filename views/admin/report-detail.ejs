@@ -4,6 +4,7 @@
   <section class="card">
     <div class="card-h"><h2><img src="/assets/markers/<%= x.marker %>.svg" width="22" alt=""> <%= x.code %> · <%= x.typeLabel %></h2><span class="badge <%= tone[x.statusTone] %>" style="margin-left:auto"><%= x.statusLabel %></span><span class="badge <%= x.reviewed_at ? 'b-green' : 'b-gray' %>" style="margin-left:6px"><%= x.reviewed_at ? 'Đã kiểm tra' : 'Chưa kiểm tra' %></span></div>
     <div class="card-b">
+      <% if (same.count) { %><div class="note warn" style="margin-bottom:8px"><b><%= same.count + 1 %> người</b> cùng phản ánh trong bán kính <%= same.radius_m %> m, ±<%= same.days %> ngày: <% same.codes.forEach((c, i) => { %><%= i ? ', ' : '' %><a href="/quan-tri/phan-anh/<%= c %>"><%= c %></a><% }) %></div><% } %>
       <table class="kv"><tr><td>Thời gian gửi</td><td><%= fmt.dateTime(x.created_at) %></td></tr><tr><td>Thời điểm phát hiện</td><td><%= x.observed_at ? x.observed_at.replace('T', ' ') : '—' %></td></tr>
         <tr><td>Địa bàn</td><td><%= x.commune_name || 'Ngoài ranh 40 xã' %></td></tr><tr><td>Tọa độ</td><td><%= x.lat %>, <%= x.lon %> <% if (x.lat) { %>· <a href="/ban-do#<%= x.lon %>,<%= x.lat %>,14" target="_blank">mở bản đồ</a><% } %></td></tr>
         <tr><td>Mô tả địa điểm</td><td><%= x.location_text || '—' %></td></tr><tr><td>Nội dung</td><td><%= x.description %></td></tr>

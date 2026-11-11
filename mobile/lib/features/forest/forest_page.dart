@@ -60,9 +60,9 @@ class _Overview extends StatelessWidget {
       SectionCard(
         title: 'Cơ cấu quy hoạch 3 loại rừng',
         child: DonutChart(center: '${fmtNum(s['planning_ha'] as num?)}\nha', items: [
-          ('Rừng đặc dụng', (s['special_use_ha'] ?? 0) as num, AppColors.forestDark),
-          ('Rừng phòng hộ', (s['protection_ha'] ?? 0) as num, AppColors.leaf),
-          ('Rừng sản xuất', (s['production_ha'] ?? 0) as num, AppColors.yellow),
+          ('Quy hoạch đặc dụng', (s['special_use_ha'] ?? 0) as num, AppColors.forestDark),
+          ('Quy hoạch phòng hộ', (s['protection_ha'] ?? 0) as num, AppColors.leaf),
+          ('Quy hoạch sản xuất', (s['production_ha'] ?? 0) as num, AppColors.yellow),
         ]),
       ),
       const SizedBox(height: 12),

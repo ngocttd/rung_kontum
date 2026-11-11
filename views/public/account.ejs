@@ -1,0 +1,35 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<% const tone = { info: 'b-blue', warn: 'b-orange', danger: 'b-red', ok: 'b-green', muted: 'b-gray' }; %>
+<main class="container page">
+  <div class="crumbs"><a href="/"><%- ic('house-fill') %></a> › <span>Tài khoản của tôi</span></div>
+  <div class="grid" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin-top:10px">
+    <section class="card">
+      <div class="card-h"><h2><%- ic('megaphone-fill') %> Phản ánh của tôi</h2><a class="btn btn-primary btn-sm" style="margin-left:auto" href="/phan-anh#gui"><%- ic('plus-lg') %> Gửi phản ánh</a></div>
+      <div class="card-b table-wrap"><% if (!mine.length) { %><div class="empty-state">Bạn chưa gửi phản ánh nào bằng tài khoản này. Phản ánh gửi từ ứng dụng MobileGIS cùng tài khoản cũng hiện ở đây.</div><% } else { %>
+        <table class="tbl" data-page-size="10" data-tools="Tìm mã, nội dung…"><thead><tr><th>Mã</th><th>Loại</th><th>Ngày gửi</th><th>Địa bàn</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+        <% mine.forEach(x => { %><tr><td><b><%= x.code %></b></td><td><%= x.typeLabel %></td><td><%= fmt.dateTime(x.created_at) %></td><td><%= x.commune_name || '—' %></td>
+          <td><span class="badge <%= tone[x.statusTone] || 'b-gray' %>"><%= x.statusLabel %></span><% if (x.same_location_count) { %><div class="src"><%= x.same_location_count %> phản ánh khác cùng vị trí</div><% } %></td>
+          <td><a class="btn btn-outline btn-sm" href="/phan-anh?ma=<%= x.code %>">Tiến độ</a></td></tr><% }) %>
+        </tbody></table><% } %></div>
+    </section>
+    <div class="grid" style="align-content:start;gap:16px">
+      <form class="card" method="post" action="/tai-khoan"><div class="card-h"><h2><%- ic('person-circle') %> Thông tin tài khoản</h2></div>
+        <div class="card-b grid" style="gap:8px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="profile">
+          <table class="kv"><tr><td>Tên đăng nhập</td><td><%= u.username %></td></tr><tr><td>Điện thoại</td><td><%= u.phone || '—' %></td></tr><tr><td>Email</td><td><%= u.email || '—' %></td></tr><tr><td>Ngày tạo</td><td><%= fmt.date(u.created_at) %></td></tr></table>
+          <label class="field"><span>Họ và tên</span><input class="input" name="name" value="<%= u.name || '' %>" required minlength="2"></label>
+          <button class="btn btn-outline btn-sm">Lưu</button></div></form>
+      <form class="card" method="post" action="/tai-khoan"><div class="card-h"><h2><%- ic('key-fill') %> Đổi mật khẩu</h2></div>
+        <div class="card-b grid" style="gap:8px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="password">
+          <input class="input" type="password" name="current" placeholder="Mật khẩu hiện tại" required autocomplete="current-password">
+          <input class="input" type="password" name="password" placeholder="Mật khẩu mới (≥ 8 ký tự)" minlength="8" required autocomplete="new-password">
+          <button class="btn btn-outline btn-sm">Đổi mật khẩu</button></div></form>
+      <section class="card"><div class="card-h"><h2><%- ic('chat-dots-fill') %> Bình luận của tôi</h2></div>
+        <div class="card-b"><% if (!myComments.length) { %><p class="muted">Chưa có bình luận.</p><% } %>
+          <% myComments.forEach(c => { %><div style="border-bottom:1px solid var(--line);padding:6px 0"><a href="/tin-tuc/<%= c.article.slug %>"><%= c.article.title || '(tin đã gỡ)' %></a><div class="src"><%= fmt.dateTime(c.created_at) %> · <%= c.statusLabel %></div><div><%= c.body.slice(0, 160) %></div></div><% }) %></div></section>
+      <form method="post" action="/dang-xuat"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-block"><%- ic('box-arrow-right') %> Đăng xuất</button></form>
+    </div>
+  </div>
+</main>
+<%- include('../partials/footer') %>
+</body></html>

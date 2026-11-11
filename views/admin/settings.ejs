@@ -25,6 +25,18 @@
       <tr><td>Thời tiết hiện tại</td><td><%= fmt.dateTime(freshness.weather) %></td></tr><tr><td>Khí tượng Open-Meteo</td><td><%= fmt.dateTime(freshness.openmeteo) %></td></tr>
       <tr><td>Chỉ số nguy cơ cháy</td><td><%= fmt.dateTime(freshness.fireDanger) %></td></tr><tr><td>Điểm nóng FIRMS</td><td><%= fmt.dateTime(freshness.firms) %></td></tr><tr><td>Biến động/dự báo rừng</td><td><%= fmt.dateTime(freshness.forestChange) %></td></tr>
     </table><a class="btn btn-outline btn-sm" href="/quan-tri/phan-tich" style="margin-top:10px">Chạy cập nhật</a></div></section>
+  <% if (can('users.manage')) { const rl = release || {}; %>
+  <form class="card" id="phien-ban" method="post" action="/quan-tri/phien-ban-ung-dung"><div class="card-h"><h2><%- ic('phone-fill') %> Phiên bản ứng dụng MobileGIS</h2></div>
+    <div class="card-b grid" style="gap:8px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <p class="src" style="margin:0">Ứng dụng kiểm tra khi mở và hiện thông báo “Có phiên bản mới”; dưới mức tối thiểu sẽ yêu cầu cập nhật. <%= rl.version ? 'Đang khai báo: ' + rl.version + ' (' + fmt.dateTime(rl.published_at) + ', ' + rl.published_by + ')' + (rl.notified_at ? ' · đã gửi thông báo ' + fmt.dateTime(rl.notified_at) : ' · chưa gửi thông báo') : 'Chưa khai báo.' %></p>
+      <div class="grid cols-2" style="gap:8px"><label class="field"><span>Phiên bản mới *</span><input class="input" name="version" value="<%= rl.version || '' %>" placeholder="1.1.0" pattern="\d+\.\d+\.\d+" required></label>
+        <label class="field"><span>Phiên bản tối thiểu</span><input class="input" name="min_version" value="<%= rl.min_version || '' %>" placeholder="để trống nếu không bắt buộc" pattern="\d+\.\d+\.\d+"></label></div>
+      <label class="field"><span>Nội dung cập nhật</span><textarea class="input" name="notes" rows="2"><%= rl.notes || '' %></textarea></label>
+      <div class="grid cols-2" style="gap:8px"><label class="field"><span>Liên kết Android (CH Play / APK)</span><input class="input" name="android_url" value="<%= rl.android_url || '' %>" placeholder="https://…"></label>
+        <label class="field"><span>Liên kết iOS (App Store / TestFlight)</span><input class="input" name="ios_url" value="<%= rl.ios_url || '' %>" placeholder="https://…"></label></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" name="action" value="save">Lưu phiên bản</button><% if (rl.version) { %><button class="btn btn-outline btn-sm" name="action" value="notify" formnovalidate onclick="return confirm('Gửi thông báo phiên bản <%= rl.version %> tới mọi thiết bị?')"><%- ic('bell-fill') %> Gửi thông báo</button><% } %></div>
+    </div></form>
+  <% } %>
   <form class="card" method="post" action="/quan-tri/mat-khau"><div class="card-h"><h2><%- ic('key-fill') %> Đổi mật khẩu</h2></div>
     <div class="card-b"><input type="hidden" name="_csrf" value="<%= csrf %>">
       <label class="field"><span>Mật khẩu hiện tại</span><input class="input" type="password" name="current" required autocomplete="current-password"></label>

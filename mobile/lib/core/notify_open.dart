@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../features/map/object_page.dart';
+import 'app_update.dart';
 import 'data.dart';
 
 /// Mở đúng màn hình chi tiết của một thông báo (chạm trên khay hệ thống – FCM hoặc thông báo cục bộ –
@@ -13,6 +14,7 @@ import 'data.dart';
 ///  - screen=task (id | code): nhiệm vụ hiện trường;
 ///  - screen=fire (commune): tab Cảnh báo; screen=notifications hoặc không rõ: danh sách Thông báo.
 Future<void> openNotificationLink(BuildContext context, WidgetRef ref, Map link, {bool fromList = false}) async {
+  if (link['type'] == 'app_update') { await openUpdate(link); return; }
   final screen = link['screen']?.toString();
   final router = GoRouter.of(context);
   switch (screen) {

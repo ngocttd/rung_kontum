@@ -41,7 +41,7 @@ r.post('/moi', requirePerm('maps.manage'), upload.single('file'), checkCsrf, asy
   try {
     if (!req.file) throw new Error('Chưa chọn tệp');
     if (!String(req.body.title || '').trim()) throw new Error('Cần nhập tên bản đồ');
-    const d = await maps.create({ ...req.body, title: String(req.body.title).trim().slice(0, 250) }, req.file, me(req));
+    const d = await maps.create({ ...req.body, title: String(req.body.title).trim().slice(0, 250), canPublish: can(me(req), 'maps.publish'), publish_now: req.body.publish_now === 'on' }, req.file, me(req));
     store.audit(me(req), 'map.upload', d.title);
     const url = `/quan-tri/ban-do/${d.id}`;
     return wantsJson(req) ? res.json({ ok: true, id: d.id, url }) : res.redirect(url);
@@ -81,6 +81,15 @@ r.post('/:id/cau-hinh', ...act('maps.manage', (req) => maps.configure(req.params
   nodata_rgb: req.body.nodata_rgb ? String(req.body.nodata_rgb).split(',').map(Number).slice(0, 3) : undefined,
 }, me(req)), 'Đã lưu cấu hình, đang xử lý tạo lớp hiển thị.'));
 r.post('/:id/nan-chinh', ...act('maps.manage', (req) => maps.georeference(req.params.id, { page: Number(req.body.page) || 1, method: req.body.method === 'poly2' ? 'poly2' : 'affine', gcps: JSON.parse(req.body.gcps || '[]') }, me(req)), 'Đang tính biến đổi và tạo raster định vị.'));
+r.post('/:id/tu-dinh-vi', requirePerm('maps.manage'), async (req, res) => {
+  try {
+    const r2 = await maps.autoGeoref(req.params.id, me(req));
+    store.audit(me(req), 'map.auto_georef', req.params.id);
+    flash(req, r2.ok ? 'ok' : 'error', r2.ok ? `Tự định vị đạt: độ khớp IoU ${r2.iou}, sai số biên ~${Math.round(r2.boundary_error_m)} m – đang tạo lớp hiển thị.` : `Không tự định vị được: ${r2.reason}. Hãy nắn chỉnh bằng điểm khống chế.`);
+  } catch (e) { flash(req, 'error', e.message); }
+  return res.redirect(`/quan-tri/ban-do/${req.params.id}`);
+});
+r.post('/:id/duyet-lop', ...act('maps.publish', (req) => maps.publish(req.params.id, me(req), String(req.body.note || '').slice(0, 1000)), 'Đã duyệt hiển thị lớp trên Bản đồ WebGIS.'));
 r.post('/:id/gui-duyet', ...act('maps.manage', (req) => maps.submit(req.params.id, me(req)), 'Đã gửi duyệt.'));
 r.post('/:id/xuat-ban', ...act('maps.publish', (req) => maps.publish(req.params.id, me(req), String(req.body.note || '').slice(0, 1000)), 'Đã xuất bản bản đồ.'));
 r.post('/:id/tra-ve', ...act('maps.publish', (req) => maps.setStatus(req.params.id, 'rejected', me(req), String(req.body.note || '').slice(0, 1000)), 'Đã trả về để hiệu chỉnh.'));

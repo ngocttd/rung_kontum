@@ -1,31 +1,57 @@
 <%- include('_top') %>
-<div class="adm-tabs"><a class="on" href="#chuoi">Chuỗi ảnh hằng tháng</a><a href="#mua">Tổ hợp theo mùa</a><a href="#lop">Sản phẩm hiển thị</a></div>
+<div class="adm-tabs"><a class="on" href="#chuoi">Chuỗi ảnh hằng tháng</a><a href="#phan-loai">Phân loại ảnh</a><a href="#mua">Tổ hợp theo mùa</a><a href="#lop">Sản phẩm hiển thị</a><a href="/so-sanh-anh" target="_blank"><%- ic('layout-split') %> So sánh ảnh</a></div>
 <section class="card" id="chuoi">
   <div class="card-h"><h2><%- ic('globe2') %> Sentinel-2 SR Harmonized – tổ hợp median tháng (100 m)</h2><span class="more muted" style="font-weight:400"><%= months.length %> tháng</span></div>
   <div class="card-b">
-    <div class="grid" style="grid-template-columns:repeat(6,minmax(0,1fr))" data-page-size="12">
+    <div class="grid" style="grid-template-columns:repeat(6,minmax(0,1fr))" data-page-size="12" data-tools="Tìm tháng (vd 2026-03)…">
       <% months.forEach(m => { const vf = m.valid_fraction; %>
-        <div class="card" style="padding:10px">
-          <div style="height:70px;border-radius:6px;background:linear-gradient(135deg,#1d4d3a,#5d8f4e);display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px"><%= m.month.slice(5) %>/<%= m.month.slice(0, 4) %></div>
+        <div class="card" style="padding:10px" data-sort-month="<%= m.month %>" data-sort-valid="<%= vf === null ? -1 : vf %>">
+          <a href="/anh-ve-tinh/thang/<%= m.month %>-true.webp" target="_blank" title="Xem ảnh màu tự nhiên"><div style="height:70px;border-radius:6px;background:linear-gradient(135deg,#1d4d3a,#5d8f4e);display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px"><%= m.month.slice(5) %>/<%= m.month.slice(0, 4) %></div></a>
+          <span hidden><%= m.month %></span>
           <div class="src" style="margin-top:6px">Sentinel-2 · <%= m.scenes %> cảnh</div>
           <div class="src">Pixel hợp lệ: <b style="color:<%= vf === null ? '#999' : vf > 0.8 ? '#0c7a51' : vf > 0.4 ? '#c25f00' : '#c0261f' %>"><%= vf === null ? '—' : fmt.num(vf * 100, 0) + '%' %></b></div>
-          <div class="src"><%= fmt.bytes(m.bytes) %></div>
+          <div class="src"><%= fmt.bytes(m.bytes) %> · <a href="/quan-tri/anh-ve-tinh/tai/<%= m.month %>.tif" title="Tải GeoTIFF 6 băng + số quan sát"><%- ic('download') %> GeoTIFF</a></div>
         </div>
       <% }) %>
     </div>
-    <p class="src">Lọc mây theo SCL (loại 0, 1, 3, 8, 9, 10, 11), mây cảnh &lt; 70%; 6 băng B2/B3/B4/B8/B11/B12 và số quan sát hợp lệ. Tải bằng GEE, xử lý chỉ số và phát hiện biến động bằng Python (scripts/build_forest_change.py).</p>
+    <p class="src">Lọc mây theo SCL (loại 0, 1, 3, 8, 9, 10, 11), mây cảnh &lt; 70%; 6 băng B2/B3/B4/B8/B11/B12 (phản xạ × 10000) và số quan sát hợp lệ, EPSG:4326. Tải bằng GEE, xử lý chỉ số và phát hiện biến động bằng Python. Nhấp ô tháng để xem ảnh màu tự nhiên; <a href="/so-sanh-anh" target="_blank">so sánh hai tháng</a> bằng thanh trượt.</p>
   </div>
 </section>
+
+<section class="card" id="phan-loai" style="margin-top:16px">
+  <div class="card-h"><h2><%- ic('grid-fill') %> Phân loại ảnh vệ tinh (Random Forest)</h2>
+    <% if (classStatus.running || classStatus.queued.length) { %><span class="badge b-orange" style="margin-left:auto">Đang chạy: <%= [classStatus.running, ...classStatus.queued].filter(Boolean).join(', ') %></span><script>setTimeout(() => location.reload(), 8000);</script><% } %></div>
+  <div class="card-b">
+    <p class="src">Phân loại có giám sát ảnh tháng Sentinel-2 thành 5 lớp (rừng tự nhiên, rừng trồng, đất trống/cây bụi, nông nghiệp/dân cư/đất khác, mặt nước). Mô hình học từ <b>389 mẫu thực địa Mau_KON_TUM_2025</b> của dự án; độ chính xác tính bằng đánh giá chéo 5 phần. Kết quả là sản phẩm tự động, chỉ hiện trên bản đồ công khai sau khi cán bộ công bố; số liệu rừng chính thức vẫn theo QĐ 1047/QĐ-UBND.</p>
+    <% if (can('jobs.run')) { %>
+    <form method="post" action="/quan-tri/anh-ve-tinh/phan-loai" class="inline-form" style="margin:8px 0 12px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <select class="input" name="month" style="width:auto"><% months.forEach(m => { %><option value="<%= m.month %>"><%= m.month.slice(5) %>/<%= m.month.slice(0, 4) %><%= m.valid_fraction !== null ? ' – ' + fmt.num(m.valid_fraction * 100, 0) + '% hợp lệ' : '' %></option><% }) %></select>
+      <button class="btn btn-primary btn-sm"><%- ic('arrow-repeat') %> Chạy phân loại</button><span class="src">Nên chọn tháng mùa khô ít mây (01–04).</span></form>
+    <% } %>
+    <% classStatus.errors.forEach(e => { %><div class="flash error">Tháng <%= e.month %>: <%= e.error %></div><% }) %>
+    <div class="table-wrap"><% if (!classes.length) { %><div class="empty-state">Chưa có kết quả phân loại.</div><% } else { %>
+    <table class="tbl" data-page-size="10" data-tools="Tìm tháng…"><thead><tr><th>Tháng ảnh</th><th class="num">Độ chính xác</th><th class="num">Kappa</th><th>Diện tích theo lớp (ha)</th><th>Hợp lệ</th><th>Công bố</th><th></th></tr></thead><tbody>
+      <% classes.forEach(c => { %><tr><td><b><%= c.month.slice(5) %>/<%= c.month.slice(0, 4) %></b><div class="src"><%= c.samples %> mẫu</div></td><td class="num"><%= fmt.num(c.accuracy * 100, 1) %>%</td><td class="num"><%= c.kappa %></td>
+        <td class="src"><% c.classes.forEach(k => { %><span class="dot" style="background:<%= k.color %>"></span> <%= k.label %>: <b><%= fmt.num(c.area_ha[k.label]) %></b><br><% }) %></td>
+        <td><%= fmt.num(c.valid_fraction * 100, 0) %>%</td>
+        <td><%= c.published ? 'Đã công bố (' + c.published_by + ')' : 'Chưa' %></td>
+        <td style="white-space:nowrap"><a class="btn btn-outline btn-sm" href="/anh-ve-tinh/phan-loai/<%= c.month %>.webp" target="_blank"><%- ic('eye-fill') %></a>
+          <a class="btn btn-outline btn-sm" href="/quan-tri/anh-ve-tinh/phan-loai/<%= c.month %>.tif" title="Tải GeoTIFF"><%- ic('download') %></a>
+          <% if (can('data.manage')) { %><form method="post" action="/quan-tri/anh-ve-tinh/phan-loai/<%= c.month %>/cong-bo" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="on" value="<%= c.published ? '0' : '1' %>"><button class="btn btn-sm <%= c.published ? 'btn-outline' : 'btn-primary' %>"><%= c.published ? 'Gỡ' : 'Công bố' %></button></form><% } %></td></tr><% }) %>
+    </tbody></table><% } %></div>
+  </div>
+</section>
+
 <section class="card" id="mua" style="margin-top:16px">
   <div class="card-h"><h2><%- ic('collection-fill') %> Tổ hợp theo mùa</h2></div>
   <div class="card-b table-wrap"><table class="tbl"><thead><tr><th>Mùa</th><th>Số cảnh nguồn</th><th>Khoảng thời gian</th><th>Ghi chú</th></tr></thead><tbody>
-    <% seasonal.forEach(s => { const c = s.catalog; const n = c ? (Array.isArray(c) ? c.length : (c.scenes ? c.scenes.length : (c.count || '—'))) : '—'; %><tr><td>Sentinel-2 <%= s.key.replace('dry', 'mùa khô').replace('wet', 'mùa mưa') %></td><td><%= n %></td><td class="src"><%= c && c.start ? c.start + ' → ' + c.end : '' %></td><td class="src">Lưới 100 m (tổng quan); 2025 có thêm bản 30 m</td></tr><% }) %>
+    <% seasonal.forEach(s => { const c = s.catalog; const n = c ? (Array.isArray(c) ? c.length : (c.scene_ids ? c.scene_ids.length : c.scenes ? c.scenes.length : (c.count || '—'))) : '—'; %><tr><td>Sentinel-2 <%= s.key.replace('dry', 'mùa khô').replace('wet', 'mùa mưa') %></td><td><%= n %></td><td class="src"><%= c && c.start ? c.start + ' → ' + (c.end || (c.end_exclusive ? new Date(new Date(c.end_exclusive).getTime() - 864e5).toISOString().slice(0, 10) : '')) : '' %></td><td class="src">Lưới 100 m (tổng quan); 2025 có thêm bản 30 m</td></tr><% }) %>
   </tbody></table></div>
 </section>
 <section class="card" id="lop" style="margin-top:16px">
   <div class="card-h"><h2><%- ic('image-fill') %> Sản phẩm ảnh đang hiển thị trên WebGIS</h2></div>
-  <div class="card-b grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
-    <% overlays.forEach(o => { %><div class="card" style="overflow:hidden"><img src="<%= o.url %>" alt="" style="width:100%;height:140px;object-fit:contain;background:#20322e"><div class="card-b"><h3 style="font-size:13.5px"><%= o.title %></h3><p class="src" style="margin:4px 0 0"><%= o.source %> · <%= o.resolution || '' %></p></div></div><% }) %>
+  <div class="card-b grid" style="grid-template-columns:repeat(4,minmax(0,1fr))" data-page-size="12" data-tools="Tìm sản phẩm…">
+    <% overlays.forEach(o => { %><div class="card" style="overflow:hidden"><img src="<%= o.url %>" alt="" loading="lazy" style="width:100%;height:140px;object-fit:contain;background:#20322e"><div class="card-b"><h3 style="font-size:13.5px"><%= o.title %></h3><p class="src" style="margin:4px 0 0"><%= o.source %> · <%= o.resolution || '' %></p><a class="src" href="<%= o.url %>" download><%- ic('download') %> Tải ảnh</a></div></div><% }) %>
   </div>
 </section>
 <%- include('_bottom') %>
