@@ -68,15 +68,33 @@ r.get('/', requirePerm('dashboard.view'), (req, res) => {
 });
 
 // ---------- A02 spatial data ----------
-r.get('/du-lieu', requirePerm('dashboard.view'), (req, res) => {
-  const layers = [
-    ...repo.overlays().map((o) => ({ id: o.id, title: o.title, kind: 'Raster (ảnh)', source: o.source, meaning: o.meaning, resolution: o.resolution, status: 'published', origin: 'pipeline' })),
-    { id: 'province', title: 'Ranh giới Kon Tum trước 2025', kind: 'Vector (polygon)', source: 'geoBoundaries / HDX 2020', status: 'published', origin: 'pipeline' },
-    { id: 'communes', title: 'Ranh giới 40 xã/phường hiện hành', kind: 'Vector (polygon)', source: 'vietnamese-provinces-database v5.2.0', status: 'published', origin: 'pipeline' },
-    { id: 'hotspots', title: 'Điểm nóng FIRMS 7 ngày', kind: 'Vector (điểm)', source: 'NASA FIRMS', status: 'published', origin: 'pipeline' },
-    { id: 'candidates', title: 'Biến động nghi vấn 2026', kind: 'Vector (polygon)', source: 'Sentinel-2 / Python', status: 'published', origin: 'pipeline' },
-  ];
-  res.render('admin/layers', { title: 'Quản lý dữ liệu không gian', section: 'layers', layers, custom: repo.customLayers(true), manifest: readJson(path.join(paths.boundaries, 'manifest.json')) });
+r.get('/du-lieu', requirePerm('dashboard.view'), async (req, res, next) => {
+  try {
+    const catalog = require('../services/layerCatalog');
+    res.render('admin/layers', { title: 'Quản lý dữ liệu không gian', section: 'layers', catalog: await catalog.full(), groups: catalog.GROUPS,
+      custom: repo.customLayers(true), manifest: readJson(path.join(paths.boundaries, 'manifest.json')) });
+  } catch (e) { next(e); }
+});
+// cấu hình hiển thị một lớp trong danh mục
+r.post('/du-lieu/lop/:id', requirePerm('data.manage'), (req, res) => {
+  require('../services/layerCatalog').save(me(req), req.params.id, req.body);
+  flash(req, 'ok', 'Đã lưu cấu hình lớp – áp dụng ngay cho Bản đồ WebGIS, MobileGIS và trang Tài nguyên rừng.');
+  return res.redirect('/quan-tri/du-lieu#danh-muc');
+});
+r.post('/du-lieu/lop/:id/an-hien', requirePerm('data.manage'), (req, res) => {
+  require('../services/layerCatalog').setHidden(me(req), req.params.id, req.body.hidden === '1');
+  flash(req, 'ok', req.body.hidden === '1' ? 'Đã ẩn lớp khỏi bản đồ công khai.' : 'Đã hiện lại lớp trên bản đồ.');
+  return res.redirect('/quan-tri/du-lieu#danh-muc');
+});
+r.post('/du-lieu/lop/:id/mac-dinh', requirePerm('data.manage'), (req, res) => {
+  require('../services/layerCatalog').reset(me(req), req.params.id);
+  flash(req, 'ok', 'Đã khôi phục cấu hình mặc định của lớp.');
+  return res.redirect('/quan-tri/du-lieu#danh-muc');
+});
+// trang mô tả API quản lý lớp (cho đơn vị tích hợp)
+r.get('/du-lieu/api', requirePerm('dashboard.view'), (req, res) => {
+  res.render('admin/layers-api', { title: 'API quản lý lớp dữ liệu', section: 'layers', endpoints: require('./api-v1').ENDPOINTS,
+    base: `${req.protocol}://${req.get('host')}`, custom: repo.customLayers(true) });
 });
 
 const layersSvc = require('../services/layers');

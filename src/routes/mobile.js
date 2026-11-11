@@ -117,32 +117,41 @@ r.get('/layers', optionalAuth, wrap(async (req, res) => {
   const box = bbox && bbox.length === 4 && bbox.every(Number.isFinite) ? bbox : null;
   const zoom = Number(req.query.zoom) || null;
   const AOI = [107.33, 13.91, 108.56, 15.43];
-  const groups = { landcover: 'Lớp phủ 1991–2023', forest: 'Tài nguyên rừng', change: 'Biến động – dự báo mất rừng', imagery: 'Ảnh vệ tinh', terrain: 'Địa hình – chỉ số' };
-  const groupOf = (id) => (id.startsWith('lc-') ? 'landcover' : id.startsWith('s2-') ? 'imagery' : /hansen|risk/.test(id) ? 'change' : /dem|ndvi/.test(id) ? 'terrain' : 'forest');
-  const raster = repo.overlays().filter((o) => intersects(AOI, box)).map((o) => ({
-    id: o.id, title: o.title, kind: 'raster', group: groupOf(o.id), group_label: groups[groupOf(o.id)], source: o.source, meaning: o.meaning, resolution: o.resolution || o.scale,
-    legend: o.legend || [], image: { url: o.url, coordinates: o.coordinates }, tiles: o.tiles || null,
-  }));
-  const maps = await require('../services/maps').publishedLayers().catch(() => []);
-  for (const m of maps) {
-    const b = m.overlay_bounds; const bb = b ? [b[0][0], b[2][1], b[1][0], b[0][1]] : AOI;
-    if (!intersects(bb, box)) continue;
-    const t = m.display && m.display.tiles;
-    raster.push({ id: `m-${m.id}`, title: m.title, kind: 'raster', group: 'maps', group_label: 'Bản đồ chuyên đề', source: `${m.source_org || ''}${m.map_year ? ` · ${m.map_year}` : ''}`, meaning: m.description,
-      image: { url: m.overlay_url, coordinates: b }, tiles: t ? { url: `/ban-do-chuyen-de/tiles/${m.id}/{z}/{x}/{y}.png`, minzoom: t.minzoom, maxzoom: t.maxzoom, bounds: t.bounds } : null });
+  // danh mục lớp dùng chung với WebGIS (quản trị ẩn/đổi tên/nhóm/thứ tự ở Dữ liệu không gian)
+  const catalog = require('../services/layerCatalog');
+  const mapsList = await require('../services/maps').publishedLayers().catch(() => []);
+  const items = (await catalog.full({ mapLayers: mapsList })).filter((i) => !i.hidden);
+  const byMap = Object.fromEntries(mapsList.map((m) => [`m-${m.id}`, m]));
+  const ov = Object.fromEntries(repo.overlays().map((o) => [o.id, o]));
+  const gl = (k) => (catalog.GROUP[k] || {}).title || 'Khác';
+  const raster = [];
+  for (const it of items) {
+    if (it.kind === 'overlay' && ov[it.id]) {
+      const o = ov[it.id];
+      if (!intersects(AOI, box)) continue;
+      raster.push({ id: o.id, title: it.title, kind: 'raster', group: it.group, group_label: gl(it.group), source: o.source, meaning: o.meaning, resolution: o.resolution || o.scale,
+        legend: o.legend || [], image: { url: o.url, coordinates: o.coordinates }, tiles: o.tiles || null, default: it.default_on });
+    } else if (it.kind === 'map' && byMap[it.id]) {
+      const m = byMap[it.id];
+      const b = m.overlay_bounds; const bb = b ? [b[0][0], b[2][1], b[1][0], b[0][1]] : AOI;
+      if (!intersects(bb, box)) continue;
+      const t = m.display && m.display.tiles;
+      raster.push({ id: it.id, title: it.title, kind: 'raster', group: it.group, group_label: gl(it.group), source: `${m.source_org || ''}${m.map_year ? ` · ${m.map_year}` : ''}`, meaning: m.description,
+        image: { url: m.overlay_url, coordinates: b }, tiles: t ? { url: `/ban-do-chuyen-de/tiles/${m.id}/{z}/{x}/{y}.png`, minzoom: t.minzoom, maxzoom: t.maxzoom, bounds: t.bounds } : null, default: it.default_on });
+    }
   }
-  const vector = [
-    { id: 'province', title: 'Ranh giới Kon Tum (cũ)', group: 'admin', url: '/api/public/boundaries/province', default: true },
-    { id: 'communes', title: 'Ranh giới xã/phường (40 đơn vị)', group: 'admin', url: '/api/public/boundaries/communes', default: true, choropleth: ['cover', 'forest_ha', 'risk_mean', 'danger_cls', 'danger_max7'] },
-    { id: 'hotspots', title: 'Điểm nóng cháy FIRMS 7 ngày (chưa xác minh trừ khi ghi rõ)', group: 'fire', url: '/api/mobile/fire/hotspots', default: true },
-    { id: 'candidates', title: 'Biến động rừng nghi vấn', group: 'change', url: '/api/public/forest/candidates' },
-    { id: 'samples', title: 'Mẫu thực địa 2025', group: 'landcover', url: '/api/public/field-samples' },
-    { id: 'reports', title: 'Phản ánh công khai', group: 'field', url: '/api/public/reports?limit=500' },
-    { id: 'weather', title: 'Thời tiết các xã', group: 'env', url: '/api/public/weather' },
-    ...repo.customLayers(false).map((l) => ({ id: `c-${l.id}`, title: l.title, group: 'maps', url: `/api/public/layers/custom/${l.id}`, style: l.style })),
-  ];
+  const VEC = {
+    province: { url: '/api/public/boundaries/province' },
+    communes: { url: '/api/public/boundaries/communes', choropleth: ['cover', 'forest_ha', 'risk_mean', 'danger_cls', 'danger_max7'] },
+    hotspots: { url: '/api/mobile/fire/hotspots' }, candidates: { url: '/api/public/forest/candidates' }, samples: { url: '/api/public/field-samples' },
+    reports: { url: '/api/public/reports?limit=500' }, weather: { url: '/api/public/weather' },
+  };
+  const vector = items.filter((it) => (it.kind === 'vector' && VEC[it.id]) || it.kind === 'custom').map((it) => (it.kind === 'custom'
+    ? { id: it.id, title: it.title, group: 'maps', url: `/api/public/layers/custom/${it.layer_id}`, style: { color: it.color } }
+    : { id: it.id, title: it.title, group: it.group, url: VEC[it.id].url, default: it.default_on, ...(VEC[it.id].choropleth ? { choropleth: VEC[it.id].choropleth } : {}) }));
+  const groups = Object.fromEntries(catalog.GROUPS.map((g) => [g.key, g.title]));
   if (req.auth && ['specialist', 'leader'].includes(req.auth.role)) vector.push({ id: 'tasks', title: 'Nhiệm vụ hiện trường', group: 'field', url: '/api/mobile/assignments', internal: true });
-  res.json({ zoom, bbox: box, groups: { ...groups, admin: 'Hành chính', fire: 'Cảnh báo cháy rừng', field: 'Hiện trường', env: 'Môi trường', maps: 'Bản đồ chuyên đề' }, raster, vector });
+  res.json({ zoom, bbox: box, groups: { ...groups, maps: 'Bản đồ chuyên đề' }, raster, vector });
 }));
 
 // ---------- public data (M03, M06–M10, M12, M13) ----------

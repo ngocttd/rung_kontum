@@ -19,6 +19,7 @@ const MAP = {
   fire_points: { table: 'fire.manual_points', cols: ['id', 'code', 'observed_at', 'source_kind', 'description', 'area_ha', 'commune_code', 'commune_name', 'report_code', 'created_by', 'created_at', 'updated_at'], geom: true },
   change_runs: { table: 'imagery.change_runs', cols: ['id', 'code', 'title', 'status', 'params', 'summary', 'published', 'published_by', 'published_at', 'created_by', 'created_at', 'updated_at'], json: ['params', 'summary'] },
   comments: { table: 'ops.article_comments', cols: ['id', 'article_id', 'name', 'user_id', 'body', 'status', 'reviewed_by', 'created_at', 'updated_at'] },
+  layer_settings: { table: 'spatial.layer_settings', cols: ['id', 'hidden', 'title', 'grp', 'sort', 'default_on', 'on_forest', 'updated_by', 'created_at', 'updated_at'] },
   counters: { table: 'ops.counters', cols: ['key', 'value'], pk: 'key', noData: true, from: (r) => ({ id: r.key, ...r }) },
 };
 

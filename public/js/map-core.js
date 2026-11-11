@@ -132,7 +132,12 @@
     view.define = (id, def) => { view.defs[id] = { visible: true, ...def }; view.order.push(id); if (view.ready) def.build(map, view.defs[id]).then(() => applyState(id)); return view; };
     view.setVisible = (id, v) => {
       const d = view.defs[id]; if (!d) return;
-      d.visible = v; applyState(id);
+      d.visible = v;
+      if (v && view.ready && d.kind === 'overlay' && !map.getLayer(d.layers[0])) {
+        d.build(map, d).then(() => { applyState(id); if (map.getLayer('communes-line')) d.layers.forEach((l) => map.getLayer(l) && map.moveLayer(l, 'communes-line')); }).catch((e) => console.warn('layer', id, e));
+        return;
+      }
+      applyState(id);
       // an image overlay switched on is drawn above the commune choropleth, below boundary lines
       if (v && d.kind === 'overlay' && map.getLayer('communes-line')) d.layers.forEach((l) => map.getLayer(l) && map.moveLayer(l, 'communes-line'));
     };
@@ -163,7 +168,9 @@
     overlay(o) {
       return {
         kind: 'overlay', opacity: o.opacity ?? 1, visible: false, layers: [`ov-${o.id}`], meta: o,
-        async build(map) {
+        async build(map, d) {
+          // chỉ nạp ảnh khi lớp được bật (trang có hàng chục lớp ảnh: nạp cùng lúc vừa chậm vừa dễ lỗi đứt tải)
+          if (d && !d.visible) return;
           // tiled classified layers keep full resolution (15 m) when zoomed in; others are one image
           const t = o.tiles;
           if (!map.getSource(`ov-${o.id}`)) map.addSource(`ov-${o.id}`, t ? { type: 'raster', tiles: [t.url], tileSize: 256, minzoom: t.minzoom, maxzoom: t.maxzoom, bounds: t.bounds } : { type: 'image', url: o.url, coordinates: o.coordinates });

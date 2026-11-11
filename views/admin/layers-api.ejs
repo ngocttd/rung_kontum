@@ -1,0 +1,46 @@
+<%- include('_top') %>
+<div class="adm-tabs"><a href="/quan-tri/du-lieu#danh-muc">Danh mục lớp bản đồ</a><a href="/quan-tri/du-lieu#vector">Lớp vector bổ sung</a><% if (can('data.manage')) { %><a href="/quan-tri/du-lieu#them">Nhập lớp</a><% } %><a class="on" href="/quan-tri/du-lieu/api">API quản lý lớp</a></div>
+<div class="grid" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px">
+  <section class="card">
+    <div class="card-h"><h2><%- ic('code-slash') %> API quản lý lớp dữ liệu (REST, JSON)</h2><a class="btn btn-outline btn-sm" style="margin-left:auto" href="/api/v1" target="_blank"><%- ic('box-arrow-up-right') %> Mô tả máy đọc (GET /api/v1)</a></div>
+    <div class="card-b">
+      <p>Cho phép phần mềm khác (hệ thống của Kiểm lâm, ứng dụng nội bộ, công cụ GIS) tạo, cập nhật, công bố và xoá lớp vector trên WebGIS mà không cần thao tác giao diện. Địa chỉ gốc: <code><%= base %>/api/v1</code>.</p>
+      <h3 style="font-size:15px;margin:12px 0 6px">1. Xác thực</h3>
+      <p class="src" style="margin:0 0 6px">Lấy token bằng tài khoản cán bộ (đọc: mọi cán bộ; ghi: Quản trị hệ thống, Cán bộ chuyên môn). Token hết hạn thì gọi <code>POST /api/mobile/auth/refresh</code> với <code>refresh_token</code>.</p>
+<pre class="log-pre">curl -X POST <%= base %>/api/mobile/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"&lt;tên đăng nhập&gt;","password":"&lt;mật khẩu&gt;"}'
+# → {"access_token":"…","refresh_token":"…", …}</pre>
+      <h3 style="font-size:15px;margin:12px 0 6px">2. Danh sách endpoint</h3>
+      <div class="table-wrap"><table class="tbl" data-tools="off"><thead><tr><th>Phương thức</th><th>Đường dẫn</th><th>Chức năng</th></tr></thead><tbody>
+        <% endpoints.forEach(([m, p, d]) => { %><tr><td><span class="badge <%= m === 'GET' ? 'b-blue' : m === 'DELETE' ? 'b-red' : 'b-green' %>"><%= m %></span></td><td><code><%= p %></code></td><td class="src"><%= d %></td></tr><% }) %>
+      </tbody></table></div>
+      <h3 style="font-size:15px;margin:12px 0 6px">3. Ví dụ</h3>
+<pre class="log-pre"># tạo lớp từ GeoJSON (vào vùng chờ duyệt)
+curl -X POST <%= base %>/api/v1/layers -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Chòi canh lửa","source":"Hạt Kiểm lâm","color":"#ff5722","geojson":{"type":"FeatureCollection","features":[…]}}'
+
+# tạo lớp từ Shapefile nén .zip (hoặc .xlsx/.csv có cột toạ độ), hệ toạ độ VN-2000 Kon Tum
+curl -X POST <%= base %>/api/v1/layers -H "Authorization: Bearer $TOKEN" \
+  -F title="Tuyến tuần tra" -F crs=VN2000-KT -F file=@tuyen_tuan_tra.zip
+
+# công bố lên bản đồ, đổi tên, thay dữ liệu, xoá
+curl -X POST  <%= base %>/api/v1/layers/&lt;id&gt;/publish -H "Authorization: Bearer $TOKEN"
+curl -X PATCH <%= base %>/api/v1/layers/&lt;id&gt; -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"title":"Tên mới"}'
+curl -X PUT   <%= base %>/api/v1/layers/&lt;id&gt;/geojson -H "Authorization: Bearer $TOKEN" -F file=@du_lieu_moi.zip
+curl -X DELETE <%= base %>/api/v1/layers/&lt;id&gt; -H "Authorization: Bearer $TOKEN"</pre>
+      <p class="src">Mã lỗi: 401 thiếu/hết hạn token · 403 không đủ quyền · 404 không có lớp · 413 quá 25 MB · 422 dữ liệu không đạt kiểm tra (kèm <code>errors</code>). Hệ toạ độ (<code>crs</code>): <code>EPSG:4326</code>, <code>EPSG:32648</code>, <code>VN2000-KT</code>, <code>VN2000-UTM48</code>. Mọi thao tác qua API ghi vào Nhật ký hệ thống như trên giao diện.</p>
+    </div>
+  </section>
+  <section class="card" style="align-self:start">
+    <div class="card-h"><h2><%- ic('layers-fill') %> Lớp vector hiện có (mã dùng cho API)</h2></div>
+    <div class="card-b table-wrap"><% if (!custom.length) { %><div class="empty-state">Chưa có lớp vector bổ sung.</div><% } else { %>
+      <table class="tbl" data-tools="off"><thead><tr><th>Tên lớp</th><th>Mã (id)</th><th>Trạng thái</th></tr></thead><tbody>
+        <% custom.forEach(l => { %><tr><td><%= l.title %></td><td><code style="font-size:11.5px"><%= l.id %></code></td><td><%= l.status === 'published' ? 'Đang công bố' : l.status === 'staging' ? 'Chờ duyệt' : 'Lỗi kiểm tra' %></td></tr><% }) %>
+      </tbody></table><% } %>
+      <p class="src" style="margin-top:8px">Bật/tắt, đổi tên, nhóm, thứ tự hiển thị của mọi lớp (kể cả lớp hệ thống và bản đồ chuyên đề) chỉnh ở thẻ “Danh mục lớp bản đồ”.</p></div>
+  </section>
+</div>
+<%- include('_bottom') %>
+</body></html>

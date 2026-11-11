@@ -61,19 +61,41 @@ r.get('/', (req, res) => {
 
 r.get('/ban-do', async (req, res) => {
   const mapLayers = await maps.publishedLayers().catch(() => []);
+  const layerTree = await require('../services/layerCatalog').tree({ mapLayers });
+  const shown = new Set(layerTree.flatMap((g) => g.items.map((i) => i.id)));
   res.render('public/map', {
-    title: 'Bản đồ WebGIS', nav: 'map', overlays: repo.overlays(), custom: repo.customLayers(false), mapLayers,
+    title: 'Bản đồ WebGIS', nav: 'map', overlays: repo.overlays(), custom: repo.customLayers(false), mapLayers: mapLayers.filter((m) => shown.has(`m-${m.id}`)), layerTree,
     weather: weatherSummary(), danger: dangerSummary(), summary: repo.forestSummary(), firms: repo.firmsMeta(),
     hotspotCount: repo.hotspots().length, fcg: repo.forestChange(),
   });
 });
 
-r.get('/tai-nguyen-rung', (req, res) => {
-  const communes = repo.communes().sort((a, b) => (b.official ? b.official.established_forest_ha : 0) - (a.official ? a.official.established_forest_ha : 0));
-  res.render('public/forest', {
-    title: 'Tài nguyên rừng', nav: 'forest', summary: repo.forestSummary(), communes, landcover: repo.landcover(), photos: repo.photos(),
-    overlays: repo.overlays(), fcg: repo.forestChange(), lc: repo.landcoverHistory(), tab: req.query.tab || 'tong-quan',
-  });
+r.get('/tai-nguyen-rung', async (req, res, next) => {
+  try {
+    const communes = repo.communes().sort((a, b) => (b.official ? b.official.established_forest_ha : 0) - (a.official ? a.official.established_forest_ha : 0));
+    // lớp bản đồ lấy từ danh mục lớp (quản trị chỉnh ở Dữ liệu không gian): năm lớp phủ + lớp "Hiển thị thêm"
+    const mapLayers = await maps.publishedLayers().catch(() => []);
+    const items = (await require('../services/layerCatalog').full({ mapLayers })).filter((i) => !i.hidden);
+    const byMap = Object.fromEntries(mapLayers.map((m) => [`m-${m.id}`, m]));
+    const years = {};
+    for (const it of items.filter((i) => i.group === 'landcover' || i.group === 'map-lpr')) {
+      const y = it.kind === 'map' ? Number(it.year) : Number((it.id.match(/^lc-(\d{4})$/) || [])[1]);
+      if (!y) continue;
+      (years[y] = years[y] || []).push(it); // ưu tiên lớp 15 m của hệ thống (đứng trước trong danh mục)
+    }
+    const yearLayers = Object.keys(years).map(Number).sort((a, b) => b - a).map((y) => ({ year: y, layers: years[y].map((it) => ({ id: it.id, title: it.title, kind: it.kind })) }));
+    const extras = items.filter((i) => i.on_forest && i.id !== 'communes' && (i.kind === 'overlay' || i.kind === 'map' || i.kind === 'vector'));
+    const overlays = repo.overlays();
+    for (const it of items.filter((i) => i.kind === 'map' && (i.group === 'map-lpr' || i.on_forest))) {
+      const m = byMap[it.id];
+      overlays.push({ id: it.id, url: m.overlay_url, coordinates: m.overlay_bounds, title: m.title, source: (m.source_org || 'Bản đồ chuyên đề') + (m.map_year ? ' · ' + m.map_year : ''), meaning: m.description || '', opacity: (m.display && m.display.opacity) || 0.85,
+        tiles: m.display && m.display.tiles ? { url: '/ban-do-chuyen-de/tiles/' + m.id + '/{z}/{x}/{y}.png', minzoom: m.display.tiles.minzoom, maxzoom: m.display.tiles.maxzoom, bounds: m.display.tiles.bounds } : undefined });
+    }
+    res.render('public/forest', {
+      title: 'Tài nguyên rừng', nav: 'forest', summary: repo.forestSummary(), communes, landcover: repo.landcover(), photos: repo.photos(),
+      overlays, fcg: repo.forestChange(), lc: repo.landcoverHistory(), tab: req.query.tab || 'tong-quan', yearLayers, extras,
+    });
+  } catch (e) { next(e); }
 });
 
 r.get('/bien-dong/lop/:id.webp', (req, res) => {
@@ -253,7 +275,12 @@ r.get('/phan-anh/anh/:file', (req, res, next) => {
 // Published thematic maps (map module) appear as documents; georeferenced ones also on the WebGIS.
 async function mapDocuments() {
   const rows = await maps.publishedDocuments().catch(() => []);
+  // bản PDF chỉ là tài liệu; nếu cùng bản đồ có bản ảnh/GeoTIFF đã thành lớp thì trỏ tới lớp đó
+  const layers = await maps.publishedLayers().catch(() => []);
+  const key = (t) => String(t || '').replace(/\s*[–-]\s*(PDF|ảnh)\s*$/i, '').trim().toLowerCase();
+  const twin = Object.fromEntries(layers.map((l) => [key(l.title), l.id]));
   return rows.map((m) => ({
+    twinLayer: m.format === 'pdf' ? twin[key(m.title)] || null : null,
     id: `map-${m.id}`, title: m.title, category: 'ban-do-chuyen-de', categoryLabel: 'Bản đồ chuyên đề', issuer: m.source_org || null, number: m.map_scale ? `Tỷ lệ ${m.map_scale}` : null,
     issued: m.map_year ? String(m.map_year) : null, description: m.description, type: m.format === 'pdf' ? 'pdf' : m.format === 'package' ? 'mpk' : 'tif', bytes: m.size_bytes, sha256: m.sha256,
     pages: m.tech && m.tech.pages, thumbnail: m.preview_url, url: `/ban-do-chuyen-de/tep/${m.file_id}`, origin: 'map', georeferenced: m.georeferenced, mapId: m.id,

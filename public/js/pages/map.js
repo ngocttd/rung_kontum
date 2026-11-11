@@ -71,8 +71,8 @@
     if (m) status.textContent = m.title;
   });
 
-  v = KT.createMap('map', { basemap: 'satellite', exportable: true, choropleth: 'danger', padding: 46 });
-  document.getElementById('choro-danger').checked = true;
+  const choro0 = tree.querySelector('[data-choro]:checked');
+  v = KT.createMap('map', { basemap: 'satellite', exportable: true, choropleth: choro0 ? choro0.dataset.choro : null, padding: 46 });
   if (!v) return;
   const { map } = v;
 
@@ -82,6 +82,12 @@
     .define('reports', { ...KT.layers.reports(), visible: false }).define('samples', KT.layers.samples()).define('weather', KT.layers.weather()).define('hotspots', KT.layers.hotspots())
     .define('wind-du-bao', KT.layers.wind('du-bao')).define('wind-era5', KT.layers.wind('era5'));
   P.custom.forEach((l) => v.define(`custom-${l.id}`, KT.layers.custom(l)));
+  // bật/tắt theo cấu hình danh mục lớp (ô được đánh dấu sẵn)
+  tree.querySelectorAll('input[type=checkbox]').forEach((c) => {
+    if (c.dataset.overlay) v.setVisible(`ov-${c.dataset.overlay}`, c.checked);
+    if (c.dataset.vector) v.setVisible(c.dataset.vector, c.checked);
+    if (c.dataset.custom) v.setVisible(`custom-${c.dataset.custom}`, c.checked);
+  });
   v.onChoropleth = () => { renderDanger(); updateLegend(); };
   v.onBuilt = () => { if (v.choropleth === 'danger') renderDanger(); };
 
@@ -282,7 +288,7 @@
   // ---------- initial state from URL ----------
   if (location.hash.length > 1) { const [x, y, z] = location.hash.slice(1).split(',').map(Number); if (z) { v.skipFit = true; map.jumpTo({ center: [x, y], zoom: z }); } }
   const lop = params.get('lop');
-  if (lop && ovById[lop]) { const cb = document.getElementById(`ly-${lop}`); if (cb) { cb.checked = true; v.setVisible(`ov-${lop}`, true); const g = cb.closest('[data-lt-group]'); if (g && !g.dataset.ltGroup.includes('theme')) document.querySelector('[data-lt="base"]').click(); updateLegend(); } }
+  if (lop && ovById[lop]) { const cb = document.getElementById(`ly-${lop}`); if (cb) { cb.checked = true; const det = cb.closest('details'); if (det) det.open = true; cb.scrollIntoView({ block: 'nearest' }); v.setVisible(`ov-${lop}`, true); const g = cb.closest('[data-lt-group]'); if (g && !g.dataset.ltGroup.includes('theme')) document.querySelector('[data-lt="base"]').click(); updateLegend(); } }
   const xa = params.get('xa');
   if (xa) {
     v.skipFit = true;

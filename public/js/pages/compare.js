@@ -9,7 +9,6 @@
   const Rv = KT.createMap('map-right', { basemap: 'satellite', padding: 20 });
   if (!L || !Rv) return;
   Rv.skipFit = true; // bản phải luôn theo khung nhìn bản trái (không tự căn)
-  window.KT_CMP = { L, Rv };
   [L, Rv].forEach((v) => v.define('communes', { ...KT.layers.communes(v) }).define('province', KT.layers.province()));
 
   // đồng bộ khung nhìn

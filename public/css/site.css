@@ -203,6 +203,9 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .comment .c-h { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .comment .c-h .src { margin-left: auto; }
 .comment .c-b p { margin: 4px 0 0; }
+.input.input-sm { padding: 4px 7px; font-size: 13px; height: auto; }
+tr.row-muted > td { opacity: .55; }
+tr.row-muted > td:last-child, tr.row-muted > td:nth-child(7) { opacity: 1; }
 .row-edit > summary { cursor: pointer; list-style: none; margin-top: 4px; }
 .row-edit > summary::-webkit-details-marker { display: none; }
 .row-edit[open] > summary { color: var(--blue); }

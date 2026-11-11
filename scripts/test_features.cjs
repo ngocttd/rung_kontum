@@ -186,6 +186,23 @@ const form = (o) => ({ method: 'POST', headers: { 'content-type': 'application/x
       ok((await api('GET', '/api/public/map/layers')).j.overlays.some((o) => o.id === `class-${cls.month}`), `Công bố phân loại ${cls.month} (độ chính xác ${Math.round(cls.accuracy * 100)}%) → lớp trên bản đồ`);
       if (!was) imagery.setPublished(cls.month, false, { username: 'kiem.thu' });
     } else ok(true, 'Bỏ qua phân loại (chưa có kết quả)');
+    // ---------- 9. danh mục lớp: ẩn/hiện, đổi tên, trang Tài nguyên rừng, MobileGIS ----------
+    const catalog = require('../src/services/layerCatalog');
+    const qtv = { username: 't_f_qtv', role: 'admin' };
+    catalog.setHidden(qtv, 'hansen-loss', true);
+    catalog.save(qtv, 'dem-2024', { title: 'Địa hình KIỂM THỬ', grp: 'terrain', sort: '5', default_on: '', on_forest: '1', hidden: '0' });
+    await store.drain(); await new Promise((z) => setTimeout(z, 2500));
+    let html = (await web('/ban-do')).text;
+    const mob = (await api('GET', '/api/mobile/layers?bbox=107.3,13.9,108.6,15.5&zoom=9')).j;
+    ok(!html.includes('id="ly-hansen-loss"') && !mob.raster.some((x) => x.id === 'hansen-loss'), 'Ẩn lớp → biến mất khỏi Bản đồ WebGIS và MobileGIS');
+    ok(html.includes('Địa hình KIỂM THỬ') && (await web('/tai-nguyen-rung')).text.includes('Địa hình KIỂM THỬ'), 'Đổi tên lớp → áp dụng cho bản đồ và trang Tài nguyên rừng');
+    ok(!html.includes('GeoTIFF 15 m)') , 'Bản trùng (GeoTIFF 15 m) ẩn mặc định khỏi cây lớp');
+    r = await adm('/quan-tri/du-lieu'); ok(r.status === 200 && r.text.includes('Danh mục lớp'), 'Quản trị: danh mục lớp');
+    r = await adm(`/quan-tri/du-lieu/lop/hansen-loss/an-hien`, form({ _csrf: csrfOf(r.text), hidden: '0' }));
+    await new Promise((z) => setTimeout(z, 1500));
+    ok(store.get('layer_settings', 'hansen-loss').hidden === false && (await web('/ban-do')).text.includes('id="ly-hansen-loss"'), 'Quản trị bấm hiện lại lớp');
+    catalog.reset(qtv, 'hansen-loss'); catalog.reset(qtv, 'dem-2024'); await store.drain();
+    ok((await adm('/quan-tri/du-lieu/api')).status === 200, 'Quản trị: trang API quản lý lớp');
   } catch (e) { console.error(e); failures += 1; } finally {
     for (const id of reportIds) store.remove('reports', id);
     for (const c of store.filter('comments', (x) => /kiểm thử/i.test(x.body) || users.includes(x.user_id))) store.remove('comments', c.id);

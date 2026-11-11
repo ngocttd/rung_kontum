@@ -80,7 +80,8 @@
     let page = 1;
     const nav = document.createElement('nav'); nav.className = 'pager'; nav.setAttribute('aria-label', 'Phân trang');
     const anchor = el.tagName === 'TABLE' && el.parentElement.classList.contains('table-wrap') ? el.parentElement : el;
-    anchor.after(nav);
+    // khung .card-b có lề trong: đặt thanh phân trang bên trong để không lệch mép thẻ
+    if (anchor !== el && anchor.classList.contains('card-b')) el.after(nav); else anchor.after(nav);
     function render() {
       const size = sz();
       const rows = [...body.children].filter((r) => r.dataset.filtered !== '1');
@@ -119,11 +120,13 @@
     bar.innerHTML = `<span class="tt-search">${KT.ic('search')}<input type="search" placeholder="${KT.esc(el.dataset.tools && el.dataset.tools !== 'on' ? el.dataset.tools : 'Tìm trong danh sách…')}" aria-label="Tìm trong danh sách"></span>`
       + `<span class="tt-count src"></span>`
       + `<label class="src">Hiển thị <select class="input" aria-label="Số dòng mỗi trang">${[...new Set([...sizes, Number(cur)])].sort((a, b) => a - b).map((n) => `<option value="${n}" ${String(n) === cur ? 'selected' : ''}>${n}</option>`).join('')}<option value="all">Tất cả</option></select> dòng</label>`;
-    anchor.before(bar);
+    if (anchor !== el && anchor.classList.contains('card-b')) el.before(bar); else anchor.before(bar);
     const input = bar.querySelector('input'); const count = bar.querySelector('.tt-count');
+    // chữ dùng để tìm: bỏ các lựa chọn không được chọn của <select>, lấy giá trị ô nhập
+    const textOf = (n) => (n.nodeType === 3 ? n.data : n.tagName === 'OPTION' ? (n.selected ? n.text : '') : n.tagName === 'INPUT' && n.type !== 'checkbox' && n.type !== 'hidden' ? ` ${n.value} ` : n.tagName === 'SCRIPT' ? '' : [...n.childNodes].map(textOf).join(' '));
     const filter = () => {
       const q = norm(input.value.trim()); let n = 0;
-      [...body.children].forEach((r) => { const hit = !q || norm(r.textContent).includes(q); r.dataset.filtered = hit ? '' : '1'; if (hit) n++; if (!el.repaginate) r.hidden = !hit; });
+      [...body.children].forEach((r) => { const hit = !q || norm(textOf(r)).includes(q); r.dataset.filtered = hit ? '' : '1'; if (hit) n++; if (!el.repaginate) r.hidden = !hit; });
       count.textContent = q ? `${n} kết quả` : '';
       if (el.repaginate) el.repaginate(1);
     };

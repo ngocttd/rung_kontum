@@ -1,0 +1,175 @@
+// Danh mục lớp bản đồ dùng chung cho Bản đồ WebGIS, trang Tài nguyên rừng, MobileGIS và trang quản trị lớp.
+// Mặc định (nhóm, thứ tự, bật sẵn, ẩn bản trùng) định nghĩa ở đây; quản trị chỉnh đè từng lớp ở bảng spatial.layer_settings.
+// Các lớp ảnh sinh tự động (thời tiết, NDMI, LST, kỳ phân tích biến động, phân loại ảnh), bản đồ chuyên đề đã xuất bản và lớp
+// vector bổ sung được thêm vào danh mục tự động khi xuất hiện – không cần sửa mã.
+const store = require('../data/store');
+const repo = require('../data/repo');
+
+const GROUPS = [
+  { key: 'admin', title: 'Ranh giới hành chính', section: 'HÀNH CHÍNH', cls: 'sec-admin', icon: 'geo-fill', tab: 'theme' },
+  { key: 'forest', title: 'Hiện trạng rừng 2025 (QĐ 1047)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
+  { key: 'landcover', title: 'Lớp phủ 1991 – 2014 – 2023 (dữ liệu dự án, 15 m)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
+  { key: 'map-lpr', title: 'Lớp phủ rừng LPR các năm (bản đồ dự án)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
+  { key: 'change', title: 'Biến động và dự báo mất rừng', section: 'BIẾN ĐỘNG RỪNG', cls: 'sec-forest', icon: 'graph-up-arrow', tab: 'theme' },
+  { key: 'map-change', title: 'Biến động lớp phủ (bản đồ dự án)', section: 'BIẾN ĐỘNG RỪNG', cls: 'sec-forest', icon: 'graph-up-arrow', tab: 'theme' },
+  { key: 'fire', title: 'Điểm nóng và nguy cơ cháy', section: 'CẢNH BÁO CHÁY RỪNG', cls: 'sec-fire', icon: 'fire', tab: 'theme' },
+  { key: 'fire-env', title: 'Yếu tố môi trường gây cháy', section: 'CẢNH BÁO CHÁY RỪNG', cls: 'sec-fire', icon: 'fire', tab: 'theme' },
+  { key: 'map-lst', title: 'Nhiệt độ bề mặt các năm (bản đồ dự án)', section: 'CẢNH BÁO CHÁY RỪNG', cls: 'sec-fire', icon: 'fire', tab: 'theme' },
+  { key: 'weather', title: 'Thời tiết hôm nay', section: 'MÔI TRƯỜNG & HIỆN TRƯỜNG', cls: 'sec-env', icon: 'cloud-sun-fill', tab: 'theme' },
+  { key: 'field', title: 'Phản ánh hiện trường', section: 'MÔI TRƯỜNG & HIỆN TRƯỜNG', cls: 'sec-env', icon: 'cloud-sun-fill', tab: 'theme' },
+  { key: 'map-other', title: 'Bản đồ chuyên đề khác', section: 'BẢN ĐỒ CHUYÊN ĐỀ', cls: 'sec-map', icon: 'map-fill', tab: 'theme' },
+  { key: 'custom', title: 'Lớp vector bổ sung', section: 'BẢN ĐỒ CHUYÊN ĐỀ', cls: 'sec-map', icon: 'map-fill', tab: 'theme' },
+  { key: 'imagery', title: 'Ảnh vệ tinh Sentinel-2', section: 'ẢNH VỆ TINH', cls: 'sec-base', icon: 'image-fill', tab: 'base' },
+  { key: 'class', title: 'Phân loại ảnh (tự động)', section: 'ẢNH VỆ TINH', cls: 'sec-base', icon: 'image-fill', tab: 'base' },
+  { key: 'terrain', title: 'Địa hình, chỉ số thực vật, lớp phủ tham khảo', section: 'ĐỊA HÌNH & CHỈ SỐ', cls: 'sec-base', icon: 'graph-up-arrow', tab: 'base' },
+  { key: 'reanalysis', title: 'Thời tiết ngày gần nhất (ERA5-Land)', section: 'ĐỊA HÌNH & CHỈ SỐ', cls: 'sec-base', icon: 'graph-up-arrow', tab: 'base' },
+];
+const GROUP = Object.fromEntries(GROUPS.map((g) => [g.key, g]));
+
+// lớp cố định: [id, kind, group, title, icon, info, opts]
+// kind: vector | choro | overlay (ảnh trong overlays.json); icon: 'sym:x' | 'mk:x' | 'ic2:x'
+const STATIC = [
+  ['province', 'vector', 'admin', 'Ranh giới Kon Tum (cũ)', 'sym:boundary-historical', 'Government of Viet Nam / HDX qua geoBoundaries, năm 2020', { on: true }],
+  ['communes', 'vector', 'admin', 'Ranh giới xã/phường', 'sym:boundary-commune', 'vietnamese-provinces-database v5.2.0, cắt theo ranh Kon Tum cũ', { on: true, forest: true }],
+  ['cover', 'choro', 'forest', 'Che phủ rừng 2025 (theo xã)', 'sym:forest-protection', 'QĐ 1047/QĐ-UBND – tỷ lệ che phủ công bố theo xã', {}],
+  ['forest', 'choro', 'forest', 'Diện tích rừng 2025 (theo xã)', 'sym:forest-special-use', 'QĐ 1047/QĐ-UBND – diện tích đã thành rừng theo xã', {}],
+  ['lc-2023', 'overlay', 'landcover', 'Lớp phủ năm 2023', 'sym:forest-evergreen', null, {}],
+  ['lc-2014', 'overlay', 'landcover', 'Lớp phủ năm 2014', 'sym:forest-mixed', null, {}],
+  ['lc-1991', 'overlay', 'landcover', 'Lớp phủ năm 1991', 'sym:forest-conifer', null, {}],
+  ['samples', 'vector', 'landcover', 'Mẫu thực địa 2025', 'mk:survey', 'Mau_KON_TUM_2025 – 389 điểm, dữ liệu thực tế dự án', {}],
+  ['change-latest', 'overlay', 'change', null, 'sym:change-suspected', null, {}],
+  ['candidates', 'vector', 'change', 'Vùng biến động nghi vấn (Sentinel-2)', 'sym:change-suspected', 'Sentinel-2 chuỗi tháng 100 m – phân tích tự động theo kỳ, chưa xác minh hiện trường', {}],
+  ['lc-forest-change-1991-2023', 'overlay', 'change', 'Mất / tăng rừng 1991–2023', 'sym:change-suspected', null, {}],
+  ['hansen-loss', 'overlay', 'change', 'Mất tán cây 2001–2024 (Hansen)', 'sym:change-suspected', null, { forest: true }],
+  ['forest-loss-risk', 'overlay', 'change', 'Dự báo nguy cơ mất rừng 2025–26', 'sym:risk-4', null, {}],
+  ['risk', 'choro', 'change', 'Xác suất mất rừng (theo xã)', 'sym:risk-3', 'Xác suất mất rừng trung bình 2025–2026 (mô hình hiệu chỉnh)', {}],
+  ['loss', 'choro', 'change', 'Mất tán cây 2020–2024 (theo xã)', 'sym:risk-5', 'Hansen GFC – tổng diện tích mất tán cây 2020–2024 theo xã', {}],
+  ['hotspots', 'vector', 'fire', 'Điểm nóng / điểm cháy 7 ngày (FIRMS + nhập tay)', 'mk:hotspot-unverified', 'NASA FIRMS NRT (MODIS, VIIRS) và điểm cháy cán bộ nhập; chỉ hiện điểm trong 7 ngày gần nhất – xem lịch sử ở trang Cảnh báo cháy', { on: true }],
+  ['danger', 'choro', 'fire', 'Cấp nguy cơ cháy theo ngày', 'sym:risk-5', 'Cấp dự báo cháy theo chỉ số P Nesterov – theo ngày chọn ở khung bên phải', { on: true }],
+  ['danger7', 'choro', 'fire', 'Cấp cao nhất 7 ngày tới', 'sym:risk-4', 'Cấp cao nhất trong 7 ngày tới', {}],
+  ['wind-du-bao', 'vector', 'fire-env', 'Hướng gió 13 giờ hôm nay (theo xã)', 'ic2:wind', 'Open-Meteo – dự báo tại 40 điểm đại diện xã; mũi tên chỉ hướng gió thổi tới', {}],
+  ['weather', 'vector', 'weather', 'Nhiệt độ và hướng gió hiện tại', 'ic2:wind', 'OpenWeather – thời tiết hiện tại tại điểm đại diện xã', {}],
+  ['reports', 'vector', 'field', 'Phản ánh hiện trường (công khai)', 'mk:report-photo', 'Phản ánh đã được cán bộ cho phép công khai', {}],
+  ['s2-latest', 'overlay', 'imagery', null, 'ic2:satellite', null, { forest: true }],
+  ['s2-2025-dry-true', 'overlay', 'imagery', 'Màu tự nhiên – mùa khô 2025', 'ic2:satellite', null, {}],
+  ['s2-2025-wet-true', 'overlay', 'imagery', 'Màu tự nhiên – mùa mưa 2025', 'ic2:satellite', null, {}],
+  ['s2-2025-dry-false', 'overlay', 'imagery', 'Giả màu – mùa khô 2025', 'ic2:satellite', null, {}],
+  ['s2-2025-wet-false', 'overlay', 'imagery', 'Giả màu – mùa mưa 2025', 'ic2:satellite', null, {}],
+  ['dem-2024', 'overlay', 'terrain', 'Địa hình (DEM 30 m)', 'ic2:map', null, { forest: true }],
+  ['ndvi-2025-dry', 'overlay', 'terrain', 'NDVI mùa khô 2025', 'ic2:plantation', null, { forest: true }],
+  ['ndvi-2025-wet', 'overlay', 'terrain', 'NDVI mùa mưa 2025', 'ic2:plantation', null, {}],
+  ['ndvi-2024-dry', 'overlay', 'terrain', 'NDVI mùa khô 2024', 'ic2:plantation', null, {}],
+  ['ndvi-2024-wet', 'overlay', 'terrain', 'NDVI mùa mưa 2024', 'ic2:plantation', null, {}],
+  ['worldcover-2021', 'overlay', 'terrain', 'Lớp phủ đất 2021 (ESA WorldCover, tham khảo)', 'ic2:forest', null, { forest: true }],
+  ['wind-era5', 'vector', 'reanalysis', 'Hướng gió theo lưới ERA5-Land', 'ic2:wind', 'ERA5-Land – gió 10 m lúc 12 giờ ngày gần nhất có tái phân tích, lưới ~11 km', {}],
+];
+
+// nhóm cho lớp ảnh sinh tự động (theo id / group trong overlays.json)
+function autoGroup(o) {
+  if (o.group === 'change-run') return 'change';
+  if (o.group === 'class') return 'class';
+  if (o.group === 'fire-env') return 'fire-env';
+  if (o.group === 'weather') return o.id.startsWith('wx-era') ? 'reanalysis' : 'weather';
+  if (o.id.startsWith('s2-')) return 'imagery';
+  return 'terrain';
+}
+const wxIcon = (id) => `ic2:${id.endsWith('rain') ? 'rain' : id.endsWith('wind') ? 'wind' : 'temperature'}`;
+
+// bản đồ chuyên đề đã xuất bản → nhóm; bản trùng dữ liệu với lớp hệ thống thì ẩn mặc định (quản trị bật lại được)
+function mapGroup(m) {
+  const t = m.title || '';
+  if (m.category === 'khi-hau' || /nhiệt độ bề mặt/i.test(t)) return 'map-lst';
+  if (m.category === 'bien-dong' || /biến động/i.test(t)) return 'map-change';
+  if (/LPR/i.test(t)) return 'map-lpr';
+  if (m.category === 'tai-nguyen-rung') return 'map-lpr';
+  return 'map-other';
+}
+function mapDuplicate(m) {
+  const t = m.title || '';
+  const y = m.map_year;
+  if (/GeoTIFF 15 m/i.test(t) && [1991, 2014, 2023].includes(Number(y))) return `Trùng lớp “Lớp phủ năm ${y}” (cùng tệp GeoTIFF, lớp hệ thống hiển thị ô ảnh 15 m sắc nét hơn)`;
+  if (/bản biên tập/i.test(t) && [1991, 2014, 2023].includes(Number(y))) return `Bản trình bày (bố cục in) của “Lớp phủ năm ${y}” – dữ liệu trùng lớp hệ thống`;
+  return null;
+}
+const shortMapTitle = (m) => String(m.title || '').replace(/^Bản đồ\s+/i, '').replace(/\s*tỉnh Kon Tum\s*/i, ' ').replace(/\s+–\s+ảnh$/, '').replace(/\s{2,}/g, ' ').trim()
+  .replace(/^./, (c) => c.toUpperCase());
+
+function settings() { return Object.fromEntries(store.all('layer_settings').map((s) => [s.id, s])); }
+
+// Danh mục đầy đủ (kể cả lớp ẩn) – dùng cho quản trị; public() lọc lớp ẩn
+async function full({ mapLayers } = {}) {
+  const ov = Object.fromEntries(repo.overlays().map((o) => [o.id, o]));
+  const maps = mapLayers || await require('./maps').publishedLayers().catch(() => []);
+  const items = [];
+  let order = 0;
+  for (const [id, kind, group, title, icon, info, opts] of STATIC) {
+    if (kind === 'overlay' && !ov[id]) continue;
+    const o = ov[id];
+    let t = title;
+    if (id === 'change-latest') t = o && o.window ? `Biến động NDVI ${String(o.window).split(' ')[0].replace(/^(\d{4})-(\d{2})\.\.(\d{2})$/, '$2–$3/$1')}` : 'Biến động NDVI mới nhất';
+    if (id === 's2-latest') t = o && o.month ? `Ảnh Sentinel-2 mới nhất ${o.month.slice(5)}/${o.month.slice(0, 4)}` : 'Ảnh Sentinel-2 mới nhất';
+    items.push({ id, kind, group, title: t || (o && o.title) || id, icon, info: info || (o ? `${o.title} – ${o.source}. ${o.meaning || ''}${o.resolution ? ` (${o.resolution})` : ''}` : ''),
+      default_on: Boolean(opts.on), on_forest: Boolean(opts.forest), hidden: false, sort: (order += 10), source: 'system', deletable: false });
+  }
+  const known = new Set(items.map((i) => i.id));
+  for (const o of Object.values(ov)) {
+    if (known.has(o.id)) continue;
+    const g = autoGroup(o);
+    items.push({ id: o.id, kind: 'overlay', group: g, title: o.title, icon: g === 'weather' || g === 'reanalysis' ? wxIcon(o.id) : g === 'fire-env' ? `ic2:${o.id.startsWith('lst') ? 'temperature' : 'water'}` : g === 'class' ? 'ic2:forest' : g === 'change' ? 'sym:change-suspected' : 'ic2:map',
+      info: `${o.title} – ${o.source}. ${o.meaning || ''}${o.resolution ? ` (${o.resolution})` : ''}`, default_on: false, on_forest: false, hidden: false, sort: (order += 10), source: 'auto', deletable: false });
+  }
+  for (const m of maps.slice().sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.map_year || 0) - (b.map_year || 0) || a.title.localeCompare(b.title, 'vi'))) {
+    const dup = mapDuplicate(m);
+    items.push({ id: `m-${m.id}`, kind: 'map', group: mapGroup(m), title: shortMapTitle(m), full_title: m.title, icon: 'ic2:layers', map_id: m.id, year: m.map_year,
+      info: `${m.source_org || 'Bản đồ chuyên đề'}${m.map_year ? ` · ${m.map_year}` : ''}${m.georef_method === 'auto_shape' ? ` · tự định vị theo hình tỉnh, sai số ~${Math.round(m.residual_error)} m` : m.georef_method && m.georef_method.startsWith('gcp') ? ` · nắn chỉnh, RMSE ${m.residual_error} m` : ''}${m.description ? `. ${m.description}` : ''}`,
+      default_on: false, on_forest: false, hidden: Boolean(dup), duplicate: dup, sort: (order += 10), source: 'map', deletable: false, opacity: (m.display && m.display.opacity) || 0.8 });
+  }
+  for (const l of repo.customLayers(false)) {
+    items.push({ id: `c-${l.id}`, kind: 'custom', group: 'custom', title: l.title, icon: null, color: (l.style && l.style.color) || '#00bcd4', layer_id: l.id,
+      info: `${l.source || ''} ${l.description || ''}`.trim(), default_on: false, on_forest: false, hidden: false, sort: (order += 10), source: 'custom', deletable: true });
+  }
+  // cấu hình quản trị đè mặc định
+  const st = settings();
+  for (const it of items) {
+    const s = st[it.id];
+    it.defaults = { title: it.title, group: it.group, sort: it.sort, hidden: it.hidden, default_on: it.default_on, on_forest: it.on_forest };
+    if (!s) continue;
+    if (s.title) it.title = s.title;
+    if (s.grp && GROUP[s.grp]) it.group = s.grp;
+    if (Number.isFinite(s.sort)) it.sort = s.sort;
+    if (s.hidden !== null && s.hidden !== undefined) it.hidden = s.hidden;
+    if (s.default_on !== null && s.default_on !== undefined) it.default_on = s.default_on;
+    if (s.on_forest !== null && s.on_forest !== undefined) it.on_forest = s.on_forest;
+    it.customized = { by: s.updated_by, at: s.updated_at };
+  }
+  items.sort((a, b) => GROUPS.findIndex((g) => g.key === a.group) - GROUPS.findIndex((g) => g.key === b.group) || a.sort - b.sort);
+  return items;
+}
+
+// cây nhóm cho trang bản đồ: [{ ...group, items[] }] – chỉ lớp không ẩn
+async function tree(opts) {
+  const items = (await full(opts)).filter((i) => !i.hidden);
+  return GROUPS.map((g) => ({ ...g, items: items.filter((i) => i.group === g.key) })).filter((g) => g.items.length);
+}
+
+function save(user, id, b) {
+  const old = store.get('layer_settings', id);
+  const bool = (v) => (v === undefined ? undefined : v === true || v === '1' || v === 'on' || v === 'true');
+  const rec = {
+    hidden: bool(b.hidden) ?? false, default_on: bool(b.default_on) ?? false, on_forest: bool(b.on_forest) ?? false,
+    title: String(b.title || '').trim().slice(0, 160) || null, grp: GROUP[b.grp] ? b.grp : null, sort: Number.isFinite(Number(b.sort)) && b.sort !== '' ? Math.round(Number(b.sort)) : null,
+    updated_by: user.username,
+  };
+  const row = old ? store.update('layer_settings', id, rec) : store.insert('layer_settings', { id, ...rec });
+  store.audit(user, 'layer.settings', id, rec);
+  return row;
+}
+function reset(user, id) { if (store.get('layer_settings', id)) { store.remove('layer_settings', id); store.audit(user, 'layer.settings.reset', id); } }
+function setHidden(user, id, hidden) {
+  const old = store.get('layer_settings', id);
+  const row = old ? store.update('layer_settings', id, { hidden, updated_by: user.username }) : store.insert('layer_settings', { id, hidden, updated_by: user.username });
+  store.audit(user, hidden ? 'layer.hide' : 'layer.show', id);
+  return row;
+}
+
+module.exports = { GROUPS, GROUP, full, tree, save, reset, setHidden };

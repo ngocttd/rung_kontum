@@ -16,8 +16,8 @@
   ];
   const fcgHist = fcg ? fcg.history.aoi_annual_loss_ha : null;
   const ov = Object.fromEntries(overlays.map(o => [o.id, o]));
-  const tabs = [['tong-quan','grid-fill','Tổng quan'],['hien-trang','tree-fill','Hiện trạng rừng'],['phan-loai','bar-chart-fill','Phân loại rừng'],['lop-phu','clock-history','Lớp phủ 1991–2023'],['__/bien-dong-rung','graph-up-arrow','Biến động rừng'],
-    ['dac-dung','shield-fill-check','Khu bảo tồn và rừng đặc dụng'],['phong-ho','tree-fill','Rừng phòng hộ'],['san-xuat','bar-chart-fill','Rừng sản xuất'],['__/tai-lieu','file-earmark-text-fill','Dữ liệu và tài liệu']];
+  const tabs = [['tong-quan','grid-fill','Tổng quan'],['hien-trang','tree-fill','Hiện trạng rừng'],['phan-loai','bar-chart-fill','Phân loại rừng'],['lop-phu','clock-history','Lớp phủ qua các năm'],['__/bien-dong-rung','graph-up-arrow','Biến động rừng'],
+    ['dac-dung','shield-fill-check','Rừng đặc dụng'],['phong-ho','tree-fill','Rừng phòng hộ'],['san-xuat','bar-chart-fill','Rừng sản xuất'],['__/tai-lieu','file-earmark-text-fill','Dữ liệu và tài liệu']];
   const catPanels = [['dac-dung','special_use_planning_ha','Quy hoạch rừng đặc dụng','special','#006b38'],['phong-ho','protection_planning_ha','Quy hoạch rừng phòng hộ','protection','#75bb25'],['san-xuat','production_planning_ha','Quy hoạch rừng sản xuất','production','#f8ce42']];
   const filterTypes = [['special','Quy hoạch đặc dụng','#006b38'],['protection','Quy hoạch phòng hộ','#75bb25'],['production','Quy hoạch sản xuất','#4caf50'],['natural','Rừng tự nhiên','#0f5f32'],['plantation','Rừng trồng','#f8b733']];
 %>
@@ -41,7 +41,7 @@
       <div class="card-b">
         <label class="field"><span>Năm bản đồ</span><select class="input" id="map-year">
           <option value="2025" title="Số liệu hiện trạng rừng theo QĐ 1047/QĐ-UBND">2025 – Hiện trạng (QĐ 1047)</option>
-          <% (lc ? lc.years.slice().reverse() : []).forEach(y => { if (ov['lc-' + y]) { %><option value="<%= y %>" title="Bản đồ lớp phủ năm <%= y %> – dữ liệu dự án"><%= y %> – Lớp phủ (dự án)</option><% } }) %>
+          <% yearLayers.forEach(yl => { yl.layers.forEach(it => { %><option value="<%= it.id %>" data-year="<%= yl.year %>" data-kind="<%= it.kind %>" title="<%= it.title %>"><%= yl.year %> – <%= it.kind === 'map' ? 'Lớp phủ rừng LPR (bản đồ dự án)' : 'Lớp phủ 15 m (dự án)' %></option><% }) }) %>
         </select></label>
         <p class="src" id="year-note" hidden style="margin:-4px 0 10px"></p>
         <div class="field"><span>Loại rừng</span>
@@ -53,11 +53,8 @@
           </select></label>
         <div class="field"><span>Hiển thị thêm lớp</span>
           <label class="check"><input type="checkbox" data-vec="communes" checked> Ranh giới xã</label>
-          <label class="check"><input type="checkbox" data-ov="worldcover-2021"> Lớp phủ đất 2021</label>
-          <label class="check"><input type="checkbox" data-ov="ndvi-2025-dry"> NDVI mùa khô 2025</label>
-          <label class="check"><input type="checkbox" data-ov="hansen-loss"> Mất tán cây 2001–2024</label>
-          <label class="check"><input type="checkbox" data-ov="dem-2024"> Địa hình</label>
-          <label class="check"><input type="checkbox" data-ov="s2-latest"> Ảnh vệ tinh nền</label>
+          <% extras.forEach(it => { if (it.kind === 'vector') { %><label class="check"><input type="checkbox" data-vec="<%= it.id %>"> <%= it.title %></label><% } else { %><label class="check"><input type="checkbox" data-ov="<%= it.id %>"> <%= it.title %></label><% } }) %>
+          <span class="src">Danh sách lớp do quản trị cấu hình (Quản trị › Dữ liệu không gian › cột “Tài nguyên rừng”).</span>
         </div>
         <button class="btn btn-primary btn-block" type="button" id="apply"><%- ic('search') %> Áp dụng bộ lọc</button>
         <button class="btn btn-outline btn-block" type="button" id="reset" style="margin-top:8px">Đặt lại</button>
@@ -162,6 +159,9 @@
 
     <% if (lc) { const fv = lc.field_validation; const ch = lc.forest_change_1991_2023; const rowsC = communes.map(c => ({ c, x: lc.by_commune[c.code] && lc.by_commune[c.code].forest_change_1991_2023 })).filter(r => r.x).sort((a, b) => (b.x.loss_ha - b.x.gain_ha) - (a.x.loss_ha - a.x.gain_ha)); %>
     <div data-panel-group="forest" data-panel="lop-phu" <%= tab === 'lop-phu' ? '' : 'hidden' %> class="grid span-2">
+      <section class="card"><div class="card-h"><h2><%- ic('map-fill') %> Bản đồ lớp phủ theo năm</h2></div><div class="card-b">
+        <div style="display:flex;flex-wrap:wrap;gap:8px"><% yearLayers.slice().reverse().forEach(yl => { yl.layers.forEach(it => { %><button type="button" class="btn btn-outline btn-sm" data-show-year="<%= it.id %>"><b><%= yl.year %></b>&nbsp;<%= it.kind === 'map' ? 'LPR' : '15 m' %></button><% }) }) %></div>
+        <p class="src" style="margin:8px 0 0">Bấm năm để hiện bản đồ ở khung phía trên. “15 m”: bản đồ lớp phủ giải đoán ảnh của dự án (số liệu thống kê bên dưới); “LPR”: bản đồ lớp phủ rừng của dự án theo năm. Danh sách lấy tự động từ các lớp đã xuất bản.</p></div></section>
       <div class="note info">Dữ liệu thực tế do dự án cung cấp: bản đồ lớp phủ tỉnh Kon Tum từ ảnh vệ tinh các năm 1991, 2014, 2023 (UTM 48N, 15 m, 7 lớp) và 389 mẫu thực địa năm 2025. “Rừng” ở đây là lớp phủ giải đoán ảnh, khác diện tích rừng pháp lý của QĐ 1047.</div>
       <div class="grid" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)">
         <section class="card">

@@ -158,18 +158,23 @@
   const yearSel = document.getElementById('map-year');
   const yearNote = document.getElementById('year-note');
   let year = '2025';
-  function setYear(y) {
-    year = String(y || '2025');
+  // giá trị ô chọn = mã lớp (lc-2023, m-<id>…); năm lấy từ data-year
+  function setYear(val) {
+    const opt = [...yearSel.options].find((o) => o.value === String(val || '2025')) || yearSel.options[0];
+    year = opt.value === '2025' ? '2025' : String(opt.dataset.year);
     const official = year === '2025';
-    (P.lc ? P.lc.years : []).forEach((ly) => v.setVisible(`ov-lc-${ly}`, String(ly) === year));
+    [...yearSel.options].forEach((o) => { if (o.value !== '2025') v.setVisible(`ov-${o.value}`, o === opt); });
     document.querySelectorAll('input[name=ftype]').forEach((c) => { c.disabled = !official; if (!official) c.checked = false; c.closest('label').style.opacity = official ? '' : '.45'; });
     if (official) setChoro(document.querySelector('input[name=ftype]:checked') ? document.querySelector('input[name=ftype]:checked').value : null);
     else { v.setChoropleth(null); renderLegend(); }
     yearNote.hidden = official;
-    document.getElementById('map-title').textContent = official ? 'Bản đồ hiện trạng tài nguyên rừng năm 2025' : `Bản đồ lớp phủ năm ${year} (dữ liệu dự án)`;
-    if (!official) yearNote.textContent = `Bản đồ lớp phủ năm ${year} (ảnh viễn thám, 15 m) – dữ liệu dự án, không phải số liệu công bố. Lọc theo loại rừng chỉ áp dụng cho số liệu hiện trạng 2025.`;
+    const lpr = opt.dataset.kind === 'map';
+    document.getElementById('map-title').textContent = official ? 'Bản đồ hiện trạng tài nguyên rừng năm 2025' : `${lpr ? 'Bản đồ lớp phủ rừng LPR' : 'Bản đồ lớp phủ'} năm ${year} (dữ liệu dự án)`;
+    if (!official) yearNote.textContent = `${lpr ? 'Bản đồ lớp phủ rừng LPR' : 'Bản đồ lớp phủ (ảnh viễn thám, 15 m)'} năm ${year} – dữ liệu dự án, không phải số liệu công bố. Lọc theo loại rừng chỉ áp dụng cho số liệu hiện trạng 2025.`;
+    renderLegend();
   }
   yearSel.addEventListener('change', () => setYear(yearSel.value));
+  document.querySelectorAll('[data-show-year]').forEach((b) => b.addEventListener('click', () => { yearSel.value = b.dataset.showYear; setYear(b.dataset.showYear); window.scrollTo({ top: 200, behavior: 'smooth' }); }));
   function lcRows(code) {
     if (year === '2025' || !P.lc || !P.lc.by_commune[code]) return '';
     const b = P.lc.by_commune[code][year] || P.lc.by_commune[code][Number(year)] || {};
