@@ -20,3 +20,6 @@ mobile/android/.gradle/
 
 # dữ liệu (raster, OSM, dữ liệu thực tế ~7 GB) không đưa lên git – đi kèm gói triển khai deploy/rung_kontum_var_data.tar
 data/
+
+# ảnh lớp bản đồ do lịch chạy tự động sinh lại trên máy chủ (không đưa lên git để git pull không xung đột)
+public/generated/
