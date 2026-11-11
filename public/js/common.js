@@ -23,8 +23,6 @@
     if (t) document.getElementById('main-nav').classList.toggle('open');
   });
 
-  // EN: machine translation of the current public URL
-  document.querySelectorAll('[data-translate]').forEach((a) => { a.href += encodeURIComponent(location.href); a.target = '_blank'; });
 
   // Global search (communes, news, documents, layers)
   function bindSearch(box) {
@@ -38,21 +36,28 @@
         if (q === last) return; last = q;
         if (q.length < 2) { out.classList.remove('open'); return; }
         const rows = await KT.getJSON(`/api/public/search?q=${encodeURIComponent(q)}`).catch(() => []);
-        out.innerHTML = rows.length ? rows.map((r) => `<a href="${r.url}" data-center="${r.center ? r.center.join(',') : ''}">${KT.esc(r.title)}<small>${KT.esc(r.type)}</small></a>`).join('')
+        out.innerHTML = rows.length ? rows.map((r) => `<a href="${r.url}" data-center="${r.center ? r.center.join(',') : ''}" data-zoom="${r.zoom || 11}">${KT.esc(r.title)}<small>${KT.esc(r.type)}</small></a>`).join('')
           : '<div class="empty">Không tìm thấy kết quả phù hợp</div>';
         out.classList.add('open');
       }, 220);
     });
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const a = out.querySelector('a'); if (a) { e.preventDefault(); a.click(); } } });
+    // nút “Tìm kiếm” của ô dạng form: mở kết quả đầu tiên (hoặc tìm ngay nếu chưa có)
+    box.addEventListener('submit', (e) => { e.preventDefault(); const a = out.querySelector('a'); if (a && out.classList.contains('open')) a.click(); else { last = ''; input.dispatchEvent(new Event('input')); } });
     document.addEventListener('click', (e) => { if (!box.contains(e.target)) out.classList.remove('open'); });
     out.addEventListener('click', (e) => {
       const a = e.target.closest('a');
       if (a && box.dataset.search === 'map' && a.dataset.center && KT.activeMap) {
         e.preventDefault();
         const [x, y] = a.dataset.center.split(',').map(Number);
-        KT.activeMap.flyTo({ center: [x, y], zoom: 11 });
+        KT.activeMap.flyTo({ center: [x, y], zoom: Number(a.dataset.zoom) || 11 });
         out.classList.remove('open');
-        if (KT.onCommuneSearch) KT.onCommuneSearch(a.getAttribute('href').split('xa=')[1]);
+        const xa = (a.getAttribute('href').match(/[?&]xa=([^&#]+)/) || [])[1];
+        if (xa && KT.onCommuneSearch) KT.onCommuneSearch(xa);
+        if (!xa && KT.activeMap.getContainer) { // đánh dấu điểm tìm được
+          if (KT._searchMarker) KT._searchMarker.remove();
+          KT._searchMarker = new mapboxgl.Marker({ color: '#e53935' }).setLngLat([x, y]).addTo(KT.activeMap);
+        }
       }
     });
   }

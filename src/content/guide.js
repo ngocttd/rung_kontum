@@ -10,7 +10,7 @@ const publicGuide = {
       intro: 'Thanh menu trên cùng dẫn tới các trang chức năng: Trang chủ, Bản đồ, Tài nguyên rừng, Cảnh báo cháy rừng (gồm Biến động và dự báo mất rừng), Tin tức, Thống kê, Tài liệu, Phản ánh và Giới thiệu.',
       steps: [
         'Ô “Tìm kiếm…” ở góc phải tìm nhanh xã/phường, tin tức, tài liệu; chọn kết quả để mở trang tương ứng.',
-        'Nút VI / EN đổi ngôn ngữ giao diện.',
+        'Ô tìm kiếm không cần gõ dấu và nhận nhiều từ: tìm được trang chức năng, xã/phường, thôn/làng, toạ độ “14.35, 108.0”, mã phản ánh (PA-2026-0001), lớp bản đồ, tin tức, tài liệu.',
         'Trên điện thoại, bấm nút “⋯” để mở menu; các bảng và dải số liệu có thể vuốt ngang.',
         'Ở chân trang có liên kết Hướng dẫn – Hỏi đáp, Giới thiệu và nguồn dữ liệu.',
       ],

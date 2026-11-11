@@ -212,4 +212,6 @@ function route(from, to) {
   };
 }
 
-module.exports = { nearest, route, dist, graph };
+function places() { return loadPois().places; }
+
+module.exports = { nearest, route, dist, graph, places };

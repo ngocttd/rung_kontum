@@ -191,17 +191,51 @@ pub.get('/tools/route', rateLimit('route', 120, 60e3), (req, res) => {
   } catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
 });
 
-pub.get('/search', (req, res) => {
-  const q = String(req.query.q || '').trim().toLowerCase();
-  if (q.length < 2) return res.json([]);
-  const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
-  const nq = norm(q);
+// Tìm kiếm toàn hệ thống: không phân biệt dấu/hoa thường, nhiều từ (đủ mọi từ). Trả về trang chức năng, xã/phường,
+// thôn/làng (OpenStreetMap), toạ độ "vĩ độ, kinh độ", mã phản ánh công khai, lớp bản đồ (kể cả bản đồ chuyên đề), tin tức, tài liệu.
+const PAGES = [
+  ['Bản đồ WebGIS', '/ban-do', 'ban do webgis lop gis'], ['Tài nguyên rừng', '/tai-nguyen-rung', 'tai nguyen rung hien trang lop phu lpr'],
+  ['Biến động và dự báo mất rừng', '/bien-dong-rung', 'bien dong mat rung du bao sentinel ndvi'], ['Cảnh báo cháy rừng', '/canh-bao-chay', 'canh bao chay diem nong firms nguy co'],
+  ['Thời tiết', '/thoi-tiet', 'thoi tiet du bao nhiet do mua gio'], ['Thống kê – báo cáo', '/thong-ke', 'thong ke bao cao excel'],
+  ['Tài liệu – bản đồ PDF', '/tai-lieu', 'tai lieu van ban ban do pdf'], ['Gửi / tra cứu phản ánh', '/phan-anh', 'phan anh hien truong to giac bao chay'],
+  ['So sánh ảnh vệ tinh', '/so-sanh-anh', 'so sanh anh ve tinh sentinel'], ['Tin tức', '/tin-tuc', 'tin tuc thong bao'],
+  ['Hướng dẫn sử dụng', '/huong-dan/su-dung', 'huong dan su dung hoi dap'], ['Đăng ký tài khoản', '/dang-ky', 'dang ky tai khoan nguoi dan'],
+  ['Giới thiệu – nguồn dữ liệu', '/gioi-thieu', 'gioi thieu nguon du lieu'],
+];
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
+pub.get('/search', async (req, res) => {
+  const raw = String(req.query.q || '').trim().slice(0, 100);
+  if (raw.length < 2) return res.json([]);
+  const nq = norm(raw); const toks = nq.split(' ').filter(Boolean);
+  const hit = (...texts) => { const t = norm(texts.join(' ')); return toks.every((k) => t.includes(k)); };
+  const score = (title) => { const t = norm(title); return t === nq ? 0 : t.startsWith(nq) ? 1 : t.includes(nq) ? 2 : 3; };
   const out = [];
-  for (const c of repo.communes()) if (norm(c.fullName).includes(nq)) out.push({ type: 'Xã/phường', title: c.fullName, url: `/ban-do?xa=${c.code}`, center: c.centroid });
-  for (const a of content.list({ q })) out.push({ type: 'Tin tức', title: a.title, url: `/tin-tuc/${a.slug}` });
-  for (const d of repo.documents()) if (norm(d.title).includes(nq)) out.push({ type: 'Tài liệu', title: d.title, url: `/tai-lieu?id=${d.id}` });
-  for (const o of repo.overlays()) if (norm(o.title).includes(nq)) out.push({ type: 'Lớp bản đồ', title: o.title, url: `/ban-do?lop=${o.id}` });
-  res.json(out.slice(0, 20));
+  const add = (type, list) => out.push(...list.sort((x, y) => score(x.title) - score(y.title)).map((x) => ({ type, ...x })));
+  // toạ độ "14.35, 108.0" (vĩ độ, kinh độ – chấp nhận đảo thứ tự)
+  const m = raw.match(/^\s*(-?\d{1,3}(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:[.,]\d+)?)\s*$/);
+  if (m) {
+    let [a, b] = [Number(m[1].replace(',', '.')), Number(m[2].replace(',', '.'))];
+    if (a > 90) [a, b] = [b, a];
+    if (a >= 6 && a <= 25 && b >= 100 && b <= 112) out.push({ type: 'Toạ độ', title: `${a.toFixed(5)}, ${b.toFixed(5)} (vĩ độ, kinh độ)`, url: `/ban-do#${b.toFixed(5)},${a.toFixed(5)},14`, center: [b, a], zoom: 14 });
+  }
+  // mã phản ánh công khai
+  if (/^pa-\d{4}-\d+$/i.test(raw)) {
+    const r0 = reports.byCode(raw);
+    if (r0) out.push({ type: 'Phản ánh', title: `${r0.code} – tra cứu tiến độ xử lý`, url: `/phan-anh?ma=${r0.code}` });
+  }
+  add('Trang', PAGES.filter(([t, , k]) => hit(t, k)).map(([title, url]) => ({ title, url })));
+  add('Xã/phường', repo.communes().filter((c) => hit(c.fullName, c.name)).map((c) => ({ title: c.fullName, url: `/ban-do?xa=${c.code}`, center: c.centroid, zoom: 11 })));
+  try {
+    const places = require('../services/geotools').places().filter((p0) => hit(p0.name)).slice(0, 8);
+    add('Thôn/làng (OSM)', places.map((p0) => ({ title: `${p0.name} · ${p0.kindLabel}`, url: `/ban-do#${p0.c[0].toFixed(5)},${p0.c[1].toFixed(5)},13`, center: p0.c, zoom: 13 })));
+  } catch { /* chưa có dữ liệu OSM */ }
+  try {
+    const items = (await require('../services/layerCatalog').full()).filter((i) => !i.hidden && i.kind !== 'choro');
+    add('Lớp bản đồ', items.filter((i) => hit(i.title, i.full_title || '')).slice(0, 8).map((i) => ({ title: i.title, url: `/ban-do?lop=${encodeURIComponent(i.id)}` })));
+  } catch { /* bỏ qua */ }
+  add('Tin tức', content.list().filter((a0) => hit(a0.title, a0.summary || '', a0.categoryLabel || '')).slice(0, 6).map((a0) => ({ title: a0.title, url: `/tin-tuc/${a0.slug}` })));
+  add('Tài liệu', repo.documents().filter((d) => hit(d.title, d.number || '', d.issuer || '')).slice(0, 6).map((d) => ({ title: d.title, url: `/tai-lieu?id=${d.id}` })));
+  res.json(out.slice(0, 25));
 });
 
 module.exports = r;
