@@ -81,19 +81,28 @@ save('dem-2024',np.dstack([np.clip(col,0,255).astype('uint8'),(m*235).astype('ui
  'Copernicus DEM GLO-30 © DLR/Airbus, cung cấp bởi ESA/EU','Mô hình bề mặt (DSM), có cả tán cây/công trình',legend=[dict(value=s[0],color=s[1]) for s in dem_stops],scale='30 m (hiển thị ~70 m)')
 # Hansen loss year
 v,tr,sh=warp(P/'forest-lossyear-hansen-30m.tif',1,2600,Resampling.nearest,src_nodata=0)
-loss_stops=[(1,'#fde68a'),(8,'#fb923c'),(16,'#e11d48'),(24,'#7e1d6b')]
+_LY=int(np.nanmax(v)) if np.isfinite(v).any() else 24
+_HV=json.loads((ROOT/'data/web/forest-change.json').read_text(encoding='utf-8'))['history'].get('version','v1.12') if (ROOT/'data/web/forest-change.json').exists() else 'v1.12'
+loss_stops=[(1,'#fde68a'),(8,'#fb923c'),(16,'#e11d48'),(_LY,'#7e1d6b')]
 ok=np.isfinite(v)&(v>0)&aoi_mask(tr,sh)
-save('hansen-loss',np.dstack([ramp(np.nan_to_num(v),loss_stops),(ok*255).astype('uint8')]),'Mất tán cây 2001–2024 (Hansen GFC v1.12)',
+save('hansen-loss',np.dstack([ramp(np.nan_to_num(v),loss_stops),(ok*255).astype('uint8')]),f'Mất tán cây 2001–{2000+_LY} (Hansen GFC {_HV})',
  'Hansen/UMD/Google/USGS/NASA – CC BY 4.0','Mất tán cây mọi nguyên nhân (gồm khai thác rừng trồng); không đồng nhất với mất rừng pháp lý',
  legend=[dict(value=2000+s[0],color=s[1]) for s in loss_stops],scale='30 m')
 # forest-loss risk classes
 RISK=json.loads((ROOT/'public/assets/visual-tokens.json').read_text(encoding='utf-8'))['legend']
-v,tr,sh=warp(P/'forest-loss-risk-2025-2026-100m.tif',2,1400,Resampling.nearest,src_nodata=-1)
+_rk=P/'forest-loss-risk-latest-100m.tif'
+v,tr,sh=warp(_rk if _rk.exists() else P/'forest-loss-risk-2025-2026-100m.tif',2,1400,Resampling.nearest,src_nodata=-1)
 rgba=np.zeros((*sh,4),dtype='uint8');m=aoi_mask(tr,sh)
 for k in range(1,6):
  sel=(v==k)&m;rgba[sel,:3]=hexrgb(RISK[f'risk-{k}']);rgba[sel,3]=[90,140,190,220,240][k-1]
-save('forest-loss-risk',rgba,'Dự báo nguy cơ mất rừng 2025–2026','Mô hình Random Forest của hệ thống (Hansen GFC, DEM, WorldCover)',
+_hz=json.loads((ROOT/'data/web/forest-change.json').read_text(encoding='utf-8'))['forecast']['horizon'] if (ROOT/'data/web/forest-change.json').exists() else '2025..2026'
+_hz=_hz[:4]+'–'+_hz.split('..')[1][:4]
+save('forest-loss-risk',rgba,f'Dự báo nguy cơ mất rừng {_hz}','Mô hình Random Forest của hệ thống (Hansen GFC, DEM, WorldCover)',
  'Mô hình chưa được cơ quan chuyên môn phê duyệt; dùng để ưu tiên kiểm tra',legend=[dict(value=k,color=RISK[f'risk-{k}']) for k in range(1,6)],scale='100 m')
+# giữ lớp do script khác tạo (lớp phủ dự án, biến động NDVI, thời tiết, NDMI/LST, ảnh mới nhất…): chỉ thay lớp script này dựng
+_old=json.loads((WEB/'overlays.json').read_text(encoding='utf-8')) if (WEB/'overlays.json').exists() else []
+_mine={o['id'] for o in overlays}
+overlays=overlays+[o for o in _old if o['id'] not in _mine]
 (WEB/'overlays.json').write_text(json.dumps(overlays,ensure_ascii=False,indent=1),encoding='utf-8')
 # ---------- simplified boundaries ----------
 def rdp(pts,eps):

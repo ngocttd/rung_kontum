@@ -102,7 +102,8 @@ def main(cfg_path, out_dir):
         persist = ((cur['stack'] - base_n[None]) <= -0.10).sum(0)
     T, CRS = cur['T'], cur['crs']; SH = dn.shape
     if b['mode'] == 'years' and not base_c: raise ValueError('Không có ảnh kỳ đối chứng')
-    with rasterio.open(ROOT / 'data/processed/forest-standing-2024-100m.tif') as d:
+    _st = ROOT / 'data/processed/forest-standing-latest-100m.tif'
+    with rasterio.open(_st if _st.exists() else ROOT / 'data/processed/forest-standing-2024-100m.tif') as d:
         standing = np.zeros(SH, dtype='uint8')
         reproject(rasterio.band(d, 1), standing, dst_transform=T, dst_crs=CRS, resampling=Resampling.nearest)
     standing = standing.astype(bool)

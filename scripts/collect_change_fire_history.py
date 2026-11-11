@@ -26,13 +26,23 @@ def download(img,name,region,scale):
     print(name,'retry',type(e).__name__,str(e)[:200],flush=True);time.sleep(5)
  return p
 # 1. Hansen GFC tiles (2x2) at 30 m
-HANSEN='UMD/hansen/global_forest_change_2024_v1_12'
+# phiên bản mới nhất có trên GEE (năm phát hành ~ giữa năm sau): thử từ năm nay lùi dần
+HANSEN=None
+for _y in range(datetime.date.today().year, 2023, -1):
+ for _v in range(20, 11, -1):
+  _id=f'UMD/hansen/global_forest_change_{_y}_v1_{_v}'
+  try:
+   ee.Image(_id).bandNames().getInfo();HANSEN=_id;break
+  except Exception:pass
+ if HANSEN:break
+HVER='v1.'+HANSEN.rsplit('_v1_',1)[1]
+print('Hansen',HANSEN,flush=True)
 h=ee.Image(HANSEN).select(['treecover2000','lossyear','datamask']).toUint8()
 xs=[W,(W+E)/2,E];ys=[S,(S+N)/2,N]
 for i in range(2):
  for j in range(2):
   reg=ee.Geometry.Rectangle([xs[i],ys[j],xs[i+1],ys[j+1]])
-  p=download(h,f'hansen-gfc-v1.12-30m-{i}{j}.tif',reg,30)
+  p=download(h,f'hansen-gfc-{HVER}-30m-{i}{j}.tif',reg,30)
   ok=p.exists();save(dict(file=p.name,source=HANSEN,bands=['treecover2000','lossyear','datamask'],scale_m=30,crs='EPSG:32648',
    bytes=p.stat().st_size if ok else None,sha256=hashlib.sha256(p.read_bytes()).hexdigest() if ok else None,
    license='CC BY 4.0, Hansen/UMD/Google/USGS/NASA',meaning='tree-cover loss (stand-replacement, any cause); not legal deforestation'))

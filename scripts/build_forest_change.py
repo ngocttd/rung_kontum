@@ -31,22 +31,30 @@ fc=json.loads((ROOT/'data/boundaries/kon-tum-new-communes-clipped.geojson').read
 codes=[f['properties']['code'] for f in fc['features']];names={f['properties']['code']:f['properties']['fullName'] for f in fc['features']}
 cgrid=rasterize([(transform_geom('EPSG:4326',CRS,f['geometry']),i+1) for i,f in enumerate(fc['features'])],out_shape=SH,transform=T100,fill=0,dtype='int16')
 # ---------- Hansen 30 m mosaic ----------
-tiles=[rasterio.open(p) for p in sorted((ROOT/'data/collected/history').glob('hansen-gfc-v1.12-30m-*.tif'))]
+def hansen_tiles():
+ # bộ ô Hansen phiên bản mới nhất đã tải (hansen-gfc-v1.NN-30m-ij.tif)
+ import re as _re
+ fs=list((ROOT/'data/collected/history').glob('hansen-gfc-v1.*-30m-*.tif'))
+ vers=sorted({int(_re.search(r'v1\.(\d+)-',p.name).group(1)) for p in fs})
+ v=vers[-1];return sorted(p for p in fs if f'v1.{v}-' in p.name),f'v1.{v}'
+_hp,HVER=hansen_tiles();tiles=[rasterio.open(p) for p in _hp]
 h,ht=merge(tiles,bounds=(750300,1540050,883410,1707660),res=30,nodata=0);[t.close() for t in tiles]
 tc,ly,dm=h[0],h[1],h[2];H30=h.shape[1:]
 inside30=geometry_mask([transform_geom('EPSG:4326',CRS,aoi)],H30,ht,invert=True)
 forest2000=(tc>=30)&(dm==1)&inside30
 c30=rasterize([(transform_geom('EPSG:4326',CRS,f['geometry']),i+1) for i,f in enumerate(fc['features'])],out_shape=H30,transform=ht,fill=0,dtype='int16')
 PIX_HA=0.09
+LAST=int(ly.max()) if int(ly.max())>0 else 24  # năm cuối của chuỗi Hansen (vd 25 = 2025)
+LY=2000+LAST
 annual={c:{} for c in codes};forest2000_ha={}
 for i,c in enumerate(codes):
  m=(c30==i+1)&forest2000;forest2000_ha[c]=round(float(m.sum())*PIX_HA,1)
- cnt=np.bincount(ly[m],minlength=25)
- annual[c]={str(2000+y):round(float(cnt[y])*PIX_HA,2) for y in range(1,25)}
-aoi_annual={str(2000+y):round(sum(annual[c][str(2000+y)] for c in codes),1) for y in range(1,25)}
+ cnt=np.bincount(ly[m],minlength=LAST+1)
+ annual[c]={str(2000+y):round(float(cnt[y])*PIX_HA,2) for y in range(1,LAST+1)}
+aoi_annual={str(2000+y):round(sum(annual[c][str(2000+y)] for c in codes),1) for y in range(1,LAST+1)}
 with open(P/'forest-loss-hansen-by-commune.csv','w',newline='',encoding='utf-8') as f:
- w=csv.writer(f);w.writerow(['commune_code','commune_name','treecover2000_ge30_ha']+[str(2000+y) for y in range(1,25)])
- for c in codes:w.writerow([c,names[c],forest2000_ha[c]]+[annual[c][str(2000+y)] for y in range(1,25)])
+ w=csv.writer(f);w.writerow(['commune_code','commune_name','treecover2000_ge30_ha']+[str(2000+y) for y in range(1,LAST+1)])
+ for c in codes:w.writerow([c,names[c],forest2000_ha[c]]+[annual[c][str(2000+y)] for y in range(1,LAST+1)])
 # loss-year raster at 30 m for display (0 = none)
 prof=dict(driver='GTiff',height=H30[0],width=H30[1],count=1,dtype='uint8',crs=CRS,transform=ht,nodata=0,compress='deflate',tiled=True)
 with rasterio.open(P/'forest-lossyear-hansen-30m.tif','w',**prof) as d:d.write(np.where(forest2000,ly,0).astype('uint8'),1)
@@ -83,9 +91,9 @@ def sample(X,ff,y,n=250000):
  idx=np.flatnonzero((ff.ravel()>=0.3)&inside.ravel()&np.isfinite(X.reshape(-1,X.shape[-1])).all(1))
  if len(idx)>n:idx=rng.choice(idx,n,replace=False)
  return X.reshape(-1,X.shape[-1])[idx],y.ravel()[idx],idx
-Xa,ffa=features(2018);ya=label(2019,2020);Xs,ys,_=sample(Xa,ffa,ya)
+Xa,ffa=features(LY-6);ya=label(LY-5,LY-4);Xs,ys,_=sample(Xa,ffa,ya)
 rf=RandomForestClassifier(n_estimators=200,max_depth=14,min_samples_leaf=20,n_jobs=-1,random_state=1,class_weight=None).fit(Xs,ys)
-Xb,ffb=features(2022);yb=label(2023,2024);Xv,yv,_=sample(Xb,ffb,yb,400000)
+Xb,ffb=features(LY-2);yb=label(LY-1,LY);Xv,yv,_=sample(Xb,ffb,yb,400000)
 pv=rf.predict_proba(Xv)[:,1]
 order=np.argsort(-pv);top10=order[:len(order)//10]
 deciles=[]
@@ -94,8 +102,8 @@ def risk_class(p):return np.digitize(p,qs)+1
 cls_v=risk_class(pv)
 for k in range(1,6):
  m=cls_v==k;deciles.append(dict(risk_class=k,cells=int(m.sum()),observed_loss_rate=round(float(yv[m].mean()),4) if m.any() else None,mean_predicted=round(float(pv[m].mean()),4) if m.any() else None))
-validation=dict(train=dict(features_as_of='2018-12-31',label='Hansen loss 2019-2020',cells=int(len(ys)),positive_rate=round(float(ys.mean()),4)),
- test=dict(features_as_of='2022-12-31',label='Hansen loss 2023-2024',cells=int(len(yv)),positive_rate=round(float(yv.mean()),4)),
+validation=dict(train=dict(features_as_of=f'{LY-6}-12-31',label=f'Hansen loss {LY-5}-{LY-4}',cells=int(len(ys)),positive_rate=round(float(ys.mean()),4)),
+ test=dict(features_as_of=f'{LY-2}-12-31',label=f'Hansen loss {LY-1}-{LY}',cells=int(len(yv)),positive_rate=round(float(yv.mean()),4)),
  auc=round(float(roc_auc_score(yv,pv)),4),brier=round(float(brier_score_loss(yv,pv)),4),
  top10pct_capture=round(float(yv[top10].sum()/max(yv.sum(),1)),4),by_risk_class=deciles,
  class_quantile_thresholds=[round(float(q),5) for q in qs],
@@ -103,11 +111,11 @@ validation=dict(train=dict(features_as_of='2018-12-31',label='Hansen loss 2019-2
  caveat='Validation uses Hansen tree-cover loss as reference (any cause, includes plantation harvest); not verified legal deforestation.')
 print(json.dumps(validation,indent=1),flush=True)
 # retrain on latest complete window and forecast 2025-2026
-Xc,ffc=features(2020);yc=label(2021,2022);Xs2,ys2,_=sample(Xc,ffc,yc)
+Xc,ffc=features(LY-4);yc=label(LY-3,LY-2);Xs2,ys2,_=sample(Xc,ffc,yc)
 rf2=RandomForestClassifier(n_estimators=200,max_depth=14,min_samples_leaf=20,n_jobs=-1,random_state=2).fit(np.vstack([Xs,Xs2]),np.concatenate([ys,ys2]))
-Xf,fff=features(2024);flat=Xf.reshape(-1,Xf.shape[-1]);ok=(fff.ravel()>=0.3)&inside.ravel()&np.isfinite(flat).all(1)
+Xf,fff=features(LY);flat=Xf.reshape(-1,Xf.shape[-1]);ok=(fff.ravel()>=0.3)&inside.ravel()&np.isfinite(flat).all(1)
 iso=IsotonicRegression(out_of_bounds='clip').fit(pv,yv)
-validation['calibration']='isotonic on test period (2023-2024); probabilities below are calibrated to the latest observed loss rate'
+validation['calibration']=f'isotonic on test period ({LY-1}-{LY}); probabilities below are calibrated to the latest observed loss rate'
 validation['brier_calibrated']=round(float(brier_score_loss(yv,iso.predict(pv))),4)
 for dcl in deciles:
  m=cls_v==dcl['risk_class'];dcl['mean_calibrated']=round(float(iso.predict(pv[m]).mean()),4) if m.any() else None
@@ -115,8 +123,8 @@ prob=np.full(flat.shape[0],np.nan,dtype='float32');raw=rf2.predict_proba(flat[ok
 rawgrid=np.full(flat.shape[0],np.nan,dtype='float32');rawgrid[ok]=raw;rawgrid=rawgrid.reshape(SH)
 rclass=np.where(np.isfinite(rawgrid),risk_class(np.nan_to_num(rawgrid)),0).astype('uint8')
 prof=dict(driver='GTiff',height=SH[0],width=SH[1],count=2,dtype='float32',crs=CRS,transform=T100,nodata=-1,compress='deflate')
-with rasterio.open(P/'forest-loss-risk-2025-2026-100m.tif','w',**prof) as d:
- d.write(np.nan_to_num(prob,nan=-1),1);d.write(rclass.astype('float32'),2);d.set_band_description(1,'probability_loss_2025_2026');d.set_band_description(2,'risk_class_1_5')
+with rasterio.open(P/'forest-loss-risk-latest-100m.tif','w',**prof) as d:
+ d.write(np.nan_to_num(prob,nan=-1),1);d.write(rclass.astype('float32'),2);d.set_band_description(1,f'probability_loss_{LY+1}_{LY+2}');d.set_band_description(2,'risk_class_1_5')
 risk_by_commune={}
 for i,c in enumerate(codes):
  m=(cgrid==i+1)&np.isfinite(prob)
@@ -138,7 +146,7 @@ def season(year,months):
    nd.append(np.where(good,(a[3]-a[2])/(a[3]+a[2]),np.nan));nb.append(np.where(good,(a[3]-a[5])/(a[3]+a[5]),np.nan))
  if not nd:return None,None,None
  with np.errstate(all='ignore'):return np.nanmedian(nd,0),np.nanmedian(nb,0),np.array(nd)
-standing=agg(forest_at(2024))>=0.5
+standing=agg(forest_at(LY))>=0.5
 def auto_thresholds(dn,db,mask,n_months):
  """Ngưỡng tự thích nghi: mức nghiêm ngặt hơn giữa ngưỡng chuẩn (ΔNDVI −0,15; ΔNBR −0,10) và trung vị − 3×MAD của rừng ổn định trong kỳ."""
  out={}
@@ -150,7 +158,7 @@ def auto_thresholds(dn,db,mask,n_months):
  out['persist']=2 if n_months>=2 else 1;out['min_ha']=3;out['mode']='auto'
  return out
 # lưu mặt nạ rừng còn đến 2024 (lưới 100 m) cho phân tích biến động theo thời gian tuỳ chọn (analyze_change_custom.py)
-with rasterio.open(P/'forest-standing-2024-100m.tif','w',driver='GTiff',width=SH[1],height=SH[0],count=1,dtype='uint8',crs=CRS,transform=T100,compress='deflate') as d:d.write((standing&inside).astype('uint8'),1)
+with rasterio.open(P/'forest-standing-latest-100m.tif','w',driver='GTiff',width=SH[1],height=SH[0],count=1,dtype='uint8',crs=CRS,transform=T100,compress='deflate') as d:d.write((standing&inside).astype('uint8'),1)
 # Kỳ so sánh tự sinh theo dữ liệu thực có (không gán cứng): mỗi năm chia 4 kỳ theo mùa; kỳ nào có ≥ 2 tháng ảnh
 # và kết thúc trong 12 tháng gần nhất thì được phân tích, so với cùng các tháng của 1–2 năm trước (loại dao động mùa vụ).
 SEASONS=[('01..04',[1,2,3,4],'mùa khô'),('05..06',[5,6],'đầu mùa mưa'),('07..09',[7,8,9],'mùa mưa'),('10..12',[10,11,12],'cuối mùa mưa – đầu mùa khô')]
@@ -159,7 +167,7 @@ avail={(int(f.stem.split('-')[1]),int(f.stem.split('-')[2])) for f in MS.glob('s
 if not avail:raise SystemExit('Chưa có ảnh Sentinel-2 tháng nào trong data/collected/monitoring-series')
 latest=max(avail);mi=lambda ym:ym[0]*12+ym[1]
 windows=[]
-for y in range(2025,latest[0]+1):
+for y in range(LY+1,latest[0]+1):
  for code,months,label in SEASONS:
   have=[m for m in months if (y,m) in avail]
   if len(have)<2 or mi(latest)-mi((y,have[-1]))>=12:continue
@@ -223,7 +231,7 @@ if latest_dn is not None:
  mlabel=f"{w['months'][0]:02}" + (f"–{w['months'][-1]:02}" if len(w['months'])>1 else '')
  entry=dict(id='change-latest',url='/generated/overlays/change-latest.webp',title=f"Biến động NDVI {mlabel}/{w['year']} so với cùng kỳ {'–'.join(map(str,w['base']))}",
   source='Copernicus Sentinel-2 SR (GEE), median tháng 100 m – phân tích Python',
-  meaning=f"Chênh lệch NDVI so với giá trị thấp hơn của cùng kỳ các năm trước, chỉ trong rừng còn đến 2024. Đỏ = giảm (nghi vấn mất/suy giảm rừng, cần xác minh), xanh = tăng. {w['label'].capitalize()}" + ('; mùa khô: rừng khộp rụng lá có thể làm NDVI giảm' if w['dry'] else '') + '.',
+  meaning=f"Chênh lệch NDVI so với giá trị thấp hơn của cùng kỳ các năm trước, chỉ trong rừng còn đến {LY}. Đỏ = giảm (nghi vấn mất/suy giảm rừng, cần xác minh), xanh = tăng. {w['label'].capitalize()}" + ('; mùa khô: rừng khộp rụng lá có thể làm NDVI giảm' if w['dry'] else '') + '.',
   legend=[dict(value=-0.3,color='#a50026'),dict(value=-0.15,color='#f46d43'),dict(value=-0.05,color='#fee08b'),dict(value=0,color='#f7f7f7'),dict(value=0.05,color='#d9ef8b'),dict(value=0.15,color='#66bd63'),dict(value=0.3,color='#006837')],
   resolution='100 m',coordinates=[[Wb,Nb],[Eb,Nb],[Eb,Sb],[Wb,Sb]],window=w['title'],valid_fraction=round(vf,3),group='change')
  idx=next((i for i,o in enumerate(ov) if o['id']=='s2-latest'),-1)
@@ -232,10 +240,10 @@ if latest_dn is not None:
  print(f"Lớp bản đồ: {entry['title']} (phủ {vf*100:.0f}% diện tích rừng)",flush=True)
 (WEB/'change-candidates.geojson').write_text(json.dumps(dict(type='FeatureCollection',features=features_out),ensure_ascii=False),encoding='utf-8')
 payload=dict(generated_at_utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),
- history=dict(source='Hansen/UMD Global Forest Change v1.12 (2000–2024), tree cover ≥ 30 %',license='CC BY 4.0',
+ history=dict(source=f'Hansen/UMD Global Forest Change {HVER} (2000–{LY}), tree cover ≥ 30 %',last_year=LY,version=HVER,license='CC BY 4.0',
   meaning='Mất tán cây (thay thế lớp phủ, mọi nguyên nhân, gồm cả khai thác rừng trồng); không đồng nhất với mất rừng theo pháp luật',
   aoi_annual_loss_ha=aoi_annual,treecover2000_ha=forest2000_ha,annual_loss_by_commune=annual),
- forecast=dict(product='forest_loss_risk',horizon='2025-01-01..2026-12-31',model='RandomForest (scikit-learn) 100 m',features=FEAT,
+ forecast=dict(product='forest_loss_risk',horizon=f'{LY+1}-01-01..{LY+2}-12-31',model='RandomForest (scikit-learn) 100 m',features=FEAT,
   validation=validation,risk_by_commune=risk_by_commune,status='model_output_unverified_not_official_warning'),
  candidates=dict(windows=cand_summary,latest_month=f'{latest[0]}-{latest[1]:02}',status='unverified_change_candidates'))
 (WEB/'forest-change.json').write_text(json.dumps(payload,ensure_ascii=False),encoding='utf-8')

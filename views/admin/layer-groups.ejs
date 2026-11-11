@@ -1,0 +1,46 @@
+<%- include('_top') %>
+<% const edit = can('data.manage'); %>
+<div class="adm-tabs"><a href="/quan-tri/du-lieu">Lớp dữ liệu bản đồ</a><a class="on" href="/quan-tri/du-lieu/danh-muc">Danh mục nhóm lớp</a><a href="/quan-tri/du-lieu#vector">Lớp vector bổ sung</a><% if (edit) { %><a href="/quan-tri/du-lieu#them">Nhập lớp</a><% } %><a href="/quan-tri/du-lieu/api">API chia sẻ</a></div>
+<section class="card">
+  <div class="card-h"><h2><%- ic('collection-fill') %> Danh mục nhóm lớp bản đồ</h2></div>
+  <div class="card-b">
+    <div class="note info" style="margin:0 0 10px">Danh mục nhóm quyết định <b>cây lớp</b> trên Bản đồ WebGIS và MobileGIS: mỗi nhóm thuộc một <b>mục lớn</b> (ví dụ TÀI NGUYÊN RỪNG, CẢNH BÁO CHÁY RỪNG) và một <b>thẻ</b> (Chuyên đề hoặc Dữ liệu nền), xếp theo <b>thứ tự</b>. Ẩn nhóm = ẩn mọi lớp trong nhóm. Nhóm mặc định chỉ đổi tên/ẩn/sắp xếp được; nhóm do quản trị thêm xoá được (lớp trong nhóm trở về nhóm mặc định). Gán lớp vào nhóm ở trang <a href="/quan-tri/du-lieu">Lớp dữ liệu bản đồ</a>.</div>
+    <div class="table-wrap"><table class="tbl" data-tools="off"><thead><tr><th class="num">Thứ tự</th><th>Tên nhóm</th><th>Mục lớn</th><th>Thẻ</th><th class="num">Số lớp</th><th>Loại</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+      <% groups.forEach(g => { const f = 'g-' + g.key; %><tr class="<%= g.hidden ? 'row-muted' : '' %>">
+        <td class="num"><input class="input input-sm" type="number" name="sort" value="<%= g.sort %>" form="<%= f %>" style="width:76px" <%= edit ? '' : 'disabled' %>></td>
+        <td><input class="input input-sm" name="title" value="<%= g.title %>" form="<%= f %>" style="min-width:260px" <%= edit ? '' : 'disabled' %>></td>
+        <td><input class="input input-sm" name="section" value="<%= g.section %>" list="sections" form="<%= f %>" style="min-width:190px" <%= edit ? '' : 'disabled' %>></td>
+        <td><select class="input input-sm" name="tab" form="<%= f %>" <%= edit ? '' : 'disabled' %>><option value="theme" <%= g.tab === 'theme' ? 'selected' : '' %>>Chuyên đề</option><option value="base" <%= g.tab === 'base' ? 'selected' : '' %>>Dữ liệu nền</option></select></td>
+        <td class="num"><a href="/quan-tri/du-lieu?nhom=<%= g.key %>#danh-muc"><%= count[g.key] || 0 %></a></td>
+        <td class="src"><%= g.builtin ? 'Mặc định' : 'Quản trị thêm' %><%= g.customized && g.builtin ? ' · đã chỉnh' : '' %></td>
+        <td><span class="badge <%= g.hidden ? 'b-gray' : 'b-green' %>"><%= g.hidden ? 'Đang ẩn' : 'Hiển thị' %></span></td>
+        <td class="layer-acts"><% if (edit) { %>
+          <form id="<%= f %>" method="post" action="/quan-tri/du-lieu/danh-muc/<%= g.key %>" style="display:inline" data-row-form><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="hidden" value="<%= g.hidden ? '1' : '0' %>"><button class="btn btn-primary btn-sm" disabled><%- ic('check-lg') %> Lưu thay đổi</button></form>
+          <form method="post" action="/quan-tri/du-lieu/danh-muc/<%= g.key %>" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="title" value="<%= g.title %>"><input type="hidden" name="section" value="<%= g.section %>"><input type="hidden" name="tab" value="<%= g.tab %>"><input type="hidden" name="sort" value="<%= g.sort %>"><input type="hidden" name="hidden" value="<%= g.hidden ? '0' : '1' %>"><button class="btn btn-outline btn-sm"><%- ic(g.hidden ? 'eye-fill' : 'eye-slash-fill') %> <%= g.hidden ? 'Hiện' : 'Ẩn' %></button></form>
+          <% if (!g.builtin) { %><form method="post" action="/quan-tri/du-lieu/danh-muc/<%= g.key %>" style="display:inline" onsubmit="return confirm('Xoá nhóm? Các lớp trong nhóm trở về nhóm mặc định.')"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm btn-danger-o" name="action" value="delete"><%- ic('trash-fill') %> Xoá</button></form>
+          <% } else if (g.customized) { %><form method="post" action="/quan-tri/du-lieu/danh-muc/<%= g.key %>" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" name="action" value="reset" title="Khôi phục mặc định"><%- ic('arrow-repeat') %></button></form><% } %>
+        <% } %></td></tr><% }) %>
+    </tbody></table></div>
+    <datalist id="sections"><% sections.forEach(s => { %><option value="<%= s %>"><% }) %></datalist>
+  </div>
+</section>
+<% if (edit) { %>
+<form class="card" method="post" action="/quan-tri/du-lieu/danh-muc" style="margin-top:16px">
+  <div class="card-h"><h2><%- ic('plus-lg') %> Thêm nhóm lớp</h2></div>
+  <div class="card-b grid cols-4"><input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label class="field"><span>Tên nhóm *</span><input class="input" name="title" required placeholder="vd: Quy hoạch lâm nghiệp"></label>
+    <label class="field"><span>Mục lớn</span><input class="input" name="section" list="sections" placeholder="vd: BẢN ĐỒ CHUYÊN ĐỀ"></label>
+    <label class="field"><span>Thẻ</span><select class="input" name="tab"><option value="theme">Chuyên đề</option><option value="base">Dữ liệu nền</option></select></label>
+    <label class="field"><span>Thứ tự</span><input class="input" type="number" name="sort" placeholder="vd 125 (giữa nhóm 120 và 130)"></label>
+    <div style="grid-column:1/-1"><button class="btn btn-primary"><%- ic('plus-lg') %> Thêm nhóm</button></div>
+  </div>
+</form>
+<% } %>
+<script>
+document.querySelectorAll('[data-row-form]').forEach((f) => {
+  const btn = f.querySelector('button');
+  document.querySelectorAll(`[form="${f.id}"]`).forEach((el) => { const mark = () => { btn.disabled = false; btn.closest('tr').classList.add('row-dirty'); }; el.addEventListener('input', mark); el.addEventListener('change', mark); });
+});
+</script>
+<%- include('_bottom') %>
+</body></html>

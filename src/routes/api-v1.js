@@ -34,6 +34,11 @@ const need = (perm) => wrap(async (req, res, next) => {
 const found = (req, res) => { const l = store.get('layers', req.params.id); if (!l) res.status(404).json({ error: 'Không tìm thấy lớp', code: 'NOT_FOUND' }); return l; };
 
 const ENDPOINTS = [
+  ['GET', '/api/v1/catalog', 'Danh mục MỌI lớp đang hiển thị (raster, bản đồ chuyên đề, vector, tô màu theo xã) kèm đường dẫn dữ liệu: ảnh + toạ độ góc, ô ảnh XYZ, GeoJSON, chú giải. Công khai, không cần token (có token cán bộ: thêm lớp đang ẩn). Lọc ?type=raster|vector, ?group=, ?q='],
+  ['GET', '/api/v1/catalog/:id', 'Thông tin và đường dẫn dữ liệu của một lớp'],
+  ['GET', '/api/v1/catalog/:id/data', 'Chuyển thẳng tới dữ liệu lớp (ảnh WebP hoặc GeoJSON)'],
+  ['PATCH', '/api/v1/catalog/:id', 'Cấu hình hiển thị lớp {title?, group?, sort?, hidden?, default_on?, on_forest?} (data.manage)'],
+  ['DELETE', '/api/v1/catalog/:id', 'Xoá lớp: vector bổ sung/bản đồ chuyên đề xoá dữ liệu; lớp hệ thống gỡ khỏi danh mục (data.manage)'],
   ['GET', '/api/v1/layers', 'Danh sách lớp: lớp vector bổ sung (mọi trạng thái) + lớp hệ thống, bản đồ chuyên đề (chỉ đọc). Lọc ?status=staging|published|invalid, ?q='],
   ['GET', '/api/v1/layers/:id', 'Thông tin một lớp vector bổ sung'],
   ['GET', '/api/v1/layers/:id/geojson', 'Dữ liệu GeoJSON (WGS84) của lớp'],
@@ -44,6 +49,58 @@ const ENDPOINTS = [
   ['POST', '/api/v1/layers/:id/unpublish', 'Gỡ công bố (về vùng chờ)'],
   ['DELETE', '/api/v1/layers/:id', 'Xoá lớp'],
 ];
+// ---------- danh mục lớp chia sẻ (công khai: chỉ lớp đang hiển thị; cán bộ có token: thêm lớp ẩn) ----------
+const VEC_URL = { province: '/api/public/boundaries/province', communes: '/api/public/boundaries/communes', hotspots: '/api/public/fire/hotspots', candidates: '/api/public/forest/candidates',
+  samples: '/api/public/field-samples', reports: '/api/public/reports', weather: '/api/public/weather', 'wind-du-bao': '/api/public/weather/wind?nguon=du-bao', 'wind-era5': '/api/public/weather/wind?nguon=era5' };
+async function catalogShared(req, includeHidden) {
+  const catalog = require('../services/layerCatalog');
+  const mapsSvc = require('../services/maps');
+  const mapLayers = await mapsSvc.publishedLayers().catch(() => []);
+  const byMap = Object.fromEntries(mapLayers.map((m) => [`m-${m.id}`, m]));
+  const ov = Object.fromEntries(repo.overlays().map((o) => [o.id, o]));
+  const base = `${req.protocol}://${req.get('host')}`;
+  const items = (await catalog.full({ mapLayers })).filter((i) => !i.deleted && (includeHidden || !i.hidden));
+  return items.map((it) => {
+    if (it.kind === 'map') {
+      const m = byMap[it.id]; const t = m.display && m.display.tiles;
+      return { ...catalog.share(it, base, { overlay: { url: m.overlay_url, coordinates: m.overlay_bounds, resolution: null, tiles: t ? { url: `/ban-do-chuyen-de/tiles/${m.id}/{z}/{x}/{y}.png`, minzoom: t.minzoom, maxzoom: t.maxzoom, bounds: t.bounds } : null }, download: m.format === 'geotiff' ? null : null }), year: m.map_year, map_id: m.id, hidden: it.hidden };
+    }
+    if (it.kind === 'overlay') return { ...catalog.share(it, base, { overlay: ov[it.id] || {} }), hidden: it.hidden };
+    if (it.kind === 'custom') return { ...catalog.share(it, base, { geojson: `/api/public/layers/custom/${it.layer_id}` }), hidden: it.hidden };
+    return { ...catalog.share(it, base, { geojson: VEC_URL[it.id] || null }), hidden: it.hidden };
+  });
+}
+r.get('/catalog', wrap(async (req, res) => {
+  const u = await readToken(req);
+  const list = await catalogShared(req, Boolean(u && STAFF_ROLES.includes(u.role)));
+  const q = String(req.query.q || '').toLowerCase();
+  const out = list.filter((x) => (!req.query.type || x.type === req.query.type) && (!req.query.group || x.group === req.query.group) && (!q || `${x.title} ${x.group_title}`.toLowerCase().includes(q)));
+  res.set('Access-Control-Allow-Origin', '*');
+  res.json({ count: out.length, license: 'Dữ liệu ghi nguồn từng lớp (Copernicus, NASA, OpenStreetMap ODbL, dữ liệu dự án…); trích dẫn nguồn khi sử dụng.', layers: out });
+}));
+r.get('/catalog/:id', wrap(async (req, res) => {
+  const u = await readToken(req);
+  const it = (await catalogShared(req, Boolean(u && STAFF_ROLES.includes(u.role)))).find((x) => x.id === req.params.id);
+  res.set('Access-Control-Allow-Origin', '*');
+  return it ? res.json(it) : res.status(404).json({ error: 'Không có lớp này (hoặc lớp đang ẩn)' });
+}));
+// dữ liệu của lớp: chuyển tới ảnh (raster) hoặc GeoJSON (vector)
+r.get('/catalog/:id/data', wrap(async (req, res) => {
+  const it = (await catalogShared(req, false)).find((x) => x.id === req.params.id);
+  if (!it) return res.status(404).json({ error: 'Không có lớp này (hoặc lớp đang ẩn)' });
+  const url = it.type === 'raster' ? it.image && it.image.url : it.geojson;
+  return url ? res.redirect(302, url) : res.status(404).json({ error: 'Lớp không có dữ liệu tải được' });
+}));
+// quản lý danh mục qua API (quyền data.manage)
+r.patch('/catalog/:id', need('data.manage'), (req, res) => {
+  const b = req.body || {};
+  const row = require('../services/layerCatalog').save(req.user, req.params.id, { title: b.title, grp: b.group, sort: b.sort, hidden: b.hidden, default_on: b.default_on, on_forest: b.on_forest });
+  res.json({ ok: true, id: row.id });
+});
+r.delete('/catalog/:id', need('data.manage'), wrap(async (req, res) => {
+  try { res.json({ ok: true, ...(await require('../services/layerCatalog').remove(req.user, req.params.id)) }); } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
+}));
+
 r.get('/', (req, res) => res.json({
   name: 'WebGIS rừng Kon Tum – API quản lý lớp', version: '1.0',
   auth: 'Authorization: Bearer <access_token> – lấy bằng POST /api/mobile/auth/login {username, password} (tài khoản cán bộ; ghi cần quyền data.manage: Quản trị hệ thống, Cán bộ chuyên môn). Token hết hạn → POST /api/mobile/auth/refresh.',

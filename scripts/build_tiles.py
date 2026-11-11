@@ -37,7 +37,7 @@ JOBS = {
     'lc-2023': lambda: (P / 'landcover-2023-15m.tif', LC, 14),
     'lc-forest-change-1991-2023': lambda: (forest_change(), {"1": ["#9fd39a", 120], "2": "#e0322d", "3": "#1677d2"}, 14),
     'worldcover-2021': lambda: (P / 'worldcover-2021-10m.tif', {"10": "#006400", "20": "#ffbb22", "30": "#ffff4c", "40": "#f096ff", "50": "#fa0000", "60": "#b4b4b4", "80": "#0064c8", "90": "#0096a0"}, 14),
-    'hansen-loss': lambda: (P / 'forest-lossyear-hansen-30m.tif', ramp_palette(1, 24, [(1, '#fde68a'), (8, '#fb923c'), (16, '#e11d48'), (24, '#7e1d6b')]), 13),
+    'hansen-loss': lambda: (P / 'forest-lossyear-hansen-30m.tif', ramp_palette(1, 25, [(1, '#fde68a'), (8, '#fb923c'), (16, '#e11d48'), (25, '#7e1d6b')]), 13),
 }
 
 def main():

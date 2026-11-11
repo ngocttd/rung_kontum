@@ -123,7 +123,7 @@ r.get('/layers', optionalAuth, wrap(async (req, res) => {
   const items = (await catalog.full({ mapLayers: mapsList })).filter((i) => !i.hidden);
   const byMap = Object.fromEntries(mapsList.map((m) => [`m-${m.id}`, m]));
   const ov = Object.fromEntries(repo.overlays().map((o) => [o.id, o]));
-  const gl = (k) => (catalog.GROUP[k] || {}).title || 'Khác';
+  const gm = catalog.groupMap(); const gl = (k) => (gm[k] || {}).title || 'Khác';
   const raster = [];
   for (const it of items) {
     if (it.kind === 'overlay' && ov[it.id]) {
@@ -149,7 +149,7 @@ r.get('/layers', optionalAuth, wrap(async (req, res) => {
   const vector = items.filter((it) => (it.kind === 'vector' && VEC[it.id]) || it.kind === 'custom').map((it) => (it.kind === 'custom'
     ? { id: it.id, title: it.title, group: 'maps', url: `/api/public/layers/custom/${it.layer_id}`, style: { color: it.color } }
     : { id: it.id, title: it.title, group: it.group, url: VEC[it.id].url, default: it.default_on, ...(VEC[it.id].choropleth ? { choropleth: VEC[it.id].choropleth } : {}) }));
-  const groups = Object.fromEntries(catalog.GROUPS.map((g) => [g.key, g.title]));
+  const groups = Object.fromEntries(catalog.groups().map((g) => [g.key, g.title]));
   if (req.auth && ['specialist', 'leader'].includes(req.auth.role)) vector.push({ id: 'tasks', title: 'Nhiệm vụ hiện trường', group: 'field', url: '/api/mobile/assignments', internal: true });
   res.json({ zoom, bbox: box, groups: { ...groups, maps: 'Bản đồ chuyên đề' }, raster, vector });
 }));

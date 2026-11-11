@@ -189,7 +189,8 @@ const adminGuide = {
       id: 'du-lieu', title: '3. Dữ liệu không gian (lớp vector)', icon: 'layers-fill', img: 'a-layers', caption: 'Quản lý lớp dữ liệu không gian',
       intro: 'Nhập lớp vector bổ sung để hiển thị trên bản đồ công khai, ví dụ ranh giới khu bảo tồn, chòi canh lửa, tuyến tuần tra. Hỗ trợ GeoJSON, Shapefile (nén .zip), Excel .xlsx và CSV có cột toạ độ.',
       steps: [
-        'Thẻ “Danh mục lớp bản đồ”: mọi lớp trên Bản đồ WebGIS, MobileGIS và trang Tài nguyên rừng (lớp hệ thống, lớp ảnh tự sinh, bản đồ PDF/GeoTIFF đã xuất bản, lớp vector). Mỗi dòng sửa được nhóm, tên hiển thị, thứ tự, “Bật sẵn” khi mở bản đồ, “Tài nguyên rừng” (hiện ở mục Hiển thị thêm lớp) → bấm ✓ để lưu; nút con mắt để ẩn/hiện lớp; ↻ khôi phục mặc định; nút bản đồ để xem lớp. Bản trùng dữ liệu (ví dụ bản GeoTIFF 15 m trùng lớp “Lớp phủ năm …”) được ẩn sẵn, có ghi chú lý do.',
+        'Thẻ “Lớp dữ liệu bản đồ”: mọi lớp trên Bản đồ WebGIS, MobileGIS, trang Tài nguyên rừng và API chia sẻ (lớp hệ thống, lớp ảnh tự sinh, bản đồ PDF/GeoTIFF đã xuất bản, lớp vector). Sửa ô Nhóm, Tên hiển thị, Thứ tự hoặc đánh dấu Bật sẵn / Tài nguyên rừng → nút “Lưu thay đổi” của dòng đó sáng lên, bấm để lưu. “Ẩn/Hiện”: tạm gỡ khỏi bản đồ. “Xoá”: lớp vector bổ sung và bản đồ chuyên đề bị xoá hẳn dữ liệu; lớp hệ thống chỉ gỡ khỏi danh mục, khôi phục được ở mục “Lớp đã gỡ” cuối trang. Bản trùng dữ liệu được ẩn sẵn, có ghi chú lý do.',
+        'Thẻ “Danh mục nhóm lớp”: quản lý các nhóm của cây lớp – tên nhóm, mục lớn (ví dụ TÀI NGUYÊN RỪNG), thẻ Chuyên đề/Dữ liệu nền, thứ tự, ẩn nhóm (ẩn mọi lớp trong nhóm). Thêm nhóm mới ở cuối trang rồi gán lớp vào nhóm ở thẻ “Lớp dữ liệu bản đồ”. Nhóm mặc định chỉ đổi tên/ẩn/sắp xếp; nhóm do quản trị thêm xoá được (lớp trong nhóm về nhóm mặc định).',
         'Thẻ “Nhập lớp”: chọn tệp (≤ 25 MB) và hệ toạ độ nguồn – để “Tự nhận” nếu Shapefile có .prj; Excel/CSV toạ độ mét chọn VN-2000 múi 3° KT 107°45′ (Kon Tum), VN-2000 UTM 48 hoặc WGS84/UTM 48N.',
         'Shapefile: nén .shp, .shx, .dbf, .prj (và .cpg) thành một tệp .zip. Excel/CSV: dòng đầu là tiêu đề, có cột lon/lat (Kinh độ/Vĩ độ) hoặc x/y; các cột khác thành thuộc tính.',
         'Hệ thống chuyển về WGS84, kiểm tra hình học; lớp hợp lệ vào “Chờ duyệt”, lỗi/cảnh báo (ví dụ cột kinh/vĩ bị đảo) được ghi ở cột ghi chú.',
@@ -198,8 +199,8 @@ const adminGuide = {
       ],
     },
     {
-      id: 'api-lop', title: '3b. API quản lý lớp (tích hợp hệ thống khác)', icon: 'code-slash', img: null, caption: '',
-      intro: 'Hệ thống khác (phần mềm kiểm lâm, ứng dụng nội bộ) tạo, cập nhật, công bố lớp vector qua API REST /api/v1. Trang Quản trị › Dữ liệu không gian › “API quản lý lớp” có đủ endpoint, ví dụ lệnh và mã các lớp hiện có; mô tả máy đọc được: GET /api/v1.',
+      id: 'api-lop', title: '3b. API chia sẻ và quản lý lớp (tích hợp hệ thống khác)', icon: 'code-slash', img: null, caption: '',
+      intro: 'Chia sẻ: GET /api/v1/catalog (công khai, không cần đăng nhập) trả về mọi lớp đang hiển thị – ảnh raster kèm toạ độ góc và ô ảnh XYZ, bản đồ chuyên đề, GeoJSON lớp vector, lớp tô màu theo xã – để phần mềm GIS khác dùng lại. Quản lý: hệ thống khác tạo, cập nhật, công bố lớp vector qua /api/v1/layers và cấu hình/xoá lớp qua /api/v1/catalog (cần token). Trang Quản trị › Dữ liệu không gian › “API quản lý lớp” có đủ endpoint, ví dụ lệnh và mã các lớp hiện có; mô tả máy đọc được: GET /api/v1.',
       steps: [
         'Lấy token: POST /api/mobile/auth/login với {"username","password"} của tài khoản cán bộ → access_token (gia hạn bằng /api/mobile/auth/refresh).',
         'Gửi kèm header Authorization: Bearer <access_token>. Đọc: mọi cán bộ; ghi: tài khoản có quyền quản lý dữ liệu (Quản trị hệ thống, Cán bộ chuyên môn).',

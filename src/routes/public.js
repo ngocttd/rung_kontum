@@ -361,6 +361,7 @@ r.get('/thong-ke', (req, res) => {
 });
 
 function statRows() {
+  const D0 = require('../lib/dataContext').dataContext();
   return repo.communes().map((c) => {
     const o = c.official || {};
     return {
@@ -368,16 +369,16 @@ function statRows() {
       'Rừng tự nhiên (ha)': o.natural_forest_ha, 'Rừng trồng đã thành rừng (ha)': o.established_plantation_ha, 'Rừng trồng chưa thành rừng (ha)': o.immature_plantation_ha,
       'QH đặc dụng (ha)': o.special_use_planning_ha, 'QH phòng hộ (ha)': o.protection_planning_ha, 'QH sản xuất (ha)': o.production_planning_ha,
       'Tỷ lệ che phủ công bố (%)': o.official_forest_cover_percent, 'Mất tán cây Hansen 2020–2024 (ha)': c.loss ? Math.round(c.loss.last5 * 10) / 10 : null,
-      'Dự báo mất rừng kỳ vọng 2025–2026 (ha)': c.risk ? c.risk.expected_loss_ha : null, 'Cấp nguy cơ cháy hiện tại': c.danger && c.danger.current ? c.danger.current.cls : null,
+      [`Dự báo mất rừng kỳ vọng ${D0.forecastLabel} (ha)`]: c.risk ? c.risk.expected_loss_ha : null, 'Cấp nguy cơ cháy hiện tại': c.danger && c.danger.current ? c.danger.current.cls : null,
     };
   });
 }
-const STAT_NOTE = 'Nguồn: QĐ 1047/QĐ-UBND ngày 31/3/2026 (số liệu 31/12/2025, toàn xã hiện hành); Hansen GFC v1.12; mô hình dự báo và cấp nguy cơ cháy do hệ thống tính tự động, chưa phải cảnh báo chính thức.';
+const statNote = () => { const D0 = require('../lib/dataContext').dataContext(); return `Nguồn: ${D0.decision} ngày ${D0.decisionDate} (số liệu ${D0.forestAsOf}, toàn xã hiện hành); Hansen GFC đến ${D0.hansenLast}; mô hình dự báo và cấp nguy cơ cháy do hệ thống tính tự động, chưa phải cảnh báo chính thức.`; };
 
 r.get('/thong-ke/xuat.csv', (req, res) => {
   const rows = statRows();
   const head = Object.keys(rows[0]);
-  const csv = [`# ${STAT_NOTE}`, head.join(','), ...rows.map((x) => head.map((h) => (x[h] === null || x[h] === undefined ? '' : `"${String(x[h]).replace(/"/g, '""')}"`)).join(','))].join('\r\n');
+  const csv = [`# ${statNote()}`, head.join(','), ...rows.map((x) => head.map((h) => (x[h] === null || x[h] === undefined ? '' : `"${String(x[h]).replace(/"/g, '""')}"`)).join(','))].join('\r\n');
   res.set('Content-Type', 'text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="thong-ke-rung-kon-tum.csv"').send(`﻿${csv}`);
 });
 
@@ -389,7 +390,7 @@ r.get('/thong-ke/xuat.xlsx', async (req, res, next) => {
     ws.columns = Object.keys(rows[0]).map((k) => ({ header: k, key: k, width: Math.max(12, k.length + 2) }));
     rows.forEach((x) => ws.addRow(x));
     ws.getRow(1).font = { bold: true };
-    ws.addRow([]); ws.addRow([STAT_NOTE]);
+    ws.addRow([]); ws.addRow([statNote()]);
     res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').set('Content-Disposition', 'attachment; filename="thong-ke-rung-kon-tum.xlsx"');
     await wb.xlsx.write(res);
     res.end();

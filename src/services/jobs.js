@@ -16,8 +16,8 @@ const JOBS = {
   },
   'update-era5': {
     title: 'Cập nhật tái phân tích ERA5-Land (GEE) và tính lại chuỗi nguy cơ cháy',
-    steps: [{ script: 'collect_hourly_weather.py', optional: true, timeout: 90 }, { script: 'collect_lst.py', optional: true, timeout: 30 }, { script: 'prepare_forecast_inputs.py' }, { script: 'build_fire_danger.py' }, { script: 'build_env_layers.py' }, { script: 'to_webp.cjs' }],
-    db: ['danger'], every: 24, note: 'ERA5-Land có độ trễ khoảng 5 ngày, cập nhật 1 lần/ngày là đủ; kèm nhiệt độ bề mặt MODIS (LST 8 ngày) và bản đồ thời tiết ngày gần nhất',
+    steps: [{ script: 'collect_hourly_weather.py', optional: true, timeout: 90 }, { script: 'collect_lst.py', optional: true, timeout: 30 }, { script: 'collect_change_fire_history.py', optional: true, timeout: 30 }, { script: 'prepare_forecast_inputs.py' }, { script: 'build_fire_danger.py' }, { script: 'build_env_layers.py' }, { script: 'to_webp.cjs' }],
+    db: ['danger'], every: 24, note: 'ERA5-Land có độ trễ khoảng 5 ngày, cập nhật 1 lần/ngày là đủ; kèm nhiệt độ bề mặt MODIS (LST 8 ngày), chuỗi điểm nóng/vùng cháy lịch sử (trang Thống kê) và bản đồ thời tiết ngày gần nhất',
   },
   'forest-change': {
     title: 'Ảnh Sentinel-2 tháng mới → phân tích biến động rừng → công bố lớp bản đồ; dự báo nguy cơ mất rừng',

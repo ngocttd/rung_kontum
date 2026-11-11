@@ -14,7 +14,13 @@ def window_vals(ds,x,y,r=1):
  row,col=ds.index(x,y);return ds.read(1,window=Window(col-r,row-r,2*r+1,2*r+1),boundless=True,fill_value=0)
 out={}
 wc=rasterio.open(ROOT/'data/processed/worldcover-2021-10m.tif');ly=rasterio.open(ROOT/'data/processed/forest-lossyear-hansen-30m.tif')
-tiles=[rasterio.open(p) for p in sorted((ROOT/'data/collected/history').glob('hansen-gfc-v1.12-30m-*.tif'))]
+def hansen_tiles():
+ # bộ ô Hansen phiên bản mới nhất đã tải (hansen-gfc-v1.NN-30m-ij.tif)
+ import re as _re
+ fs=list((ROOT/'data/collected/history').glob('hansen-gfc-v1.*-30m-*.tif'))
+ vers=sorted({int(_re.search(r'v1\.(\d+)-',p.name).group(1)) for p in fs})
+ v=vers[-1];return sorted(p for p in fs if f'v1.{v}-' in p.name),f'v1.{v}'
+tiles=[rasterio.open(p) for p in hansen_tiles()[0]]
 for p in sorted((ROOT/'data/collected/firms').glob('*-kon-tum-7d.geojson')):
  key=p.name.split('-kon-tum')[0]
  for f in json.loads(p.read_text(encoding='utf-8'))['features']:

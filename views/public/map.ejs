@@ -38,9 +38,9 @@
       <div style="padding:8px 12px 0"><div class="search-box" style="display:block"><%- ic('search') %><input id="layer-filter" type="search" placeholder="Tìm kiếm lớp dữ liệu..." style="width:100%"></div></div>
       <div class="lt-active" id="lt-active"></div>
       <div class="layer-tree" id="layer-tree">
-        <% let lastSec = null; layerTree.forEach(g => {
+        <% let lastSec = null; let baseShown = false; layerTree.forEach(g => {
              const tabs = g.tab;
-             if (g.key === 'imagery') { %>
+             if (g.tab === 'base' && !baseShown) { baseShown = true; %>
         <div class="lt-sec sec-base" data-lt-group="base"><%- ic('globe2') %> BẢN ĐỒ NỀN</div>
         <div class="basemap-list" data-lt-group="base">
           <label><input type="radio" name="bm-left" value="satellite" checked><img src="/generated/overlays/s2-2025-dry-true.webp" alt=""> Ảnh vệ tinh (Mapbox)</label>

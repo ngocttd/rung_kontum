@@ -5,7 +5,7 @@
     ['Hiện trạng rừng 2025 theo xã', 'UBND tỉnh Quảng Ngãi – QĐ 1047/QĐ-UBND ngày 31/3/2026 và phụ lục', 'Văn bản công bố công khai', 'Theo đợt công bố hằng năm', 'Số liệu diện tích, nguồn gốc, quy hoạch 3 loại rừng, tỷ lệ che phủ'],
     ['Ranh giới Kon Tum trước 2025', 'Government of Viet Nam / HDX qua geoBoundaries (2020)', 'CC BY / theo nguồn', 'Cố định (lịch sử)', 'Phạm vi vùng nghiên cứu'],
     ['Ranh giới 40 xã/phường hiện hành', 'vietnamese-provinces-database v5.2.0', 'Theo kho nguồn mở', 'Theo phiên bản dữ liệu', 'Đơn vị thống kê, bản đồ cấp xã'],
-    ['Mất tán cây 2001–2024', 'Hansen/UMD/Google/USGS/NASA – Global Forest Change v1.12', 'CC BY 4.0', 'Hằng năm', 'Lịch sử biến động, nhãn huấn luyện mô hình dự báo'],
+    ['Mất tán cây ' + D.hansenFirst + '–' + D.hansenLast, 'Hansen/UMD/Google/USGS/NASA – Global Forest Change (phiên bản mới nhất)', 'CC BY 4.0', 'Hằng năm', 'Lịch sử biến động, nhãn huấn luyện mô hình dự báo'],
     ['Ảnh Sentinel-2', 'Copernicus (ESA) qua Google Earth Engine', 'Copernicus data policy', 'Chuỗi tháng 01/2024–09/2026; mùa 2024–2025', 'NDVI/NDMI/NBR, phát hiện biến động nghi vấn'],
     ['Lớp phủ đất', 'ESA WorldCover 2021 v200', 'CC BY 4.0', 'Cố định (2021)', 'Đối chiếu lớp phủ, yếu tố mô hình'],
     ['Địa hình', 'Copernicus DEM GLO-30 (2024_1) – DLR/Airbus, ESA', 'Copernicus DEM licence', 'Cố định', 'Độ cao, độ dốc'],
@@ -36,7 +36,7 @@
         <div class="grid cols-3">
           <% [['map','Bản đồ WebGIS','Lớp nền vệ tinh/địa hình/3D, ranh giới, lớp chuyên đề, đo đạc, xuất và chia sẻ bản đồ.','/ban-do'],
               ['forest','Tài nguyên rừng','Số liệu hiện trạng 2025 theo xã, quy hoạch 3 loại rừng, lớp phủ và chỉ số thực vật.','/tai-nguyen-rung'],
-              ['violation','Dự báo và cảnh báo mất rừng','Biến động nghi vấn từ Sentinel-2, lịch sử mất tán cây, bản đồ nguy cơ 2025–2026 có kiểm định.','/bien-dong-rung'],
+              ['violation','Dự báo và cảnh báo mất rừng','Biến động nghi vấn từ Sentinel-2, lịch sử mất tán cây, bản đồ nguy cơ ' + D.forecastLabel + ' có kiểm định.','/bien-dong-rung'],
               ['fire','Dự báo và cảnh báo cháy rừng','Cấp nguy cơ cháy 7 ngày theo chỉ số P và FWI, điểm nóng vệ tinh, quy trình xác minh.','/canh-bao-chay'],
               ['weather','Thời tiết – khí hậu','Thời tiết hiện tại, dự báo 7 ngày và chuỗi khí hậu theo xã.','/thoi-tiet'],
               ['camera','Phản ánh hiện trường','Người dân gửi phản ánh kèm vị trí, ảnh; tra cứu tiến độ xử lý bằng mã hồ sơ.','/phan-anh']].forEach(([i,t,d,h]) => { %>

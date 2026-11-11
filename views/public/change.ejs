@@ -11,7 +11,7 @@
   const statusBadge = { unverified: 'b-red', verifying: 'b-orange', confirmed: 'b-purple', rejected: 'b-gray', seasonal: 'b-yellow' };
 %>
 <%- include('../partials/banner', { banner: 'p03-forest', heading: 'Biến động và dự báo mất rừng', crumb: 'Tài nguyên rừng › Biến động và dự báo',
-  lead: 'Phát hiện biến động nghi vấn từ chuỗi ảnh Sentinel-2, lịch sử mất tán cây 2001–2024 và bản đồ dự báo nguy cơ mất rừng giai đoạn 2025–2026 có kiểm định.',
+  lead: 'Phát hiện biến động nghi vấn từ chuỗi ảnh Sentinel-2, lịch sử mất tán cây ' + D.hansenFirst + '–' + D.hansenLast + ' và bản đồ dự báo nguy cơ mất rừng giai đoạn ' + D.forecastLabel + ' có kiểm định.',
   kpis: [
     { icon: 'exclamation-triangle-fill', value: String(candN), label: 'Vùng biến động nghi vấn' + (lmLabel ? ' (ảnh đến ' + lmLabel + ')' : ''), tone: 'warn', sub: fmt.num(candHa) + ' ha · ' + wins.length + ' kỳ so sánh · chưa xác minh' },
     { icon: 'graph-up-arrow', value: fmt.num(highHa) + ' ha', label: 'Rừng nguy cơ cao/rất cao', tone: 'fire', sub: 'dự báo ' + D.forecastLabel },
@@ -110,7 +110,7 @@
   <% } %>
   <section class="grid cols-2" style="margin-top:16px">
     <div class="card">
-      <div class="card-h"><h2><%- ic('clock-history') %> Lịch sử mất tán cây 2001–2024</h2>
+      <div class="card-h"><h2><%- ic('clock-history') %> Lịch sử mất tán cây <%= D.hansenFirst %>–<%= D.hansenLast %></h2>
         <select class="input" id="hist-commune" style="width:auto;margin-left:auto;padding:5px 8px"><option value="">Toàn vùng</option><% communes.slice().sort((a,b)=>a.fullName.localeCompare(b.fullName,'vi')).forEach(c => { %><option value="<%= c.code %>"><%= c.fullName %></option><% }) %></select></div>
       <div class="card-b"><div class="chart-box"><canvas id="ch-hist"></canvas></div><p class="src" style="margin:4px 0 0"><%= fcg.history.source %> · <%= fcg.history.meaning %>.</p></div>
     </div>

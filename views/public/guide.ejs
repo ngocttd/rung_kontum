@@ -11,7 +11,7 @@
           <% [['map','Xem bản đồ và lớp dữ liệu','Vào trang Bản đồ, bật/tắt lớp ở cây lớp bên trái; kéo thanh trượt để chỉnh độ mờ ảnh. Chọn “tô màu theo xã” để xem chỉ tiêu theo từng xã. Nhấp vào xã hoặc điểm nóng để xem thông tin ở khung bên phải.'],
               ['gps','Đo đạc, tọa độ, chia sẻ','Thanh công cụ có Đo khoảng cách, Đo diện tích (nhấp liên tiếp các điểm), Tọa độ (nhấp để sao chép), Xuất bản đồ (ảnh PNG), Chia sẻ (liên kết giữ vị trí) và In.'],
               ['fire','Theo dõi cảnh báo cháy','Trang Cảnh báo cháy rừng hiển thị cấp nguy cơ hôm nay và 7 ngày tới cho từng xã, điểm nóng vệ tinh 7 ngày và lịch sử. Chọn ngày ở khung bên trái để đổi bản đồ.'],
-              ['violation','Theo dõi biến động rừng','Trang Biến động và dự báo mất rừng liệt kê các vùng nghi vấn mới, bản đồ nguy cơ mất rừng 2025–2026 và lịch sử mất tán cây theo xã.'],
+              ['violation','Theo dõi biến động rừng','Trang Biến động và dự báo mất rừng liệt kê các vùng nghi vấn mới, bản đồ nguy cơ mất rừng ' + D.forecastLabel + ' và lịch sử mất tán cây theo xã.'],
               ['camera','Gửi phản ánh hiện trường','Chọn loại phản ánh, mô tả, chọn vị trí trên bản đồ hoặc nút “Lấy vị trí GPS”, đính kèm ảnh rồi gửi. Lưu mã hồ sơ để tra cứu tiến độ.'],
               ['statistics','Tải số liệu thống kê','Trang Thống kê cho phép xem theo xã, tô màu bản đồ theo chỉ tiêu và tải bảng Excel/CSV kèm ghi chú nguồn.']].forEach(([i,t,d]) => { %>
             <div style="display:flex;gap:12px"><%- cicon(i) %><div><h3 style="font-size:15px"><%= t %></h3><p class="src" style="margin:4px 0 0;font-size:13px"><%= d %></p></div></div>
@@ -42,7 +42,7 @@
           <li><b>Biến động nghi vấn</b>: vùng ảnh Sentinel-2 có NDVI và NBR giảm mạnh so với cùng kỳ hai năm trước, lặp lại ít nhất 2 tháng, trong vùng còn rừng đến 2024. Là đầu vào để kiểm tra, chưa phải kết luận.</li>
           <li><b>Rụng lá theo mùa</b>: rừng khộp rụng lá mạnh mùa khô; các vùng phát hiện trong tháng 1–4 được đánh dấu để loại trừ trường hợp này.</li>
           <li><b>Mất tán cây (Hansen)</b>: diện tích tán cây bị thay thế trong năm, gồm cả khai thác rừng trồng theo chu kỳ.</li>
-          <li><b>Nguy cơ mất rừng 2025–2026</b>: xác suất từ mô hình học máy dựa trên lịch sử mất rừng, khoảng cách tới khu canh tác, địa hình. <% if (fv) { %>Kiểm định trên 2023–2024: AUC <%= fmt.num(fv.auc, 2) %>; 10% diện tích nguy cơ cao nhất chứa <%= fmt.num(fv.top10pct_capture * 100, 0) %>% số ô bị mất thực tế.<% } %> Dùng để ưu tiên tuần tra, không dùng để kết luận vi phạm.</li>
+          <li><b>Nguy cơ mất rừng <%= D.forecastLabel %></b>: xác suất từ mô hình học máy dựa trên lịch sử mất rừng, khoảng cách tới khu canh tác, địa hình. <% if (fv) { %>Kiểm định trên <%= D.hansenLast - 1 %>–<%= D.hansenLast %>: AUC <%= fmt.num(fv.auc, 2) %>; 10% diện tích nguy cơ cao nhất chứa <%= fmt.num(fv.top10pct_capture * 100, 0) %>% số ô bị mất thực tế.<% } %> Dùng để ưu tiên tuần tra, không dùng để kết luận vi phạm.</li>
         </ul>
       </section>
 

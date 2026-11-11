@@ -5,7 +5,7 @@
 const store = require('../data/store');
 const repo = require('../data/repo');
 
-const GROUPS = [
+const DEFAULT_GROUPS = [
   { key: 'admin', title: 'Ranh giới hành chính', section: 'HÀNH CHÍNH', cls: 'sec-admin', icon: 'geo-fill', tab: 'theme' },
   { key: 'forest', title: 'Hiện trạng rừng', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
   { key: 'landcover', title: 'Lớp phủ 1991 – 2014 – 2023 (dữ liệu dự án, 15 m)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
@@ -24,7 +24,27 @@ const GROUPS = [
   { key: 'terrain', title: 'Địa hình, chỉ số thực vật, lớp phủ tham khảo', section: 'ĐỊA HÌNH & CHỈ SỐ', cls: 'sec-base', icon: 'graph-up-arrow', tab: 'base' },
   { key: 'reanalysis', title: 'Thời tiết ngày gần nhất (ERA5-Land)', section: 'ĐỊA HÌNH & CHỈ SỐ', cls: 'sec-base', icon: 'graph-up-arrow', tab: 'base' },
 ];
-const GROUP = Object.fromEntries(GROUPS.map((g) => [g.key, g]));
+DEFAULT_GROUPS.forEach((g, i) => { g.sort = (i + 1) * 10; g.builtin = true; });
+const CLS = { 'theme': 'sec-map', 'base': 'sec-base' };
+// Danh mục nhóm lớp: nhóm mặc định + chỉnh sửa/nhóm mới của quản trị (bảng spatial.layer_groups)
+function groups({ all = false } = {}) {
+  const rows = Object.fromEntries(store.all('layer_groups').map((r) => [r.key, r]));
+  const out = DEFAULT_GROUPS.map((g) => {
+    const r = rows[g.key];
+    return r ? { ...g, title: r.title || g.title, section: r.section || g.section, tab: r.tab || g.tab, sort: Number.isFinite(r.sort) ? r.sort : g.sort, hidden: Boolean(r.hidden), customized: true } : { ...g, hidden: false };
+  });
+  for (const r of Object.values(rows)) {
+    if (DEFAULT_GROUPS.some((g) => g.key === r.key) || r.deleted) continue;
+    const sec = DEFAULT_GROUPS.find((g) => g.section === r.section);
+    out.push({ key: r.key, title: r.title || r.key, section: r.section || 'BẢN ĐỒ CHUYÊN ĐỀ', tab: r.tab || 'theme', cls: sec ? sec.cls : CLS[r.tab || 'theme'], icon: sec ? sec.icon : 'map-fill',
+      sort: Number.isFinite(r.sort) ? r.sort : 999, hidden: Boolean(r.hidden), builtin: false, customized: true });
+  }
+  out.sort((a, b) => (a.tab === b.tab ? 0 : a.tab === 'theme' ? -1 : 1) || a.sort - b.sort);
+  return all ? out : out;
+}
+function groupMap() { return Object.fromEntries(groups().map((g) => [g.key, g])); }
+const GROUPS = DEFAULT_GROUPS; // tương thích
+const GROUP = new Proxy({}, { get: (_, k) => groupMap()[k], has: (_, k) => k in groupMap() });
 // nhãn có năm lấy từ dữ liệu hiện hành
 function labels() {
   const D = require('../lib/dataContext').dataContext();
@@ -142,19 +162,24 @@ async function full({ mapLayers } = {}) {
   }
   // cấu hình quản trị đè mặc định
   const st = settings();
+  const gm = groupMap();
   for (const it of items) {
     const s = st[it.id];
     it.defaults = { title: it.title, group: it.group, sort: it.sort, hidden: it.hidden, default_on: it.default_on, on_forest: it.on_forest };
     if (!s) continue;
     if (s.title) it.title = s.title;
-    if (s.grp && GROUP[s.grp]) it.group = s.grp;
+    if (s.grp && gm[s.grp]) it.group = s.grp;
     if (Number.isFinite(s.sort)) it.sort = s.sort;
     if (s.hidden !== null && s.hidden !== undefined) it.hidden = s.hidden;
     if (s.default_on !== null && s.default_on !== undefined) it.default_on = s.default_on;
     if (s.on_forest !== null && s.on_forest !== undefined) it.on_forest = s.on_forest;
+    if (s.deleted) { it.deleted = true; it.hidden = true; }
     it.customized = { by: s.updated_by, at: s.updated_at };
   }
-  items.sort((a, b) => GROUPS.findIndex((g) => g.key === a.group) - GROUPS.findIndex((g) => g.key === b.group) || a.sort - b.sort);
+  // nhóm bị ẩn → lớp trong nhóm không hiện; nhóm bị xoá → lớp về nhóm mặc định
+  for (const it of items) { if (!gm[it.group]) it.group = it.defaults.group; if (gm[it.group] && gm[it.group].hidden) { it.hidden = true; it.group_hidden = true; } }
+  const gOrder = groups().map((g) => g.key);
+  items.sort((a, b) => gOrder.indexOf(a.group) - gOrder.indexOf(b.group) || a.sort - b.sort);
   return items;
 }
 
@@ -162,7 +187,7 @@ async function full({ mapLayers } = {}) {
 async function tree(opts) {
   const items = (await full(opts)).filter((i) => !i.hidden);
   const L = labels();
-  return GROUPS.map((g) => ({ ...g, title: g.key === 'forest' ? L.forest : g.title, items: items.filter((i) => i.group === g.key) })).filter((g) => g.items.length);
+  return groups().filter((g) => !g.hidden).map((g) => ({ ...g, title: g.key === 'forest' && !g.customized ? L.forest : g.title, items: items.filter((i) => i.group === g.key) })).filter((g) => g.items.length);
 }
 
 function save(user, id, b) {
@@ -170,7 +195,7 @@ function save(user, id, b) {
   const bool = (v) => (v === undefined ? undefined : v === true || v === '1' || v === 'on' || v === 'true');
   const rec = {
     hidden: bool(b.hidden) ?? false, default_on: bool(b.default_on) ?? false, on_forest: bool(b.on_forest) ?? false,
-    title: String(b.title || '').trim().slice(0, 160) || null, grp: GROUP[b.grp] ? b.grp : null, sort: Number.isFinite(Number(b.sort)) && b.sort !== '' ? Math.round(Number(b.sort)) : null,
+    title: String(b.title || '').trim().slice(0, 160) || null, grp: groupMap()[b.grp] ? b.grp : null, sort: Number.isFinite(Number(b.sort)) && b.sort !== '' ? Math.round(Number(b.sort)) : null,
     updated_by: user.username,
   };
   const row = old ? store.update('layer_settings', id, rec) : store.insert('layer_settings', { id, ...rec });
@@ -185,4 +210,73 @@ function setHidden(user, id, hidden) {
   return row;
 }
 
-module.exports = { GROUPS, GROUP, full, tree, save, reset, setHidden };
+// Xoá lớp: vector bổ sung và bản đồ chuyên đề xoá hẳn dữ liệu; lớp hệ thống/tự sinh (do lịch chạy tạo lại) chỉ gỡ khỏi danh mục,
+// dữ liệu giữ nguyên và khôi phục được ở mục “Lớp đã xoá”.
+async function remove(user, id) {
+  const it = (await full()).find((i) => i.id === id);
+  if (!it) throw Object.assign(new Error('Không tìm thấy lớp'), { status: 404 });
+  if (it.kind === 'custom') { require('./layers').remove(user, it.layer_id); reset(user, id); return { removed: 'data' }; }
+  if (it.kind === 'map') { await require('./maps').remove(it.map_id, user); reset(user, id); store.audit(user, 'map.delete', it.map_id); return { removed: 'data' }; }
+  const old = store.get('layer_settings', id);
+  const data = { deleted: true, hidden: true, updated_by: user.username };
+  if (old) store.update('layer_settings', id, data); else store.insert('layer_settings', { id, ...data });
+  store.audit(user, 'layer.remove_from_catalog', id);
+  return { removed: 'catalog' };
+}
+function restore(user, id) {
+  const old = store.get('layer_settings', id); if (!old) return;
+  store.update('layer_settings', id, { deleted: false, hidden: false, updated_by: user.username });
+  store.audit(user, 'layer.restore', id);
+}
+
+// ---------- chia sẻ: mô tả truy cập dữ liệu của từng lớp (dùng cho API /api/v1/catalog) ----------
+function share(it, base, extra = {}) {
+  const link = (u) => (u ? `${base}${u}` : null);
+  const out = { id: it.id, title: it.title, kind: it.kind, group: it.group, group_title: (groupMap()[it.group] || {}).title, source: it.source, description: it.info || null };
+  if (it.kind === 'overlay' || it.kind === 'map') {
+    const o = extra.overlay || {};
+    out.type = 'raster';
+    out.image = { url: link(o.url), format: 'image/webp', crs: 'EPSG:3857 (ảnh), toạ độ góc WGS84', coordinates: o.coordinates || null };
+    if (o.tiles) out.tiles = { url: link(o.tiles.url), scheme: 'xyz', minzoom: o.tiles.minzoom, maxzoom: o.tiles.maxzoom, bounds: o.tiles.bounds };
+    if (o.legend) out.legend = o.legend;
+    if (o.resolution) out.resolution = o.resolution;
+    if (extra.download) out.download = link(extra.download);
+  } else if (it.kind === 'vector' || it.kind === 'custom') {
+    out.type = 'vector';
+    out.geojson = link(extra.geojson);
+  } else if (it.kind === 'choro') {
+    out.type = 'vector';
+    out.geojson = link('/api/public/boundaries/communes');
+    out.attribute = { cover: 'cover', forest: 'forest_ha', risk: 'risk_mean', loss: 'loss_last5', danger: 'danger_cls', danger7: 'danger_max7' }[it.id] || it.id;
+    out.note = 'Lớp tô màu theo xã: lấy GeoJSON ranh giới xã, thuộc tính ghi ở trường "attribute"';
+  }
+  out.metadata = link(`/api/v1/catalog/${encodeURIComponent(it.id)}`);
+  return out;
+}
+
+// ---------- quản lý nhóm ----------
+const slug = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+function saveGroup(user, key, b) {
+  const k = key || `g-${slug(b.title) || Date.now()}`;
+  if (!key && groupMap()[k]) throw Object.assign(new Error('Đã có nhóm trùng tên'), { status: 400 });
+  const rec = { key: k, title: String(b.title || '').trim().slice(0, 120) || null, section: String(b.section || '').trim().toUpperCase().slice(0, 60) || null,
+    tab: ['theme', 'base'].includes(b.tab) ? b.tab : null, sort: b.sort !== undefined && b.sort !== '' && Number.isFinite(Number(b.sort)) ? Math.round(Number(b.sort)) : null,
+    hidden: b.hidden === true || b.hidden === '1' || b.hidden === 'on', deleted: false, updated_by: user.username };
+  if (!key && !rec.title) throw Object.assign(new Error('Nhập tên nhóm'), { status: 400 });
+  const old = store.get('layer_groups', k);
+  const row = old ? store.update('layer_groups', k, rec) : store.insert('layer_groups', { id: k, ...rec });
+  store.audit(user, key ? 'layer.group.edit' : 'layer.group.create', k, rec);
+  return row;
+}
+async function removeGroup(user, key) {
+  const g = groupMap()[key];
+  if (!g) throw Object.assign(new Error('Không có nhóm này'), { status: 404 });
+  if (g.builtin) throw Object.assign(new Error('Nhóm mặc định không xoá được – có thể ẩn hoặc đổi tên'), { status: 400 });
+  // lớp đang gán vào nhóm này trở về nhóm mặc định của lớp
+  for (const s of store.all('layer_settings').filter((x) => x.grp === key)) store.update('layer_settings', s.id, { grp: null, updated_by: user.username });
+  store.remove('layer_groups', key);
+  store.audit(user, 'layer.group.delete', key);
+}
+function resetGroup(user, key) { if (store.get('layer_groups', key) && groupMap()[key] && groupMap()[key].builtin) { store.remove('layer_groups', key); store.audit(user, 'layer.group.reset', key); } }
+
+module.exports = { GROUPS, GROUP, groups, groupMap, full, tree, save, reset, setHidden, remove, restore, share, saveGroup, removeGroup, resetGroup };

@@ -71,7 +71,7 @@ r.get('/', requirePerm('dashboard.view'), (req, res) => {
 r.get('/du-lieu', requirePerm('dashboard.view'), async (req, res, next) => {
   try {
     const catalog = require('../services/layerCatalog');
-    res.render('admin/layers', { title: 'Quản lý dữ liệu không gian', section: 'layers', catalog: await catalog.full(), groups: catalog.GROUPS,
+    res.render('admin/layers', { title: 'Quản lý dữ liệu không gian', section: 'layers', catalog: await catalog.full(), groups: catalog.groups(),
       custom: repo.customLayers(true), manifest: readJson(path.join(paths.boundaries, 'manifest.json')) });
   } catch (e) { next(e); }
 });
@@ -84,6 +84,44 @@ r.post('/du-lieu/lop/:id', requirePerm('data.manage'), (req, res) => {
 r.post('/du-lieu/lop/:id/an-hien', requirePerm('data.manage'), (req, res) => {
   require('../services/layerCatalog').setHidden(me(req), req.params.id, req.body.hidden === '1');
   flash(req, 'ok', req.body.hidden === '1' ? 'Đã ẩn lớp khỏi bản đồ công khai.' : 'Đã hiện lại lớp trên bản đồ.');
+  return res.redirect('/quan-tri/du-lieu#danh-muc');
+});
+// ---------- danh mục nhóm lớp ----------
+r.get('/du-lieu/danh-muc', requirePerm('dashboard.view'), async (req, res, next) => {
+  try {
+    const catalog = require('../services/layerCatalog');
+    const items = await catalog.full();
+    const count = {}; items.forEach((i) => { count[i.group] = (count[i.group] || 0) + 1; });
+    const gs = catalog.groups();
+    res.render('admin/layer-groups', { title: 'Danh mục nhóm lớp bản đồ', section: 'layers', groups: gs, count, sections: [...new Set(gs.map((g) => g.section))] });
+  } catch (e) { next(e); }
+});
+r.post('/du-lieu/danh-muc', requirePerm('data.manage'), (req, res) => {
+  try { require('../services/layerCatalog').saveGroup(me(req), null, req.body); flash(req, 'ok', 'Đã thêm nhóm. Gán lớp vào nhóm ở trang “Lớp dữ liệu bản đồ”.'); } catch (e) { flash(req, 'error', e.message); }
+  return res.redirect('/quan-tri/du-lieu/danh-muc');
+});
+r.post('/du-lieu/danh-muc/:key', requirePerm('data.manage'), async (req, res) => {
+  const cat = require('../services/layerCatalog');
+  try {
+    if (req.body.action === 'delete') { await cat.removeGroup(me(req), req.params.key); flash(req, 'ok', 'Đã xoá nhóm; các lớp trong nhóm trở về nhóm mặc định.'); }
+    else if (req.body.action === 'reset') { cat.resetGroup(me(req), req.params.key); flash(req, 'ok', 'Đã khôi phục nhóm mặc định.'); }
+    else { cat.saveGroup(me(req), req.params.key, req.body); flash(req, 'ok', 'Đã lưu nhóm.'); }
+  } catch (e) { flash(req, 'error', e.message); }
+  return res.redirect('/quan-tri/du-lieu/danh-muc');
+});
+r.post('/du-lieu/lop/:id/xoa', requirePerm('data.manage'), async (req, res) => {
+  try {
+    const cat = require('../services/layerCatalog');
+    const it = (await cat.full()).find((i) => i.id === req.params.id);
+    if (it && it.kind === 'map' && !can(me(req), 'maps.publish')) throw new Error('Xoá bản đồ chuyên đề cần quyền Quản trị hệ thống.');
+    const out = await cat.remove(me(req), req.params.id);
+    flash(req, 'ok', out.removed === 'data' ? 'Đã xoá lớp và dữ liệu.' : 'Đã gỡ lớp khỏi danh mục (dữ liệu hệ thống vẫn giữ, khôi phục được ở mục “Lớp đã gỡ”).');
+  } catch (e) { flash(req, 'error', e.message); }
+  return res.redirect('/quan-tri/du-lieu#danh-muc');
+});
+r.post('/du-lieu/lop/:id/khoi-phuc', requirePerm('data.manage'), (req, res) => {
+  require('../services/layerCatalog').restore(me(req), req.params.id);
+  flash(req, 'ok', 'Đã khôi phục lớp vào danh mục.');
   return res.redirect('/quan-tri/du-lieu#danh-muc');
 });
 r.post('/du-lieu/lop/:id/mac-dinh', requirePerm('data.manage'), (req, res) => {

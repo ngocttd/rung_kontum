@@ -3,14 +3,14 @@
    const kindL = { overlay: 'Ảnh/raster', map: 'Bản đồ chuyên đề', vector: 'Vector', choro: 'Tô màu theo xã', custom: 'Vector bổ sung' };
    const srcL = { system: 'Hệ thống', auto: 'Tự sinh theo lịch', map: 'Bản đồ PDF/GeoTIFF', custom: 'Tải lên' };
    const edit = can('data.manage'); const fmtL = { '.zip': 'Shapefile', '.xlsx': 'Excel', '.csv': 'CSV', '.geojson': 'GeoJSON', '.json': 'GeoJSON' }; %>
-<div class="adm-tabs"><a class="on" href="#danh-muc">Danh mục lớp bản đồ (<%= catalog.length %>)</a><a href="#vector">Lớp vector bổ sung (<%= custom.length %>)</a><% if (edit) { %><a href="#them">Nhập lớp (GeoJSON / Shapefile / Excel)</a><% } %><a href="/quan-tri/du-lieu/api">API quản lý lớp</a></div>
+<div class="adm-tabs"><a class="on" href="/quan-tri/du-lieu">Lớp dữ liệu bản đồ (<%= catalog.filter(i => !i.deleted).length %>)</a><a href="/quan-tri/du-lieu/danh-muc">Danh mục nhóm lớp (<%= groups.length %>)</a><a href="#vector">Lớp vector bổ sung (<%= custom.length %>)</a><% if (edit) { %><a href="#them">Nhập lớp (GeoJSON / Shapefile / Excel)</a><% } %><a href="/quan-tri/du-lieu/api">API chia sẻ</a></div>
 
 <section class="card" id="danh-muc">
-  <div class="card-h"><h2><%- ic('layers-fill') %> Danh mục lớp trên Bản đồ WebGIS, MobileGIS và trang Tài nguyên rừng</h2></div>
+  <div class="card-h"><h2><%- ic('layers-fill') %> Lớp dữ liệu bản đồ</h2><a class="btn btn-outline btn-sm" style="margin-left:auto" href="/quan-tri/du-lieu/danh-muc"><%- ic('collection-fill') %> Quản lý danh mục nhóm</a></div>
   <div class="card-b">
-    <p class="src" style="margin:0 0 8px">Mọi lớp hiển thị cho người dùng lấy từ danh mục này. <b>Ẩn</b>: gỡ khỏi bản đồ công khai và ứng dụng (dữ liệu vẫn giữ). <b>Bật sẵn</b>: lớp được bật khi mở bản đồ. <b>Tài nguyên rừng</b>: hiện trong “Hiển thị thêm lớp” của trang Tài nguyên rừng (lớp lớp phủ theo năm tự vào ô “Năm bản đồ”). Lớp ảnh mới (thời tiết, phân tích biến động, phân loại), bản đồ PDF/GeoTIFF đã xuất bản và lớp vector đã duyệt tự vào danh mục. Xoá: lớp vector bổ sung xoá ở đây; bản đồ chuyên đề thu hồi/xoá ở mục “Bản đồ PDF / GeoTIFF”; lớp hệ thống chỉ ẩn được.</p>
+    <div class="note info" style="margin:0 0 10px">Trang này quản lý từng <b>lớp</b> (nhóm lớp quản lý ở <a href="/quan-tri/du-lieu/danh-muc">Danh mục nhóm lớp</a>) – quyết định lớp nào hiện trên Bản đồ WebGIS, MobileGIS, trang Tài nguyên rừng và API chia sẻ. Cách dùng: sửa trực tiếp ô <b>Nhóm, Tên hiển thị, Thứ tự</b> hoặc đánh dấu <b>Bật sẵn</b> (bật khi mở bản đồ), <b>Tài nguyên rừng</b> (hiện ở trang Tài nguyên rừng) → nút <b>“Lưu thay đổi”</b> của dòng đó sáng lên, bấm để lưu. <b>Ẩn/Hiện</b>: tạm gỡ khỏi bản đồ (giữ cấu hình). <b>Xoá</b>: lớp vector bổ sung và bản đồ chuyên đề bị xoá hẳn dữ liệu; lớp hệ thống/tự sinh chỉ gỡ khỏi danh mục (khôi phục được ở cuối trang). Lớp mới (thời tiết, phân tích biến động, phân loại ảnh, bản đồ PDF/GeoTIFF đã xuất bản, vector đã duyệt) tự vào danh mục.</div>
     <div class="table-wrap"><table class="tbl" data-page-size="25" data-tools="Tìm lớp, nhóm, nguồn…"><thead><tr><th>Nhóm</th><th>Tên hiển thị</th><th>Loại · nguồn</th><th class="num">Thứ tự</th><th>Bật sẵn</th><th>Tài nguyên rừng</th><th>Trạng thái</th><th data-sort="off">Thao tác</th></tr></thead><tbody>
-    <% catalog.forEach(it => { const f = 'f-' + it.id.replace(/[^\w-]/g, ''); %><tr class="<%= it.hidden ? 'row-muted' : '' %>">
+    <% catalog.filter(i => !i.deleted && (!query.nhom || i.group === query.nhom)).forEach(it => { const f = 'f-' + it.id.replace(/[^\w-]/g, ''); %><tr class="<%= it.hidden ? 'row-muted' : '' %>">
       <td data-sort="<%= groups.findIndex(g => g.key === it.group) %>"><% if (edit) { %><select class="input input-sm" name="grp" form="<%= f %>" style="min-width:190px;max-width:230px"><% groups.forEach(g => { %><option value="<%= g.key %>" <%= g.key === it.group ? 'selected' : '' %>><%= g.title %></option><% }) %></select><% } else { %><%= (groups.find(g => g.key === it.group) || {}).title %><% } %><span hidden><%= (groups.find(g => g.key === it.group) || {}).title %></span></td>
       <td data-sort="<%= it.title %>"><% if (edit) { %><input class="input input-sm" name="title" value="<%= it.title %>" form="<%= f %>" style="min-width:220px"><% } else { %><%= it.title %><% } %><span hidden><%= it.title %> <%= it.full_title || '' %></span>
         <% if (it.duplicate) { %><div class="src" style="color:#b45309"><%= it.duplicate %></div><% } %><% if (it.customized) { %><div class="src">đã chỉnh bởi <%= it.customized.by %></div><% } %></td>
@@ -19,18 +19,26 @@
       <td data-sort="<%= it.default_on ? 1 : 0 %>"><input type="checkbox" name="default_on" value="1" form="<%= f %>" <%= it.default_on ? 'checked' : '' %> <%= edit ? '' : 'disabled' %>></td>
       <td data-sort="<%= it.on_forest ? 1 : 0 %>"><input type="checkbox" name="on_forest" value="1" form="<%= f %>" <%= it.on_forest ? 'checked' : '' %> <%= edit ? '' : 'disabled' %> <%= ['overlay', 'map', 'vector'].includes(it.kind) ? '' : 'hidden' %>></td>
       <td data-sort="<%= it.hidden ? 1 : 0 %>"><span class="badge <%= it.hidden ? 'b-gray' : 'b-green' %>"><%= it.hidden ? 'Đang ẩn' : 'Hiển thị' %></span></td>
-      <td style="white-space:nowrap">
-        <% if (edit) { %><form id="<%= f %>" method="post" action="/quan-tri/du-lieu/lop/<%= encodeURIComponent(it.id) %>" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="hidden" value="<%= it.hidden ? '1' : '0' %>"><button class="btn btn-primary btn-sm" title="Lưu"><%- ic('check-lg') %></button></form>
-        <form method="post" action="/quan-tri/du-lieu/lop/<%= encodeURIComponent(it.id) %>/an-hien" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="hidden" value="<%= it.hidden ? '0' : '1' %>"><button class="btn btn-outline btn-sm" title="<%= it.hidden ? 'Hiện lại' : 'Ẩn khỏi bản đồ' %>"><%- ic(it.hidden ? 'eye-fill' : 'eye-slash-fill') %></button></form>
-        <% if (it.customized) { %><form method="post" action="/quan-tri/du-lieu/lop/<%= encodeURIComponent(it.id) %>/mac-dinh" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" title="Khôi phục mặc định"><%- ic('arrow-repeat') %></button></form><% } %><% } %>
+      <td class="layer-acts">
+        <% if (edit) { %><form id="<%= f %>" method="post" action="/quan-tri/du-lieu/lop/<%= encodeURIComponent(it.id) %>" style="display:inline" data-row-form><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="hidden" value="<%= it.hidden ? '1' : '0' %>"><button class="btn btn-primary btn-sm" disabled title="Sửa ô trong dòng rồi bấm để lưu"><%- ic('check-lg') %> Lưu thay đổi</button></form>
+        <form method="post" action="/quan-tri/du-lieu/lop/<%= encodeURIComponent(it.id) %>/an-hien" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="hidden" value="<%= it.hidden ? '0' : '1' %>"><button class="btn btn-outline btn-sm" title="<%= it.hidden ? 'Hiện lại trên bản đồ' : 'Tạm ẩn khỏi bản đồ' %>"><%- ic(it.hidden ? 'eye-fill' : 'eye-slash-fill') %> <%= it.hidden ? 'Hiện' : 'Ẩn' %></button></form>
+        <form method="post" action="/quan-tri/du-lieu/lop/<%= encodeURIComponent(it.id) %>/xoa" style="display:inline" onsubmit="return confirm('<%= it.kind === 'custom' || it.kind === 'map' ? 'Xoá hẳn lớp và dữ liệu? Không hoàn tác được.' : 'Gỡ lớp hệ thống khỏi danh mục? (dữ liệu giữ nguyên, khôi phục được)' %>')"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm btn-danger-o" title="<%= it.kind === 'custom' || it.kind === 'map' ? 'Xoá lớp và dữ liệu' : 'Gỡ khỏi danh mục' %>"><%- ic('trash-fill') %> Xoá</button></form>
+        <% if (it.customized) { %><form method="post" action="/quan-tri/du-lieu/lop/<%= encodeURIComponent(it.id) %>/mac-dinh" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" title="Khôi phục cấu hình mặc định"><%- ic('arrow-repeat') %></button></form><% } %><% } %>
         <% if (!it.hidden && it.kind !== 'choro') { %><a class="btn btn-outline btn-sm" href="/ban-do?lop=<%= encodeURIComponent(it.id) %>" target="_blank" title="Xem trên bản đồ"><%- ic('map-fill') %></a><% } %>
-        <% if (it.kind === 'map') { %><a class="btn btn-outline btn-sm" href="/quan-tri/ban-do/<%= it.map_id %>" title="Quản lý bản đồ (thu hồi, xoá, nắn chỉnh)"><%- ic('gear-fill') %></a><% } %>
-        <% if (it.kind === 'custom' && edit) { %><form method="post" action="/quan-tri/du-lieu/<%= it.layer_id %>/trang-thai" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" name="action" value="delete" onclick="return confirm('Xoá hẳn lớp này?')" title="Xoá"><%- ic('trash-fill') %></button></form><% } %>
+        <a class="btn btn-outline btn-sm" href="/api/v1/catalog/<%= encodeURIComponent(it.id) %>" target="_blank" title="API chia sẻ của lớp"><%- ic('code-slash') %></a>
+        <% if (it.kind === 'map') { %><a class="btn btn-outline btn-sm" href="/quan-tri/ban-do/<%= it.map_id %>" title="Quản lý bản đồ (thu hồi, nắn chỉnh)"><%- ic('gear-fill') %></a><% } %>
       </td></tr><% }) %>
     </tbody></table></div>
   </div>
 </section>
 
+<% const removed = catalog.filter(i => i.deleted); if (removed.length) { %>
+<section class="card" style="margin-top:16px"><div class="card-h"><h2><%- ic('archive-fill') %> Lớp đã gỡ khỏi danh mục (<%= removed.length %>)</h2></div>
+  <div class="card-b table-wrap"><table class="tbl" data-tools="off"><thead><tr><th>Tên lớp</th><th>Loại</th><th>Gỡ bởi</th><th></th></tr></thead><tbody>
+  <% removed.forEach(it => { %><tr><td><%= it.title %></td><td class="src"><%= kindL[it.kind] %> · <%= srcL[it.source] %></td><td class="src"><%= it.customized ? it.customized.by : '' %></td>
+    <td><% if (edit) { %><form method="post" action="/quan-tri/du-lieu/lop/<%= encodeURIComponent(it.id) %>/khoi-phuc"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm"><%- ic('arrow-repeat') %> Khôi phục</button></form><% } %></td></tr><% }) %>
+  </tbody></table></div></section>
+<% } %>
 <section class="card" id="vector" style="margin-top:16px">
   <div class="card-h"><h2><%- ic('vector-pen') %> Lớp vector bổ sung (tải lên / API)</h2></div>
   <div class="card-b table-wrap"><% if (!custom.length) { %><div class="empty-state">Chưa có lớp vector bổ sung. Dùng thẻ “Nhập lớp” hoặc API để thêm.</div><% } else { %>
@@ -64,5 +72,13 @@
   </div>
 </form>
 <% } %>
+<script>
+// nút “Lưu thay đổi” chỉ sáng khi dòng đó có ô bị sửa
+document.querySelectorAll('[data-row-form]').forEach((f) => {
+  const btn = f.querySelector('button'); const els = document.querySelectorAll(`[form="${f.id}"]`);
+  const mark = () => { btn.disabled = false; btn.closest('tr').classList.add('row-dirty'); };
+  els.forEach((el) => { el.addEventListener('input', mark); el.addEventListener('change', mark); });
+});
+</script>
 <%- include('_bottom') %>
 </body></html>

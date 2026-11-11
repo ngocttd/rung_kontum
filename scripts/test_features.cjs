@@ -197,12 +197,31 @@ const form = (o) => ({ method: 'POST', headers: { 'content-type': 'application/x
     ok(!html.includes('id="ly-hansen-loss"') && !mob.raster.some((x) => x.id === 'hansen-loss'), 'Ẩn lớp → biến mất khỏi Bản đồ WebGIS và MobileGIS');
     ok(html.includes('Địa hình KIỂM THỬ') && (await web('/tai-nguyen-rung')).text.includes('Địa hình KIỂM THỬ'), 'Đổi tên lớp → áp dụng cho bản đồ và trang Tài nguyên rừng');
     ok(!html.includes('GeoTIFF 15 m)') , 'Bản trùng (GeoTIFF 15 m) ẩn mặc định khỏi cây lớp');
-    r = await adm('/quan-tri/du-lieu'); ok(r.status === 200 && r.text.includes('Danh mục lớp'), 'Quản trị: danh mục lớp');
+    r = await adm('/quan-tri/du-lieu'); ok(r.status === 200 && r.text.includes('Lớp dữ liệu bản đồ'), 'Quản trị: lớp dữ liệu bản đồ');
     r = await adm(`/quan-tri/du-lieu/lop/hansen-loss/an-hien`, form({ _csrf: csrfOf(r.text), hidden: '0' }));
     await new Promise((z) => setTimeout(z, 1500));
     ok(store.get('layer_settings', 'hansen-loss').hidden === false && (await web('/ban-do')).text.includes('id="ly-hansen-loss"'), 'Quản trị bấm hiện lại lớp');
     catalog.reset(qtv, 'hansen-loss'); catalog.reset(qtv, 'dem-2024'); await store.drain();
     ok((await adm('/quan-tri/du-lieu/api')).status === 200, 'Quản trị: trang API quản lý lớp');
+    // ---------- 10. danh mục nhóm, xoá lớp, API chia sẻ mọi lớp ----------
+    const g = catalog.saveGroup(qtv, null, { title: 'Nhóm KIỂM THỬ', section: 'BẢN ĐỒ CHUYÊN ĐỀ', tab: 'theme', sort: '125' });
+    catalog.save(qtv, 'ndvi-latest', { grp: g.key, title: '', sort: '', hidden: '0' });
+    await store.drain(); await new Promise((z) => setTimeout(z, 2500));
+    html = (await web('/ban-do')).text;
+    ok(html.includes('Nhóm KIỂM THỬ') && (await adm('/quan-tri/du-lieu/danh-muc')).text.includes('Nhóm KIỂM THỬ'), 'Thêm nhóm lớp → hiện trên cây lớp và trang danh mục');
+    catalog.saveGroup(qtv, g.key, { title: 'Nhóm KIỂM THỬ', section: 'BẢN ĐỒ CHUYÊN ĐỀ', tab: 'theme', sort: '125', hidden: '1' });
+    await store.drain(); await new Promise((z) => setTimeout(z, 2000));
+    ok(!(await web('/ban-do')).text.includes('id="ly-ndvi-latest"'), 'Ẩn nhóm → ẩn các lớp trong nhóm');
+    await catalog.removeGroup(qtv, g.key); catalog.reset(qtv, 'ndvi-latest'); await store.drain(); await new Promise((z) => setTimeout(z, 2000));
+    ok((await web('/ban-do')).text.includes('id="ly-ndvi-latest"'), 'Xoá nhóm → lớp trở về nhóm mặc định');
+    const cat = await api('GET', '/api/v1/catalog');
+    const types = new Set(cat.j.layers.map((l) => l.kind));
+    ok(cat.status === 200 && ['overlay', 'map', 'vector', 'choro'].every((k) => types.has(k)) && cat.j.layers.find((l) => l.id === 'lc-2023').image.url, 'API chia sẻ /api/v1/catalog: raster, bản đồ chuyên đề, vector, tô màu theo xã (công khai)');
+    const one = await fetch(`${base}/api/v1/catalog/hotspots/data`, { redirect: 'manual' });
+    ok(one.status === 302 && /fire\/hotspots/.test(one.headers.get('location')), 'API chia sẻ: /catalog/:id/data chuyển tới dữ liệu');
+    await catalog.remove(qtv, 'dem-2024'); await store.drain(); await new Promise((z) => setTimeout(z, 2000));
+    ok(!(await api('GET', '/api/v1/catalog')).j.layers.some((l) => l.id === 'dem-2024') && (await adm('/quan-tri/du-lieu')).text.includes('Lớp đã gỡ khỏi danh mục'), 'Xoá lớp hệ thống → gỡ khỏi danh mục, có mục khôi phục');
+    catalog.reset(qtv, 'dem-2024'); await store.drain();
   } catch (e) { console.error(e); failures += 1; } finally {
     for (const id of reportIds) store.remove('reports', id);
     for (const c of store.filter('comments', (x) => /kiểm thử/i.test(x.body) || users.includes(x.user_id))) store.remove('comments', c.id);

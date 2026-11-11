@@ -1,11 +1,15 @@
 <%- include('_top') %>
-<div class="adm-tabs"><a href="/quan-tri/du-lieu#danh-muc">Danh mục lớp bản đồ</a><a href="/quan-tri/du-lieu#vector">Lớp vector bổ sung</a><% if (can('data.manage')) { %><a href="/quan-tri/du-lieu#them">Nhập lớp</a><% } %><a class="on" href="/quan-tri/du-lieu/api">API quản lý lớp</a></div>
+<div class="adm-tabs"><a href="/quan-tri/du-lieu">Lớp dữ liệu bản đồ</a><a href="/quan-tri/du-lieu/danh-muc">Danh mục nhóm lớp</a><a href="/quan-tri/du-lieu#vector">Lớp vector bổ sung</a><% if (can('data.manage')) { %><a href="/quan-tri/du-lieu#them">Nhập lớp</a><% } %><a class="on" href="/quan-tri/du-lieu/api">API chia sẻ</a></div>
 <div class="grid" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px">
   <section class="card">
-    <div class="card-h"><h2><%- ic('code-slash') %> API quản lý lớp dữ liệu (REST, JSON)</h2><a class="btn btn-outline btn-sm" style="margin-left:auto" href="/api/v1" target="_blank"><%- ic('box-arrow-up-right') %> Mô tả máy đọc (GET /api/v1)</a></div>
+    <div class="card-h"><h2><%- ic('code-slash') %> API chia sẻ và quản lý lớp dữ liệu (REST, JSON)</h2><a class="btn btn-outline btn-sm" style="margin-left:auto" href="/api/v1" target="_blank"><%- ic('box-arrow-up-right') %> Mô tả máy đọc (GET /api/v1)</a></div>
     <div class="card-b">
       <p>Cho phép phần mềm khác (hệ thống của Kiểm lâm, ứng dụng nội bộ, công cụ GIS) tạo, cập nhật, công bố và xoá lớp vector trên WebGIS mà không cần thao tác giao diện. Địa chỉ gốc: <code><%= base %>/api/v1</code>.</p>
-      <h3 style="font-size:15px;margin:12px 0 6px">1. Xác thực</h3>
+      <div class="note ok" style="margin:8px 0">Chia sẻ dữ liệu (không cần đăng nhập): <code>GET <%= base %>/api/v1/catalog</code> trả về <b>mọi lớp đang hiển thị</b> – ảnh raster (kèm toạ độ góc, ô ảnh XYZ nếu có, chú giải), bản đồ chuyên đề, lớp vector (GeoJSON), lớp tô màu theo xã. Phần mềm GIS (QGIS, ArcGIS) dùng đường dẫn ảnh/ô ảnh XYZ hoặc GeoJSON trong kết quả. Lớp bị quản trị ẩn không xuất hiện.</div>
+<pre class="log-pre">curl <%= base %>/api/v1/catalog?type=raster          # danh sách lớp raster
+curl <%= base %>/api/v1/catalog/lc-2023               # thông tin + đường dẫn dữ liệu một lớp
+curl -L <%= base %>/api/v1/catalog/hotspots/data -o diem_nong.geojson</pre>
+      <h3 style="font-size:15px;margin:12px 0 6px">1. Xác thực (cho thao tác ghi)</h3>
       <p class="src" style="margin:0 0 6px">Lấy token bằng tài khoản cán bộ (đọc: mọi cán bộ; ghi: Quản trị hệ thống, Cán bộ chuyên môn). Token hết hạn thì gọi <code>POST /api/mobile/auth/refresh</code> với <code>refresh_token</code>.</p>
 <pre class="log-pre">curl -X POST <%= base %>/api/mobile/auth/login \
   -H "Content-Type: application/json" \
