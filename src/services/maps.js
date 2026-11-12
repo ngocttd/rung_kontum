@@ -51,7 +51,8 @@ async function audit(datasetId, user, action, details) {
 async function list({ format, status, q, year, category } = {}) {
   const where = []; const v = [];
   const add = (sql, val) => { v.push(val); where.push(sql.replace('?', `$${v.length}`)); };
-  if (format) add('d.format = ?', format);
+  if (format === 'raster') where.push("d.format <> 'pdf'");
+  else if (format) add('d.format = ?', format);
   if (status) add('d.status = ?', status);
   if (category) add('d.category = ?', category);
   if (year) add('d.map_year = ?', Number(year));

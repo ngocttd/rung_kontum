@@ -23,8 +23,9 @@
   const ic2 = (n) => `<img class="mk" src="/assets/icons/colored/${n}.svg" alt="">`;
   const fv = fcg ? fcg.forecast.validation : null;
   const lossH = fcg ? fcg.history.aoi_annual_loss_ha : {};
-  const loss5 = ['2020','2021','2022','2023','2024'].reduce((a, y) => a + (lossH[y] || 0), 0);
-  const prev5 = ['2015','2016','2017','2018','2019'].reduce((a, y) => a + (lossH[y] || 0), 0);
+  const hys = Object.keys(lossH).sort(); const r5 = hys.slice(-5); const p5 = hys.slice(-10, -5);
+  const loss5 = r5.reduce((a, y) => a + (lossH[y] || 0), 0);
+  const prev5 = p5.reduce((a, y) => a + (lossH[y] || 0), 0);
   const expected = fcg ? Object.values(fcg.forecast.risk_by_commune).filter(Boolean).reduce((a, r) => a + r.expected_loss_ha, 0) : 0;
   const latest = ov['s2-latest'];
 %>
@@ -146,13 +147,13 @@
         </ul></div></div></div>
       <div class="card"><div class="card-h"><h3>Ảnh vệ tinh mới nhất</h3></div><div class="card-b" style="padding-top:8px">
         <span class="src"><%= latest ? 'Sentinel-2 (' + latest.month.slice(5) + '/' + latest.month.slice(0, 4) + ')' : 'Sentinel-2' %></span>
-        <button type="button" class="btn-ghost" style="border:0;padding:0;cursor:pointer;width:100%;margin-top:4px" data-show-overlay="<%= latest ? 's2-latest' : 's2-2025-wet-true' %>"><img src="<%= latest ? latest.url : '/generated/overlays/s2-2025-wet-true.webp' %>" alt="Ảnh Sentinel-2 mới nhất" style="height:118px;width:100%;object-fit:cover;border-radius:6px;background:#20322e"></button></div></div>
-      <div class="card"><div class="card-h"><h3>Biến động rừng 2020–2024</h3></div><div class="card-b" style="padding-top:8px">
+        <button type="button" class="btn-ghost" style="border:0;padding:0;cursor:pointer;width:100%;margin-top:4px" data-show-overlay="s2-latest"><img src="<%= latest ? latest.url : '' %>" alt="Ảnh Sentinel-2 mới nhất" style="height:118px;width:100%;object-fit:cover;border-radius:6px;background:#20322e"></button></div></div>
+      <div class="card"><div class="card-h"><h3>Biến động rừng <%= r5[0] %>–<%= r5[r5.length - 1] %></h3></div><div class="card-b" style="padding-top:8px">
         <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px"><img src="/assets/symbols/change-suspected.svg" width="34" alt=""><div><span class="muted">Mất tán cây</span><br><strong style="font-size:20px;color:var(--red)"><%= fmt.num(loss5) %> ha</strong></div>
           <span style="margin-left:auto;color:<%= loss5 < prev5 ? '#0c7a51' : '#c0261f' %>;font-weight:700"><%= loss5 < prev5 ? '↓' : '↑' %> <%= fmt.num(Math.abs(loss5 - prev5) / prev5 * 100, 1) %>%</span></div>
         <div style="display:flex;gap:12px;align-items:center"><img src="/assets/symbols/risk-4.svg" width="34" alt=""><div><span class="muted">Dự báo mất <%= D.forecastLabel %></span><br><strong style="font-size:20px;color:var(--navy)"><%= fmt.num(expected) %> ha</strong></div>
           <span style="margin-left:auto" class="src">AUC <%= fv ? fmt.num(fv.auc, 2) : '—' %></span></div>
-        <p class="src" style="margin:6px 0 0">So với 2015–2019 · Hansen GFC; dự báo mô hình chưa phê duyệt</p></div></div>
+        <p class="src" style="margin:6px 0 0">So với <%= p5[0] %>–<%= p5[p5.length - 1] %> · Hansen GFC; dự báo mô hình chưa phê duyệt</p></div></div>
     </div>
   </div>
 </main>

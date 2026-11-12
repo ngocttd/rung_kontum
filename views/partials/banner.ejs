@@ -8,7 +8,7 @@
     <% if (typeof topics !== 'undefined' && topics) { %>
       <div class="banner-kpis" style="align-self:center;flex-wrap:nowrap">
         <% [['tai-nguyen','forest','Tài nguyên rừng'],['bien-dong','statistics','Biến động rừng'],['chay','fire','Cháy rừng'],['quy-hoach','protected','Quy hoạch 3 loại rừng'],['bao-cao','report','Báo cáo tổng hợp']].forEach(([k,i,l]) => { %>
-          <a class="topic-btn <%= (typeof topic !== 'undefined' && topic === k) ? 'on' : '' %>" href="<%= k === 'quy-hoach' ? '/tai-nguyen-rung?tab=muc-dich' : k === 'bao-cao' ? '#bang' : '/thong-ke?chu_de=' + k %>"><%- cicon(i) %> <%= l %></a>
+          <a class="topic-btn <%= (typeof topic !== 'undefined' && topic === k) ? 'on' : '' %>" href="<%= k === 'quy-hoach' ? '/tai-nguyen-rung?tab=phan-loai' : k === 'bao-cao' ? '#bang' : '/thong-ke?chu_de=' + k %>"><%- cicon(i) %> <%= l %></a>
         <% }) %>
       </div>
     <% } %>

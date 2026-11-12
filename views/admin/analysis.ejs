@@ -87,7 +87,7 @@
     <div class="card-h"><h2><%- ic('check-circle-fill') %> Kết quả mô hình hiện hành</h2></div>
     <div class="card-b">
       <h3 style="font-size:14px">Dự báo nguy cơ mất rừng (Random Forest, 100 m)</h3>
-      <% if (fv) { %><table class="kv"><tr><td>AUC kiểm định 2023–2024</td><td><b><%= fmt.num(fv.auc, 3) %></b></td></tr><tr><td>Brier hiệu chỉnh</td><td><%= fv.brier_calibrated %></td></tr><tr><td>Bắt được ở 10% nguy cơ cao nhất</td><td><%= fmt.num(fv.top10pct_capture * 100, 1) %>%</td></tr><tr><td>Tính lúc</td><td><%= fmt.dateTime(fcg.generated_at_utc) %></td></tr></table><% } %>
+      <% if (fv) { %><table class="kv"><tr><td>AUC kiểm định <%= D.validationLabel %></td><td><b><%= fmt.num(fv.auc, 3) %></b></td></tr><tr><td>Brier hiệu chỉnh</td><td><%= fv.brier_calibrated %></td></tr><tr><td>Bắt được ở 10% nguy cơ cao nhất</td><td><%= fmt.num(fv.top10pct_capture * 100, 1) %>%</td></tr><tr><td>Tính lúc</td><td><%= fmt.dateTime(fcg.generated_at_utc) %></td></tr></table><% } %>
       <h3 style="font-size:14px;margin-top:12px">Chỉ số nguy cơ cháy (Nesterov P, FWI)</h3>
       <% if (vd) { %><table class="kv"><tr><td>AUC P / FWI</td><td><b><%= fmt.num(vd.auc_nesterov_p, 3) %></b> / <b><%= fmt.num(vd.auc_fwi, 3) %></b></td></tr><tr><td>Ngày-xã kiểm định</td><td><%= fmt.num(vd.commune_days) %> (<%= fmt.num(vd.commune_days_with_hotspot) %> có điểm nóng)</td></tr><tr><td>Tính lúc</td><td><%= fmt.dateTime(fd.generated_at_utc) %></td></tr></table><% } %>
       <p class="src">Tham chiếu kiểm định là dữ liệu vệ tinh (Hansen, FIRMS), chưa phải hồ sơ đã xác minh. Kết quả xác minh nhập ở mục Cảnh báo sẽ là nhãn để hiệu chỉnh mô hình về sau.</p>

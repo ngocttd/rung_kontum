@@ -194,7 +194,7 @@
     <div class="card"><div class="card-h"><h2><%- ic('clock-history') %> Điểm nóng và diện tích cháy theo tháng</h2></div>
       <div class="card-b"><div class="chart-box tall"><canvas id="ch-hist"></canvas></div>
         <p class="src">Điểm nóng: <%= history ? history.source : '' %> (<%= history ? fmt.num(history.total) : 0 %> pixel). Diện tích cháy: <%= burned ? burned.source : '' %> (pixel 500 m, mọi loại lớp phủ, có độ trễ công bố).</p></div></div>
-    <div class="card"><div class="card-h"><h2><%- ic('bar-chart-fill') %> Xã có nhiều điểm nóng nhất 2024–2026</h2></div>
+    <div class="card"><div class="card-h"><h2><%- ic('bar-chart-fill') %> Xã có nhiều điểm nóng nhất <%= history ? Object.keys(history.monthly).sort()[0].slice(0, 4) + '–' + Object.keys(history.monthly).sort().pop().slice(0, 4) : '' %></h2></div>
       <div class="card-b"><div class="chart-box tall"><canvas id="ch-hist-commune"></canvas></div></div></div>
     <div class="card span-2" id="tra-cuu" style="grid-column:1 / -1">
       <div class="card-h"><h2><%- ic('search') %> Tra cứu lịch sử điểm nóng / điểm cháy</h2><span class="more muted" style="font-weight:400" id="ar-count"></span></div>

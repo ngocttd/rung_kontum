@@ -58,7 +58,7 @@ async function catalogShared(req, includeHidden) {
   const mapLayers = await mapsSvc.publishedLayers().catch(() => []);
   const byMap = Object.fromEntries(mapLayers.map((m) => [`m-${m.id}`, m]));
   const ov = Object.fromEntries(repo.overlays().map((o) => [o.id, o]));
-  const base = `${req.protocol}://${req.get('host')}`;
+  const base = (require('../config').publicBaseUrl || `${req.protocol}://${req.get('host')}`);
   const items = (await catalog.full({ mapLayers })).filter((i) => !i.deleted && (includeHidden || !i.hidden));
   return items.map((it) => {
     if (it.kind === 'map') {

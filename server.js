@@ -55,7 +55,7 @@ app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.citizen = req.session.citizen || null;
   // năm/nguồn dữ liệu hiện hành (tính khi render, không viết cố định trong giao diện)
-  Object.defineProperty(res.locals, 'D', { enumerable: true, configurable: true, get: () => require('./src/lib/dataContext').dataContext() });
+  Object.defineProperty(res.locals, 'D', { enumerable: true, configurable: true, get: () => require('./src/lib/dataContext').dataContext(/^\d{4}$/.test(String(req.query.nam || '')) ? req.query.nam : undefined) });
   res.locals.can = (perm) => security.can(req.session.user, perm);
   res.locals.mapboxToken = config.mapboxToken;
   res.locals.path = req.path;

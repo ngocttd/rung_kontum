@@ -196,7 +196,7 @@
       return {
         kind: 'vector', layers: ['communes-fill', 'communes-line', 'communes-hl', 'communes-label'], baseOpacity: { 'communes-fill': 0.62 },
         async build(map) {
-          const data = await KT.fetchCached('/api/public/boundaries/communes');
+          const data = await KT.fetchCached(`/api/public/boundaries/communes${D.statYearParam ? `?nam=${D.statYearParam}` : ''}`);
           if (!map.getSource('communes')) map.addSource('communes', { type: 'geojson', data, promoteId: 'code' });
           const mode = view.choropleth;
           if (!map.getLayer('communes-fill')) map.addLayer({ id: 'communes-fill', type: 'fill', source: 'communes', paint: { 'fill-color': mode ? choroColor(mode) : '#ffffff', 'fill-opacity': mode ? 0.62 : 0.01 } }, firstSymbolId(map));

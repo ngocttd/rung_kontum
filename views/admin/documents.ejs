@@ -1,6 +1,6 @@
 <%- include('_top') %>
 <section class="card">
-  <div class="card-h"><h2><%- ic('file-earmark-pdf-fill') %> Tài liệu và bản đồ PDF</h2></div>
+  <div class="card-h"><h2><%- ic('file-earmark-pdf-fill') %> Tài liệu, văn bản</h2><a class="more" href="/quan-tri/ban-do?loai=pdf">Bản đồ PDF quản lý ở mục “Bản đồ PDF” <%- ic('chevron-right') %></a></div>
   <div class="card-b table-wrap"><table class="tbl" data-page-size="15"><thead><tr><th></th><th>Tên tài liệu</th><th>Loại</th><th>Số hiệu</th><th>Ngày ban hành</th><th>Cơ quan</th><th>Dung lượng</th><th>Nguồn</th><th></th></tr></thead><tbody>
     <% const pg = { items: docs, offset: 0 }; pg.items.forEach(d => { %><tr><td><% if (d.thumbnail) { %><img src="<%= d.thumbnail %>" alt="" style="width:40px;height:52px;object-fit:cover;border:1px solid var(--line)"><% } else { %><img src="/assets/icons/colored/<%= d.type === 'xlsx' ? 'excel' : 'pdf' %>.svg" width="32" alt=""><% } %></td>
       <td><a href="/tai-lieu?id=<%= d.id %>" target="_blank"><%= d.title %></a></td><td><%= d.categoryLabel %></td><td><%= d.number || '—' %></td><td><%= d.issued ? fmt.ymd(d.issued) : '—' %></td><td><%= d.issuer || '—' %></td><td><%= fmt.bytes(d.bytes) %></td>
@@ -14,7 +14,7 @@
 </section>
 <% if (can('docs.manage')) { %>
 <form class="card" style="margin-top:16px" method="post" action="/quan-tri/tai-lieu/tai-len" enctype="multipart/form-data">
-  <div class="card-h"><h2><%- ic('upload') %> Thêm tài liệu / bản đồ PDF</h2></div>
+  <div class="card-h"><h2><%- ic('upload') %> Thêm tài liệu (PDF)</h2></div>
   <div class="card-b grid cols-3">
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <label class="field"><span>Tiêu đề *</span><input class="input" name="title" required></label>

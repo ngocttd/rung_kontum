@@ -21,7 +21,7 @@ const JOBS = {
   },
   'forest-change': {
     title: 'Ảnh Sentinel-2 tháng mới → phân tích biến động rừng → công bố lớp bản đồ; dự báo nguy cơ mất rừng',
-    steps: [{ script: 'collect_monitoring_series.py', optional: true, timeout: 120 }, { script: 'build_forest_change.py', timeout: 120 }, { script: 'build_latest_overlay.py' }, { script: 'build_env_layers.py' }, { script: 'to_webp.cjs' }],
+    steps: [{ script: 'collect_monitoring_series.py', optional: true, timeout: 120 }, { script: 'build_forest_change.py', timeout: 120 }, { script: 'collect_dynamic_world.py', optional: true, timeout: 60 }, { script: 'landcover_series.py', args: ['build'], optional: true }, { script: 'build_latest_overlay.py' }, { script: 'build_env_layers.py' }, { script: 'to_webp.cjs' }],
     // ảnh quang học hay bị mây: không đặt chu kỳ ngày/tuần; chạy theo lịch tháng/quý khi ảnh tổng hợp kỳ trước đã đủ
     db: ['change'], every: 720, periods: [720, 2160], calendar: { day: 5, hour: 2 },
     note: 'Tải ảnh Sentinel-2 tháng mới (GEE), phân tích biến động NDVI/NBR cho mọi kỳ có ≥ 2 tháng ảnh so với cùng kỳ 1–2 năm trước, xuất vùng nghi vấn + lớp “Biến động NDVI” lên Bản đồ WebGIS. Ảnh hay bị mây nên chạy theo tháng/quý (ngày 5, 02:00)',
@@ -44,7 +44,7 @@ let child = null;
 function runStep(step, log) {
   return new Promise((resolve) => {
     const isNode = step.script.endsWith('.cjs');
-    child = spawn(isNode ? process.execPath : python, [step.script], {
+    child = spawn(isNode ? process.execPath : python, [step.script, ...(step.args || [])], {
       cwd: paths.scripts, env: { ...process.env, PYTHONIOENCODING: 'utf-8' }, windowsHide: true,
     });
     const onData = (b) => { log.push(...b.toString('utf8').split(/\r?\n/).filter(Boolean)); if (log.length > 400) log.splice(0, log.length - 400); };

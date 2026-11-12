@@ -5,8 +5,6 @@
   const withStats = communes.filter(c => c.official);
   const maxForest = Math.max(...withStats.map(c => c.official.established_forest_ha));
   const byCat = (k) => withStats.filter(c => c.official[k] > 0).sort((a, b) => b.official[k] - a.official[k]);
-  const wc = landcover;
-  const wcColors = {'10':'#006400','20':'#ffbb22','30':'#ffff4c','40':'#f096ff','50':'#fa0000','60':'#b4b4b4','80':'#0064c8','90':'#0096a0'};
   const forestTypes = [
     ['evergreen','forest-evergreen','Rừng lá rộng thường xanh','Kiểu rừng chiếm ưu thế ở vùng núi cao phía bắc và đông (Ngọc Linh, Kon Plông).'],
     ['dipterocarp','forest-dipterocarp','Rừng khộp (rụng lá theo mùa)','Rụng lá mạnh mùa khô; NDVI giảm theo mùa không phải là mất rừng.'],
@@ -17,7 +15,7 @@
   const fcgHist = fcg ? fcg.history.aoi_annual_loss_ha : null;
   const ov = Object.fromEntries(overlays.map(o => [o.id, o]));
   const tabs = [['tong-quan','grid-fill','Tổng quan'],['hien-trang','tree-fill','Hiện trạng rừng'],['phan-loai','bar-chart-fill','Phân loại rừng'],['lop-phu','clock-history','Lớp phủ qua các năm'],['__/bien-dong-rung','graph-up-arrow','Biến động rừng'],
-    ['dac-dung','shield-fill-check','Rừng đặc dụng'],['phong-ho','tree-fill','Rừng phòng hộ'],['san-xuat','bar-chart-fill','Rừng sản xuất'],['__/tai-lieu','file-earmark-text-fill','Dữ liệu và tài liệu']];
+    ['dac-dung','shield-fill-check','Rừng đặc dụng'],['phong-ho','tree-fill','Rừng phòng hộ'],['san-xuat','bar-chart-fill','Rừng sản xuất']];
   const catPanels = [['dac-dung','special_use_planning_ha','Quy hoạch rừng đặc dụng','special','#006b38'],['phong-ho','protection_planning_ha','Quy hoạch rừng phòng hộ','protection','#75bb25'],['san-xuat','production_planning_ha','Quy hoạch rừng sản xuất','production','#f8ce42']];
   const filterTypes = [['special','Quy hoạch đặc dụng','#006b38'],['protection','Quy hoạch phòng hộ','#75bb25'],['production','Quy hoạch sản xuất','#4caf50'],['natural','Rừng tự nhiên','#0f5f32'],['plantation','Rừng trồng','#f8b733']];
 %>
@@ -40,8 +38,9 @@
       <div class="card-h"><h2><%- ic('funnel-fill') %> Bộ lọc dữ liệu</h2></div>
       <div class="card-b">
         <label class="field"><span>Năm bản đồ</span><select class="input" id="map-year">
-          <option value="official" title="Số liệu hiện trạng rừng theo <%= D.decision %>"><%= D.forestYear %> – Hiện trạng (<%= D.decisionShort %>)</option>
-          <% yearLayers.forEach(yl => { yl.layers.forEach(it => { %><option value="<%= it.id %>" data-year="<%= yl.year %>" data-kind="<%= it.kind %>" title="<%= it.title %>"><%= yl.year %> – <%= it.kind === 'map' ? 'Lớp phủ rừng LPR (bản đồ dự án)' : 'Lớp phủ 15 m (dự án)' %></option><% }) }) %>
+          <option value="official" data-stat-year="<%= D.forestYear %>" title="Số liệu hiện trạng rừng theo <%= D.decision %>"><%= D.forestYear %> – Hiện trạng (<%= D.decisionShort %>)</option>
+          <% D.statYears.slice().reverse().filter(y => y !== D.forestYear).forEach(y => { %><option value="official-<%= y %>" data-stat-year="<%= y %>"><%= y %> – Hiện trạng (số liệu công bố)</option><% }) %>
+          <% yearLayers.forEach(yl => { yl.layers.forEach(it => { %><option value="<%= it.id %>" data-year="<%= yl.year %>" data-kind="<%= it.project ? 'project' : 'dw' %>" title="<%= it.title %>"><%= yl.year %> – <%= it.project ? (it.kind === 'map' ? 'bản đồ LPR dự án (tham khảo)' : 'bản đồ 15 m dự án (tham khảo)') : 'Lớp phủ (Dynamic World)' %></option><% }) }) %>
         </select></label>
         <p class="src" id="year-note" hidden style="margin:-4px 0 10px"></p>
         <div class="field"><span>Loại rừng</span>
@@ -113,7 +112,7 @@
         <div class="card-h"><h2><%- ic('image-fill') %> Ảnh vệ tinh minh họa hiện trạng rừng</h2></div>
         <% const satT = ov['s2-latest'] ? 's2-latest' : Object.keys(ov).find(k => /^s2-.*-true$/.test(k));
            const satN = ov['ndvi-latest'] ? 'ndvi-latest' : Object.keys(ov).filter(k => k.startsWith('ndvi-')).pop();
-           const satC = Object.keys(ov).filter(k => k.startsWith('class-')).sort().pop() || Object.keys(ov).filter(k => /^lc-\d{4}$/.test(k)).sort().pop(); %>
+           const satC = Object.keys(ov).filter(k => k.startsWith('class-')).sort().pop() || Object.keys(ov).filter(k => /^dw-\d{4}$/.test(k)).sort().pop(); %>
         <div class="seg sat-tabs" id="sat-tabs" style="margin:10px 14px 0"><% if (satT) { %><button class="on" data-img="<%= satT %>">Ảnh màu tự nhiên</button><% } %><% if (satN) { %><button data-img="<%= satN %>">Ảnh NDVI</button><% } %><% if (satC) { %><button data-img="<%= satC %>">Phân loại lớp phủ</button><% } %></div>
         <div class="card-b"><div class="sat-view"><img id="sat-img" src="<%= satT ? ov[satT].url : '' %>" alt=""><span class="sat-cap" id="sat-cap"><%= satT ? ov[satT].title : '' %></span></div></div>
       </section>
@@ -126,7 +125,7 @@
     </div>
 
     <section data-panel-group="forest" data-panel="hien-trang" <%= tab==='hien-trang'?'':'hidden' %> class="card span-2">
-      <div class="card-h"><h2><%- ic('tree-fill') %> Hiện trạng rừng <%= D.forestAsOf %> theo 40 xã/phường</h2><a class="more" href="/thong-ke/xuat.xlsx"><%- ic('file-earmark-excel-fill') %> Tải Excel</a></div>
+      <div class="card-h"><h2><%- ic('tree-fill') %> Hiện trạng rừng <%= D.forestAsOf %> theo 40 xã/phường</h2><a class="more" href="/thong-ke/xuat.xlsx?nam=<%= D.forestYear %>"><%- ic('file-earmark-excel-fill') %> Tải Excel</a></div>
       <div class="card-b table-wrap">
         <table class="tbl" data-page-size="10" data-sortable><thead><tr><th>Xã/phường</th><th class="num">DT tự nhiên</th><th class="num">Có rừng</th><th class="num">Rừng tự nhiên</th><th class="num">Rừng trồng</th><th class="num">Trồng chưa thành rừng</th><th class="num">Che phủ (%)</th><th>Dòng nguồn</th></tr></thead>
         <tbody><% withStats.forEach(c => { const o = c.official; %><tr data-code="<%= c.code %>"><td><%= c.fullName %></td><td class="num"><%= fmt.num(o.natural_area_ha) %></td><td class="num"><%= fmt.num(o.established_forest_ha) %></td><td class="num"><%= fmt.num(o.natural_forest_ha) %></td><td class="num"><%= fmt.num(o.established_plantation_ha) %></td><td class="num"><%= fmt.num(o.immature_plantation_ha) %></td><td class="num"><%= fmt.num(o.official_forest_cover_percent, 2) %></td><td class="src"><%= o.source_sheet %>, dòng <%= o.source_row %></td></tr><% }) %></tbody>
@@ -136,18 +135,10 @@
     </section>
 
     <div data-panel-group="forest" data-panel="phan-loai" <%= tab==='phan-loai'?'':'hidden' %> class="grid span-2">
-      <div class="grid cols-2">
-        <section class="card">
-          <div class="card-h"><h2><%- ic('bar-chart-fill') %> Quy hoạch 3 loại rừng theo xã</h2></div>
-          <div class="card-b"><div class="chart-box" style="height:360px"><canvas id="ch-plan"></canvas></div></div>
-        </section>
-        <section class="card">
-          <div class="card-h"><h2><%- ic('layers-fill') %> Lớp phủ đất ESA WorldCover 2021</h2></div>
-          <div class="card-b"><div class="donut-wrap keep" style="grid-template-columns:200px minmax(0,1fr)"><div class="chart-box"><canvas id="ch-wc"></canvas></div>
-            <ul class="risk-list" style="font-size:12.5px"><% Object.entries(wc.aoi_worldcover_ha).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => { %><li><span class="dot" style="background:<%= wcColors[k] %>"></span><%= wc.classes[k] %><span class="v"><%= fmt.num(v) %> ha</span></li><% }) %></ul></div>
-            <p class="src" style="margin:6px 0 0">Lớp phủ tham khảo năm 2021; “cây gỗ” gồm rừng tự nhiên, rừng trồng và cây lâu năm, khác diện tích rừng pháp lý.</p></div>
-        </section>
-      </div>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('bar-chart-fill') %> Quy hoạch 3 loại rừng theo xã</h2><a class="more" href="?tab=lop-phu">Lớp phủ qua các năm <%- ic('chevron-right') %></a></div>
+        <div class="card-b"><div class="chart-box" style="height:360px"><canvas id="ch-plan"></canvas></div></div>
+      </section>
       <section class="card">
         <div class="card-h"><h2><%- ic('tree-fill') %> Các kiểu rừng cần phân biệt khi giám sát</h2><span class="badge b-gray" style="margin-left:auto">Ảnh minh họa</span></div>
         <div class="card-b grid" style="grid-template-columns:repeat(5,minmax(0,1fr))">
@@ -159,56 +150,38 @@
       </section>
     </div>
 
-    <% if (lc) { const fv = lc.field_validation; const ch = lc.forest_change_1991_2023; const rowsC = communes.map(c => ({ c, x: lc.by_commune[c.code] && lc.by_commune[c.code].forest_change_1991_2023 })).filter(r => r.x).sort((a, b) => (b.x.loss_ha - b.x.gain_ha) - (a.x.loss_ha - a.x.gain_ha)); %>
     <div data-panel-group="forest" data-panel="lop-phu" <%= tab === 'lop-phu' ? '' : 'hidden' %> class="grid span-2">
-      <section class="card"><div class="card-h"><h2><%- ic('map-fill') %> Bản đồ lớp phủ theo năm</h2></div><div class="card-b">
-        <div style="display:flex;flex-wrap:wrap;gap:8px"><% yearLayers.slice().reverse().forEach(yl => { yl.layers.forEach(it => { %><button type="button" class="btn btn-outline btn-sm" data-show-year="<%= it.id %>"><b><%= yl.year %></b>&nbsp;<%= it.kind === 'map' ? 'LPR' : '15 m' %></button><% }) }) %></div>
-        <p class="src" style="margin:8px 0 0">Bấm năm để hiện bản đồ ở khung phía trên. “15 m”: bản đồ lớp phủ giải đoán ảnh của dự án (số liệu thống kê bên dưới); “LPR”: bản đồ lớp phủ rừng của dự án theo năm. Danh sách lấy tự động từ các lớp đã xuất bản.</p></div></section>
-      <% if (classLatest) { const cl = classLatest; const tot = Object.values(cl.area_ha).reduce((a, b) => a + b, 0); %>
-      <section class="card"><div class="card-h"><h2><%- ic('grid-fill') %> Lớp phủ mới nhất: tháng <%= cl.month.slice(5) %>/<%= cl.month.slice(0, 4) %> (phân loại ảnh Sentinel-2)</h2><button type="button" class="btn btn-outline btn-sm" style="margin-left:auto" data-show-year-ov="class-<%= cl.month %>">Xem trên bản đồ</button></div>
-        <div class="card-b"><table class="tbl compact"><thead><tr><th>Lớp</th><th class="num">Diện tích (ha)</th><th class="num">Tỷ lệ</th></tr></thead><tbody>
-          <% cl.classes.forEach(k => { const v = cl.area_ha[k.label] || 0; %><tr><td><span class="dot" style="background:<%= k.color %>"></span> <%= k.label %></td><td class="num"><%= fmt.num(v) %></td><td class="num"><%= fmt.num(v / tot * 100, 1) %>%</td></tr><% }) %></tbody></table>
-          <p class="src" style="margin:6px 0 0">Phân loại tự động (Random Forest học từ <%= cl.samples %> mẫu thực địa dự án), lưới 100 m, độ chính xác đánh giá chéo <%= fmt.num(cl.accuracy * 100, 0) %>% (kappa <%= cl.kappa %>). 5 lớp, khác hệ 7 lớp của bản đồ dự án nên không cộng trừ trực tiếp với bảng 1991–2023; số liệu rừng chính thức theo <%= D.decision %>.</p></div></section>
-      <% } %>
-      <div class="note info">Dữ liệu thực tế do dự án cung cấp: bản đồ lớp phủ tỉnh Kon Tum từ ảnh vệ tinh các năm <%= lc.years.join(', ') %> (UTM 48N, 15 m, 7 lớp) và 389 mẫu thực địa năm 2025. “Rừng” ở đây là lớp phủ giải đoán ảnh, khác diện tích rừng pháp lý của QĐ 1047.</div>
-      <div class="grid" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)">
+      <% if (lcs && lcs.series.length) { const ys = lcs.series; const first = ys[0]; const last = ys[ys.length - 1]; const full = ys.filter(x => !x.partial); const prevKey = (full[full.length - 1] || last).key; %>
+      <div class="note info" style="margin:0">Lớp phủ theo năm <b><%= first.year %>–<%= last.year %></b> từ <b>Google Dynamic World</b> – bộ dữ liệu lớp phủ chuẩn hoá toàn cầu giải đoán từ ảnh Sentinel-2 (10 m), lấy lớp phổ biến nhất của mỗi ô 100 m trong năm<%= last.partial ? '; năm ' + last.year + ' tạm tính đến thời điểm hiện tại' : '' %>. “Cây gỗ” gồm rừng tự nhiên, rừng trồng và cây lâu năm nên khác diện tích rừng pháp lý theo <%= D.decision %>. Tự cập nhật khi có năm mới.</div>
+      <section class="card">
+        <div class="card-h"><h2><%- ic('bar-chart-fill') %> Diện tích các lớp phủ <%= first.year %>–<%= last.year %></h2>
+          <select class="input" id="lc-commune" style="width:auto;margin-left:auto;padding:5px 8px"><option value="">Toàn vùng</option><% communes.slice().sort((a,b)=>a.fullName.localeCompare(b.fullName,'vi')).forEach(c => { %><option value="<%= c.code %>"><%= c.fullName %></option><% }) %></select></div>
+        <div class="card-b"><div class="chart-box tall"><canvas id="ch-lc"></canvas></div>
+          <div class="table-wrap"><table class="tbl compact" style="margin-top:10px" id="lc-table"><thead><tr><th>Lớp phủ (ha)</th><% ys.forEach(y => { %><th class="num"><%= y.year %><%= y.partial ? '*' : '' %></th><% }) %></tr></thead><tbody></tbody></table></div>
+          <p class="src" style="margin:6px 0 0"><%= lcs.source %>.<%= last.partial ? ' * tạm tính.' : '' %></p></div>
+      </section>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))">
         <section class="card">
-          <div class="card-h"><h2><%- ic('bar-chart-fill') %> Diện tích các lớp phủ 1991 – 2014 – 2023</h2>
-            <select class="input" id="lc-commune" style="width:auto;margin-left:auto;padding:5px 8px"><option value="">Toàn vùng</option><% communes.slice().sort((a,b)=>a.fullName.localeCompare(b.fullName,'vi')).forEach(c => { %><option value="<%= c.code %>"><%= c.fullName %></option><% }) %></select></div>
-          <div class="card-b"><div class="chart-box tall"><canvas id="ch-lc"></canvas></div>
-            <table class="tbl compact" style="margin-top:10px" id="lc-table"><thead><tr><th>Lớp phủ</th><% lc.years.forEach(y => { %><th class="num"><%= y %> (ha)</th><% }) %><th class="num">Thay đổi 1991→2023</th></tr></thead><tbody></tbody></table></div>
+          <div class="card-h"><h2><%- ic('graph-up-arrow') %> Biến động cây gỗ</h2>
+            <span style="margin-left:auto;display:flex;gap:6px;align-items:center"><select class="input" id="lc-a" style="width:auto;padding:4px 8px"><% ys.forEach(y => { %><option value="<%= y.key %>" <%= y.key === first.key ? 'selected' : '' %>><%= y.year %></option><% }) %></select> → <select class="input" id="lc-b" style="width:auto;padding:4px 8px"><% ys.forEach(y => { %><option value="<%= y.key %>" <%= y.key === prevKey ? 'selected' : '' %>><%= y.year %><%= y.partial ? ' (tạm tính)' : '' %></option><% }) %></select></span></div>
+          <div class="card-b" id="lc-change"></div>
         </section>
-        <div class="grid">
-          <section class="card">
-            <div class="card-h"><h2><%- ic('graph-up-arrow') %> Biến động rừng 1991–2023</h2></div>
-            <div class="card-b grid cols-3" style="text-align:center">
-              <div><span class="muted">Rừng ổn định</span><br><strong style="font-size:20px;color:var(--forest)"><%= fmt.num(ch.stable_ha) %> ha</strong></div>
-              <div><span class="muted">Mất rừng</span><br><strong style="font-size:20px;color:var(--red)"><%= fmt.num(ch.loss_ha) %> ha</strong></div>
-              <div><span class="muted">Tăng rừng</span><br><strong style="font-size:20px;color:var(--blue)"><%= fmt.num(ch.gain_ha) %> ha</strong></div>
-            </div>
-            <div class="card-f">Xem bản đồ: lớp “Mất / tăng rừng 1991–2023” trên <a href="/ban-do?lop=lc-forest-change-1991-2023">Bản đồ WebGIS</a>.</div>
-          </section>
-          <section class="card">
-            <div class="card-h"><h2><%- ic('clipboard-check-fill') %> Kiểm chứng bằng mẫu thực địa 2025</h2></div>
-            <div class="card-b">
-              <table class="kv"><tr><td>Số mẫu</td><td><b><%= fv.samples %></b> điểm (<%= Object.entries(fv.by_label).map(([k, v]) => k + ' ' + v).join(', ') %>)</td></tr>
-                <tr><td>Khớp lớp phủ 2023</td><td><b><%= fmt.num(fv.landcover_2023.agreement * 100, 1) %>%</b> trên <%= fv.landcover_2023.compared %> mẫu so được</td></tr>
-                <tr><td>Khớp “cây gỗ” WorldCover 2021</td><td><b><%= fmt.num(fv.worldcover_2021_forest.agreement * 100, 1) %>%</b> trên <%= fv.worldcover_2021_forest.compared %> mẫu</td></tr></table>
-              <table class="tbl compact" style="margin-top:8px" data-page-size="6"><thead><tr><th>Nhãn mẫu → lớp phủ 2023</th><th class="num">Số mẫu</th></tr></thead><tbody>
-                <% Object.entries(fv.confusion).forEach(([k, n]) => { %><tr><td><%= k %></td><td class="num"><%= n %></td></tr><% }) %></tbody></table>
-              <p class="src"><%= fv.landcover_2023.note %>.</p>
-            </div>
-          </section>
-        </div>
+        <section class="card">
+          <div class="card-h"><h2><%- ic('grid-fill') %> Ma trận chuyển đổi lớp phủ (ha)</h2></div>
+          <div class="card-b table-wrap" id="lc-matrix"></div>
+        </section>
       </div>
       <section class="card">
-        <div class="card-h"><h2><%- ic('tree-fill') %> Mất và tăng rừng theo xã, 1991–2023</h2></div>
-        <div class="card-b table-wrap"><table class="tbl compact" data-sortable data-page-size="10"><thead><tr><th>Xã/phường</th><th class="num">Rừng 1991 (ha)</th><th class="num">Rừng 2014 (ha)</th><th class="num">Rừng 2023 (ha)</th><th class="num">Mất rừng (ha)</th><th class="num">Tăng rừng (ha)</th><th class="num">Thay đổi ròng (ha)</th></tr></thead><tbody>
-          <% rowsC.forEach(({ c, x }) => { const b = lc.by_commune[c.code]; %><tr data-code="<%= c.code %>"><td><%= c.fullName %></td><td class="num"><%= fmt.num(b['1991']['1']) %></td><td class="num"><%= fmt.num(b['2014']['1']) %></td><td class="num"><%= fmt.num(b['2023']['1']) %></td><td class="num" style="color:var(--red)"><%= fmt.num(x.loss_ha) %></td><td class="num" style="color:var(--blue)"><%= fmt.num(x.gain_ha) %></td><td class="num"><b><%= fmt.num(x.gain_ha - x.loss_ha) %></b></td></tr><% }) %>
-        </tbody></table><p class="src"><%= lc.scope %>. Nguồn: <%= lc.source %>.</p></div>
+        <div class="card-h"><h2><%- ic('tree-fill') %> Mất và tăng cây gỗ theo xã <span id="lc-pair-label"></span></h2></div>
+        <div class="card-b table-wrap"><table class="tbl compact" id="lc-communes" data-page-size="10" data-tools="Tìm xã/phường…"><thead><tr><th>Xã/phường</th><th class="num">Cây gỗ năm đầu (ha)</th><th class="num">Cây gỗ năm cuối (ha)</th><th class="num">Mất (ha)</th><th class="num">Tăng (ha)</th><th class="num">Thay đổi ròng (ha)</th></tr></thead><tbody></tbody></table></div>
       </section>
+      <% } else { %><div class="empty-state">Chưa có chuỗi lớp phủ theo năm.</div><% } %>
+      <% const ref = yearLayers.flatMap(yl => yl.layers.filter(it => it.project).map(it => ({ ...it, year: yl.year }))); if (ref.length) { %>
+      <section class="card"><div class="card-h"><h2><%- ic('map-fill') %> Bản đồ lớp phủ của dự án (chỉ để tham khảo, không dùng cho thống kê)</h2></div><div class="card-b">
+        <div style="display:flex;flex-wrap:wrap;gap:8px"><% ref.sort((a, b) => a.year - b.year).forEach(it => { %><button type="button" class="btn btn-outline btn-sm" data-show-year="<%= it.id %>"><b><%= it.year %></b>&nbsp;<%= it.kind === 'map' ? 'LPR' : '15 m' %></button><% }) %></div>
+        <p class="src" style="margin:8px 0 0">Bản đồ do dự án cung cấp (ảnh/GeoTIFF), hiển thị để đối chiếu trực quan; diện tích và biến động ở trên tính từ dữ liệu chuẩn hoá.</p></div></section>
+      <% } %>
     </div>
-    <% } %>
     <% catPanels.forEach(([id, key, label, choro, color]) => { const rows = byCat(key); const tot = rows.reduce((a, c) => a + c.official[key], 0); %>
     <section data-panel-group="forest" data-panel="<%= id %>" data-choro-panel="<%= choro %>" <%= tab === id ? '' : 'hidden' %> class="card span-2">
       <div class="card-h"><h2><%- ic('tree-fill') %> <%= label %> theo xã/phường</h2><span class="more muted" style="font-weight:400"><%= rows.length %> xã · tổng <%= fmt.num(tot) %> ha</span></div>
@@ -227,7 +200,7 @@
 <%- include('../partials/chartjs') %>
 <%- include('../partials/mapjs') %>
 <%- include('../partials/page-data', { pageData: {
-  overlays, summary: s, loss: fcgHist, wc, lc: lc ? { years: lc.years, classes: lc.classes, aoi: lc.aoi_by_year, by_commune: Object.fromEntries(Object.entries(lc.by_commune).map(([k, v]) => [k, Object.fromEntries(lc.years.map(y => [y, v[String(y)]]))])) } : null,
+  overlays, summary: s, loss: fcgHist, lcs: lcs ? { series: lcs.series, classes: lcs.classes, aoi: lcs.aoi, by_commune: lcs.by_commune, pairs: lcs.pairs, forest: String(lcs.forest_class) } : null, names: Object.fromEntries(communes.map(c => [c.code, c.fullName])),
   cats: Object.fromEntries(catPanels.map(([id, key]) => [key, byCat(key).slice(0, 15).map(c => ({ name: c.name, v: c.official[key] }))])),
   plan: withStats.map(c => ({ name: c.name, sp: c.official.special_use_planning_ha, pr: c.official.protection_planning_ha, pd: c.official.production_planning_ha })).sort((a,b)=>(b.sp+b.pr+b.pd)-(a.sp+a.pr+a.pd)) } }) %>
 <script src="/js/pages/forest.js"></script>

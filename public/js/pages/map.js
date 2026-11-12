@@ -21,7 +21,7 @@
       options: { plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, suggestedMax: 4, ticks: { precision: 0 } } } } });
   }
   KT.fetchCached('/api/public/fire/hotspots').then((fc) => { hsFeatures = fc.features; drawHotspot7(''); showFirstHotspot(); });
-  KT.fetchCached('/api/public/boundaries/communes').then((fc) => {
+  KT.fetchCached(`/api/public/boundaries/communes${KT.D && KT.D.statYearParam ? `?nam=${KT.D.statYearParam}` : ''}`).then((fc) => {
     const sel = document.getElementById('hs-commune');
     fc.features.map((f) => f.properties).sort((a, b) => a.fullName.localeCompare(b.fullName, 'vi')).forEach((p) => { sel.insertAdjacentHTML('beforeend', `<option value="${p.code}">${KT.esc(p.fullName)}</option>`); });
     forestBy = Object.fromEntries(fc.features.map((f) => [f.properties.code, f.properties.forest_ha || 0]));

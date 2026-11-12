@@ -18,7 +18,7 @@ const publicGuide = {
     },
     {
       id: 'ban-do', title: '2. Bản đồ WebGIS', icon: 'map-fill', img: 'p-map', caption: 'Bản đồ WebGIS: cây lớp bên trái, bản đồ ở giữa, thông tin đối tượng và dự báo bên phải',
-      intro: 'Trang Bản đồ cho phép xem chồng nhiều lớp dữ liệu: ranh giới hành chính, tài nguyên rừng, lớp phủ 1991–2023, biến động và dự báo mất rừng, điểm nóng và nguy cơ cháy, thời tiết, phản ánh, bản đồ chuyên đề đã xuất bản.',
+      intro: 'Trang Bản đồ cho phép xem chồng nhiều lớp dữ liệu: ranh giới hành chính, tài nguyên rừng, lớp phủ theo năm (Dynamic World), biến động và dự báo mất rừng, điểm nóng và nguy cơ cháy, thời tiết, phản ánh, bản đồ chuyên đề đã xuất bản.',
       steps: [
         'Khung “Lớp bản đồ” (trái) có hai thẻ: “Chuyên đề” (các lớp nghiệp vụ, chia nhóm HÀNH CHÍNH, CHUYÊN ĐỀ RỪNG, CẢNH BÁO CHÁY RỪNG, MÔI TRƯỜNG & HIỆN TRƯỜNG, BẢN ĐỒ CHUYÊN ĐỀ) và “Dữ liệu nền” (bản đồ nền, ảnh Sentinel-2, địa hình, NDVI).',
         'Đánh dấu ô vuông để bật/tắt lớp. Dòng “Đang bật N lớp” cho biết số lớp đang hiển thị; “Tắt lớp chuyên đề” tắt nhanh tất cả.',
@@ -37,36 +37,38 @@ const publicGuide = {
         'Chú giải của các lớp đang bật hiện ở góc dưới bản đồ.',
       ],
       notes: [
-        { type: 'tip', text: 'Có thể mở thẳng một lớp bằng liên kết, ví dụ /ban-do?lop=lc-2023; thêm #kinh_độ,vĩ_độ,mức_zoom để mở đúng vị trí.' },
+        { type: 'tip', text: 'Có thể mở thẳng một lớp bằng liên kết, ví dụ /ban-do?lop=dw-2025; thêm #kinh_độ,vĩ_độ,mức_zoom để mở đúng vị trí.' },
       ],
     },
     {
-      id: 'ban-do-chi-tiet', title: '3. Xem chi tiết lớp phủ và bản đồ chuyên đề', icon: 'zoom-in', img: 'p-map-lc', caption: 'Lớp phủ năm 2023 (15 m) phóng to: ranh giới các lớp sắc nét, không bị nhoè',
-      intro: 'Các lớp phân loại (lớp phủ 1991/2014/2023, biến động rừng 1991–2023, WorldCover, mất tán cây Hansen) và bản đồ GeoTIFF đã xuất bản được chia thành ô ảnh (tile) theo từng mức phóng, giữ đúng độ phân giải gốc 10–30 m khi phóng to.',
+      id: 'ban-do-chi-tiet', title: '3. Xem chi tiết lớp phủ và bản đồ chuyên đề', icon: 'zoom-in', img: 'p-map-lc', caption: 'Lớp phủ theo năm (Dynamic World) và bản đồ chuyên đề trên WebGIS',
+      intro: 'Nhóm “Lớp phủ theo năm (Dynamic World, chuẩn hoá)” có một lớp cho mỗi năm từ 2016 đến năm hiện tại (năm hiện tại tạm tính), tự thêm khi có năm mới. Bản đồ lớp phủ do dự án cung cấp (LPR, 15 m) và bản đồ GeoTIFF đã xuất bản nằm ở nhóm “tham khảo”, chỉ để đối chiếu trực quan.',
       steps: [
         'Bật lớp, rồi phóng to bằng con lăn chuột hoặc nút “+”: ảnh tự tải ô chi tiết hơn.',
-        'Mỗi điểm ảnh khi phóng to tối đa tương ứng 15 m ngoài thực địa (lớp phủ dự án).',
+        'Lớp Dynamic World hiển thị ở lưới 100 m; mất tán cây Hansen 30 m; bản đồ GeoTIFF giữ độ phân giải gốc.',
         'Bản đồ chuyên đề GeoTIFF do cơ quan xuất bản nằm ở nhóm “BẢN ĐỒ CHUYÊN ĐỀ”; nút ⋯ hiện đơn vị, năm và sai số nắn chỉnh (nếu có).',
       ],
       notes: [{ type: 'warn', text: 'Lớp “Rừng” trong bản đồ lớp phủ là kết quả giải đoán ảnh vệ tinh, không thay thế hiện trạng rừng pháp lý theo kết quả theo dõi diễn biến rừng.' }],
     },
     {
       id: 'tai-nguyen', title: '4. Tài nguyên rừng', icon: 'tree-fill', img: 'p-forest', caption: 'Trang Tài nguyên rừng',
-      intro: 'Xem hiện trạng rừng 31/12/2025 theo 40 xã/phường, quy hoạch 3 loại rừng, lớp phủ đất, biến động tán rừng và lớp phủ 1991–2023 của dự án.',
+      intro: 'Xem hiện trạng rừng theo 40 xã/phường theo quyết định công bố mới nhất (chọn được năm số liệu khác nếu đã nạp), quy hoạch 3 loại rừng, biến động tán rừng và lớp phủ qua các năm.',
       steps: [
-        'Chọn thẻ ở đầu trang: Tổng quan, Hiện trạng rừng, Phân loại rừng, Biến động, Rừng phòng hộ – đặc dụng, Lớp phủ, Dữ liệu và tài liệu.',
+        'Chọn thẻ ở đầu trang: Tổng quan, Hiện trạng rừng, Phân loại rừng, Rừng đặc dụng/phòng hộ/sản xuất, Lớp phủ qua các năm.',
+        'Thẻ “Lớp phủ qua các năm”: biểu đồ diện tích 8 lớp phủ mọi năm (chọn toàn vùng hoặc một xã); chọn “năm đầu → năm cuối” để xem cây gỗ giữ nguyên/mất/tăng, ma trận chuyển đổi lớp phủ và bảng mất – tăng cây gỗ theo xã.',
+        'Ô “Năm” ở khung bộ lọc: số liệu hiện trạng công bố (các năm đã nạp) hoặc lớp phủ Dynamic World từng năm; bản đồ lớp phủ của dự án ghi rõ “tham khảo”.',
         'Khung “Bộ lọc dữ liệu”: chọn năm, loại rừng, đơn vị hành chính, các lớp hiển thị thêm rồi bấm “Áp dụng bộ lọc”.',
         'Nhấp vào một xã trên bản đồ hoặc trong bảng để xem số liệu riêng của xã.',
       ],
-      notes: [{ type: 'tip', text: 'Số liệu hiện trạng lấy theo quyết định công bố của UBND tỉnh; bản đồ tô theo xã vì chưa có polygon lô/khoảnh được duyệt công khai.' }],
+      notes: [{ type: 'tip', text: 'Số liệu hiện trạng lấy theo quyết định công bố của UBND tỉnh; bản đồ tô theo xã vì chưa có polygon lô/khoảnh được duyệt công khai.' }, { type: 'warn', text: 'Thống kê lớp phủ dùng Google Dynamic World (chuẩn hoá toàn cầu). “Cây gỗ” gồm cả rừng trồng và cây lâu năm nên khác diện tích rừng pháp lý. Bản đồ ảnh/GeoTIFF/PDF do dự án cung cấp không được dùng để tính số liệu.' }],
     },
     {
       id: 'bien-dong', title: '5. Biến động và dự báo mất rừng', icon: 'graph-up-arrow', img: 'p-change', caption: 'Trang Biến động và dự báo mất rừng',
-      intro: 'Theo dõi các vùng nghi vấn biến động phát hiện từ chuỗi ảnh Sentinel-2 hằng tháng, bản đồ xác suất mất rừng 2025–2026 và lịch sử mất tán cây 2001–2024.',
+      intro: 'Theo dõi các vùng nghi vấn biến động phát hiện từ chuỗi ảnh Sentinel-2 hằng tháng, bản đồ xác suất mất rừng cho giai đoạn dự báo kế tiếp và lịch sử mất tán cây Hansen từ 2001 đến năm mới nhất đã phát hành (tự nâng phiên bản).',
       steps: [
         'Danh sách “Biến động nghi vấn” xếp theo mức độ; nhấp một dòng để bay tới vị trí và xem “Chi tiết điểm biến động” (chênh lệch NDVI/NBR, diện tích, trạng thái xác minh).',
         'Bảng “Dự báo nguy cơ mất rừng theo xã” cho biết xác suất và diện tích dự báo; phần “Kiểm định mô hình” trình bày độ tin cậy (AUC).',
-        '“Ma trận chuyển đổi lớp phủ” cho biết diện tích chuyển từ lớp này sang lớp khác giữa các năm 1991, 2014, 2023.',
+        'Cột “Mất tán cây” trong bảng dự báo: chọn 5 năm gần nhất hoặc từng năm. Ma trận chuyển đổi lớp phủ xem ở Tài nguyên rừng › Lớp phủ qua các năm.',
       ],
       notes: [
         { type: 'warn', text: 'Điểm “nghi vấn” chưa phải kết luận mất rừng. Chỉ khi cán bộ xác minh thực địa, trạng thái mới chuyển thành “Xác nhận mất rừng” hoặc “Không phải mất rừng / Rụng lá theo mùa”.' },
@@ -101,18 +103,19 @@ const publicGuide = {
       notes: [{ type: 'tip', text: 'Danh sách công khai chỉ hiện phản ánh đã được cán bộ cho phép công khai; thông tin người gửi luôn được bảo mật. Mỗi địa chỉ gửi tối đa 5 phản ánh/giờ để chống spam.' }],
     },
     {
-      id: 'tai-lieu', title: '8. Tài liệu – Bản đồ PDF', icon: 'file-earmark-pdf-fill', img: 'p-docs', caption: 'Trang Tài liệu – Bản đồ PDF',
-      intro: 'Tra cứu văn bản pháp lý, báo cáo, dữ liệu chuyên ngành và bản đồ chuyên đề (PDF, GeoTIFF, ảnh bản đồ) đã được xuất bản.',
+      id: 'tai-lieu', title: '8. Tài liệu, bản đồ PDF', icon: 'file-earmark-pdf-fill', img: 'p-docs', caption: 'Trang Tài liệu',
+      intro: 'Tra cứu văn bản pháp lý, báo cáo, dữ liệu chuyên ngành và bản đồ chuyên đề dạng PDF đã xuất bản. Bản đồ GeoTIFF/ảnh bản đồ là dữ liệu bản đồ – xem trên trang Bản đồ (nhóm tham khảo) hoặc qua API chia sẻ.',
       steps: [
         'Chọn danh mục ở khung trái hoặc lọc theo loại tài liệu, cơ quan ban hành, từ khoá.',
         'Nhấp một tài liệu để xem trước ngay trên trang; khung thông tin hiển thị số hiệu, ngày ban hành, dung lượng, mã SHA-256 để kiểm tra tính toàn vẹn.',
-        'Bấm “Tải về” để lưu tệp gốc. Bản đồ có toạ độ còn có nút “Xem trên bản đồ”.',
+        'Bấm “Tải về” để lưu tệp gốc. Bản đồ PDF có bản GeoTIFF/ảnh tương ứng đã thành lớp còn có nút “Xem trên bản đồ”.',
       ],
     },
     {
       id: 'thong-ke', title: '9. Thống kê – báo cáo', icon: 'bar-chart-fill', img: 'p-stats', caption: 'Trang Thống kê',
-      intro: 'Tổng hợp số liệu theo xã: rừng, mất tán cây, điểm nóng theo tháng, số ngày theo cấp nguy cơ cháy, dự báo mất rừng.',
+      intro: 'Tổng hợp số liệu theo xã: rừng, mất tán cây, điểm nóng theo tháng, số ngày theo cấp nguy cơ cháy, dự báo mất rừng. Mọi năm, giai đoạn trên trang lấy từ dữ liệu mới nhất.',
       steps: [
+        'Ô “Năm số liệu”: chọn năm hiện trạng rừng đã nạp (mặc định năm mới nhất); bảng, bản đồ và tệp xuất theo năm đã chọn.',
         'Chọn chỉ tiêu để tô màu bản đồ thống kê theo xã.',
         'Phần “Xuất báo cáo”: tải bảng Excel (.xlsx) hoặc CSV, kèm ghi chú nguồn dữ liệu.',
       ],
@@ -200,7 +203,7 @@ const adminGuide = {
     },
     {
       id: 'api-lop', title: '3b. API chia sẻ và quản lý lớp (tích hợp hệ thống khác)', icon: 'code-slash', img: null, caption: '',
-      intro: 'Chia sẻ: GET /api/v1/catalog (công khai, không cần đăng nhập) trả về mọi lớp đang hiển thị – ảnh raster kèm toạ độ góc và ô ảnh XYZ, bản đồ chuyên đề, GeoJSON lớp vector, lớp tô màu theo xã – để phần mềm GIS khác dùng lại. Quản lý: hệ thống khác tạo, cập nhật, công bố lớp vector qua /api/v1/layers và cấu hình/xoá lớp qua /api/v1/catalog (cần token). Trang Quản trị › Dữ liệu không gian › “API quản lý lớp” có đủ endpoint, ví dụ lệnh và mã các lớp hiện có; mô tả máy đọc được: GET /api/v1.',
+      intro: 'Đường dẫn trong API tự theo tên miền đang truy cập (khi chạy trên VPS sau Caddy là https://<tên miền>); có thể cố định bằng biến PUBLIC_BASE_URL trong .env. Chia sẻ: GET /api/v1/catalog (công khai, không cần đăng nhập) trả về mọi lớp đang hiển thị – ảnh raster kèm toạ độ góc và ô ảnh XYZ, bản đồ chuyên đề, GeoJSON lớp vector, lớp tô màu theo xã – để phần mềm GIS khác dùng lại. Quản lý: hệ thống khác tạo, cập nhật, công bố lớp vector qua /api/v1/layers và cấu hình/xoá lớp qua /api/v1/catalog (cần token). Trang Quản trị › Dữ liệu không gian › “API quản lý lớp” có đủ endpoint, ví dụ lệnh và mã các lớp hiện có; mô tả máy đọc được: GET /api/v1.',
       steps: [
         'Lấy token: POST /api/mobile/auth/login với {"username","password"} của tài khoản cán bộ → access_token (gia hạn bằng /api/mobile/auth/refresh).',
         'Gửi kèm header Authorization: Bearer <access_token>. Đọc: mọi cán bộ; ghi: tài khoản có quyền quản lý dữ liệu (Quản trị hệ thống, Cán bộ chuyên môn).',
@@ -212,8 +215,8 @@ const adminGuide = {
       notes: [{ type: 'tip', text: 'Ví dụ: curl -H "Authorization: Bearer $TOKEN" -F title="Chòi canh lửa" -F file=@choi_canh.zip https://<máy chủ>/api/v1/layers. Mọi thao tác qua API được ghi nhật ký như trên giao diện.' }],
     },
     {
-      id: 'ban-do', title: '4. Bản đồ PDF / GeoTIFF – danh sách', icon: 'map-fill', img: 'a-maps', caption: 'Danh sách bản đồ (PL.1)',
-      intro: 'Quản lý bản đồ chuyên đề dạng PDF, GeoTIFF, ảnh bản đồ (JPG/PNG/TIFF) và gói ArcGIS (.mpk) theo quy trình: Tải lên → Xử lý → (Nắn chỉnh) → Gửi duyệt → Xuất bản.',
+      id: 'ban-do', title: '4. Dữ liệu bản đồ (GeoTIFF/ảnh) và Bản đồ PDF', icon: 'map-fill', img: 'a-maps', caption: 'Danh sách dữ liệu bản đồ',
+      intro: 'Hai mục tách riêng trên menu: “Dữ liệu bản đồ” (GeoTIFF, ảnh bản đồ JPG/PNG/TIFF, gói .mpk – sau khi duyệt thành lớp tham khảo trên WebGIS và API) và “Bản đồ PDF” (tài liệu, hiện ở trang Tài liệu). Cả hai theo quy trình: Tải lên → Xử lý → (Nắn chỉnh) → Gửi duyệt → Xuất bản. Dữ liệu bản đồ của dự án không dùng để tính thống kê.',
       steps: [
         'Lọc theo trạng thái, chuyên đề, định dạng hoặc tìm theo tên.',
         'Trạng thái: Đã tải lên → Đang xử lý → Cần nắn chỉnh / Chờ gửi duyệt → Chờ duyệt → Đã xuất bản; có thể Trả về hiệu chỉnh, Thu hồi; Lỗi xử lý nếu tệp hỏng.',
@@ -239,7 +242,7 @@ const adminGuide = {
         'Nắn chỉnh (PDF/ảnh không có toạ độ): chọn trang, nhấp điểm trên ảnh và nhập kinh độ/vĩ độ tương ứng (tối thiểu 3 điểm cho affine, 6 điểm cho đa thức bậc 2). Hệ thống báo sai số RMSE (m) và sai số từng điểm; RMSE lớn cần kiểm tra lại điểm khống chế.',
         'Cập nhật phiên bản: tải tệp mới ở mục “Phiên bản tệp”; tệp cũ và lịch sử công bố được giữ.',
         'Cán bộ bấm “Gửi duyệt”. Quản trị “Xuất bản” (ghi chú duyệt), “Trả về hiệu chỉnh” (kèm lý do) hoặc “Thu hồi” bản đã công bố.',
-        'Bản đồ có toạ độ được xuất bản sẽ hiện trong nhóm “BẢN ĐỒ CHUYÊN ĐỀ” trên trang Bản đồ; mọi bản đồ công khai hiện ở trang Tài liệu.',
+        'Bản đồ có toạ độ được xuất bản sẽ hiện trong nhóm “BẢN ĐỒ CHUYÊN ĐỀ” trên trang Bản đồ; bản đồ PDF công khai hiện ở trang Tài liệu.',
         'Ảnh bản đồ toàn tỉnh không có toạ độ (xuất từ bố cục): thẻ “Tự định vị theo hình tỉnh” tách đường viền tỉnh trên ảnh, khớp với ranh giới tỉnh thật và báo độ trùng khớp (IoU) cùng sai số ranh giới (m). Đạt ngưỡng thì bấm “Duyệt hiển thị lớp trên bản đồ”.',
         'Kiểm soát chất lượng: lớp chỉ hiện trên bản đồ khi nắn chỉnh có RMSE ≤ 50 m hoặc tự định vị sai số ≤ 500 m; bản đồ PDF chỉ là tài liệu, không hiển thị thành lớp.',
       ],
@@ -247,7 +250,7 @@ const adminGuide = {
     },
     {
       id: 'anh-ve-tinh', title: '7. Ảnh vệ tinh và tài nguyên rừng', icon: 'globe2', img: 'a-imagery', caption: 'Ảnh vệ tinh Sentinel-2 theo tháng',
-      intro: 'Trang “Ảnh vệ tinh” liệt kê ảnh tổng hợp Sentinel-2 theo tháng (tỷ lệ điểm ảnh hợp lệ, chỉ số NDVI/NDMI/NBR); trang “Tài nguyên rừng” tổng hợp số liệu rừng theo xã và lớp phủ dự án.',
+      intro: 'Trang “Ảnh vệ tinh” liệt kê ảnh tổng hợp Sentinel-2 theo tháng (tỷ lệ điểm ảnh hợp lệ, chỉ số NDVI/NDMI/NBR); trang “Tài nguyên rừng” có hai thẻ: “Hiện trạng rừng (số liệu công bố)” – nạp số liệu năm mới từ tệp Excel biểu 4 của quyết định (tải lên → kiểm tra khớp 40 xã → xác nhận), và “Chuỗi lớp phủ hằng năm” – trạng thái dữ liệu Dynamic World từng năm, nút “Cập nhật ngay”.',
       steps: [
         'Thẻ “Chuỗi ảnh hằng tháng”: tỷ lệ điểm ảnh hợp lệ (không mây) từng tháng; nhấp ô tháng để xem ảnh màu tự nhiên; “GeoTIFF” tải ảnh gốc 6 băng (B2, B3, B4, B8, B11, B12) + số quan sát, 100 m.',
         'Thẻ “Phân loại ảnh”: chọn tháng (nên chọn tháng mùa khô ít mây) → “Chạy phân loại”. Mô hình Random Forest học từ 389 mẫu thực địa Mau_KON_TUM_2025, phân 5 lớp; bảng kết quả ghi độ chính xác (đánh giá chéo), kappa, diện tích từng lớp; xem ảnh, tải GeoTIFF; “Công bố” để hiện trên bản đồ công khai.',
@@ -329,7 +332,7 @@ const adminGuide = {
     {
       id: 'tai-lieu', title: '12. Tài liệu', icon: 'file-earmark-pdf-fill', img: 'a-docs', caption: 'Quản lý tài liệu',
       intro: 'Tải lên văn bản, báo cáo PDF (≤ 40 MB) để công bố ở trang Tài liệu.',
-      steps: ['Chọn tệp PDF, nhập tên, danh mục, số hiệu, cơ quan ban hành, ngày ban hành → “Tải lên”.', '“Sửa” ở cột thao tác để cập nhật thông tin tài liệu đã tải lên; tìm kiếm, sắp xếp, chọn số dòng ngay trên bảng.', 'Bản đồ PDF/GeoTIFF nên đưa vào mục “Bản đồ PDF / GeoTIFF” để có quy trình duyệt và xem trước.'],
+      steps: ['Chọn tệp PDF, nhập tên, danh mục, số hiệu, cơ quan ban hành, ngày ban hành → “Tải lên”.', '“Sửa” ở cột thao tác để cập nhật thông tin tài liệu đã tải lên; tìm kiếm, sắp xếp, chọn số dòng ngay trên bảng.', 'Bản đồ PDF đưa vào mục “Bản đồ PDF”, GeoTIFF/ảnh bản đồ đưa vào “Dữ liệu bản đồ” để có quy trình duyệt và xem trước.'],
     },
     {
       id: 'nguoi-dung', title: '13. Người dùng và phân quyền', icon: 'people-fill', img: 'a-users', caption: 'Quản lý người dùng (chỉ quản trị)',

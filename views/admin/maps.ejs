@@ -1,18 +1,22 @@
 <%- include('_top') %>
 <% const pg = { items: list, offset: 0 }; const fmtBadge = { geotiff: 'b-green', pdf: 'b-red', raster_image: 'b-purple', package: 'b-gray' }; const fmtShort = { geotiff: 'GeoTIFF', pdf: 'PDF', raster_image: 'Ảnh bản đồ', package: 'Gói MPK' }; %>
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-  <% if (can('maps.manage')) { %><a class="btn btn-primary" href="/quan-tri/ban-do/moi"><%- ic('plus-lg') %> Thêm bản đồ</a><% } %>
+  <% if (can('maps.manage')) { %><a class="btn btn-primary" href="/quan-tri/ban-do/moi<%= pdf ? '?loai=pdf' : '' %>"><%- ic('plus-lg') %> Thêm bản đồ</a><% } %>
   <a class="btn btn-outline" href="<%= pageUrl(1) %>&xuat=csv"><%- ic('cloud-arrow-down-fill') %> Xuất dữ liệu</a>
-  <a class="btn btn-outline" href="/quan-tri/ban-do"><%- ic('arrow-repeat') %> Làm mới</a>
+  <a class="btn btn-outline" href="?loai=<%= pdf ? 'pdf' : 'raster' %>"><%- ic('arrow-repeat') %> Làm mới</a>
   <form class="search-box" style="margin-left:auto" action="/quan-tri/ban-do"><%- ic('search') %><input name="q" value="<%= filter.q || '' %>" placeholder="Tìm kiếm bản đồ..." style="width:260px"><% if (filter.loai) { %><input type="hidden" name="loai" value="<%= filter.loai %>"><% } %></form>
 </div>
+<% if (pdf) { %>
+<div class="note info" style="margin:0 0 12px">Bản đồ PDF là <b>tài liệu</b> (xem/tải ở trang Tài liệu), không hiển thị thành lớp và không dùng cho thống kê. Bản đồ có tọa độ để hiển thị trên WebGIS quản lý ở <a href="/quan-tri/ban-do?loai=raster">Dữ liệu bản đồ (GeoTIFF / ảnh)</a>.</div>
+<% } else { %>
+<div class="note info" style="margin:0 0 12px">Dữ liệu bản đồ (GeoTIFF, ảnh bản đồ đã nắn chỉnh) sau khi duyệt sẽ thành <b>lớp bản đồ tham khảo</b> trên WebGIS và API chia sẻ; không dùng để tính số liệu thống kê. Bản đồ dạng PDF quản lý ở <a href="/quan-tri/ban-do?loai=pdf">Bản đồ PDF</a>.</div>
 <div class="adm-tabs">
-  <a class="<%= !filter.loai ? 'on' : '' %>" href="/quan-tri/ban-do">Tất cả (<%= counts.all %>)</a>
-  <a class="<%= filter.loai === 'geotiff' ? 'on' : '' %>" href="?loai=geotiff">GeoTIFF (Raster) (<%= counts.geotiff || 0 %>)</a>
-  <a class="<%= filter.loai === 'pdf' ? 'on' : '' %>" href="?loai=pdf">PDF bản đồ (<%= counts.pdf || 0 %>)</a>
+  <a class="<%= !filter.loai || filter.loai === 'raster' ? 'on' : '' %>" href="?loai=raster">Tất cả (<%= counts.raster %>)</a>
+  <a class="<%= filter.loai === 'geotiff' ? 'on' : '' %>" href="?loai=geotiff">GeoTIFF (<%= counts.geotiff || 0 %>)</a>
   <a class="<%= filter.loai === 'raster_image' ? 'on' : '' %>" href="?loai=raster_image">Ảnh bản đồ (<%= counts.raster_image || 0 %>)</a>
   <a class="<%= filter.loai === 'package' ? 'on' : '' %>" href="?loai=package">Khác (<%= counts.package || 0 %>)</a>
 </div>
+<% } %>
 <section class="card">
   <div class="card-b">
     <form class="filters"><% if (filter.loai) { %><input type="hidden" name="loai" value="<%= filter.loai %>"><% } %>

@@ -1,7 +1,7 @@
 <%- include('_top', { needsMap: true }) %>
 <% const icon = { hotspot: 'fire', fire_danger: 'temperature', forest_change: 'satellite' }; const tone = { info: 'b-blue', warn: 'b-orange', danger: 'b-red', ok: 'b-green', muted: 'b-gray' }; %>
 <div class="kpi-cards" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:16px">
-  <div class="card kc"><%- cicon('forest') %><div><span>Diện tích có rừng</span><strong><%= fmt.num(summary.established_forest_ha) %> ha</strong><span class="sub">31/12/2025</span></div></div>
+  <div class="card kc"><%- cicon('forest') %><div><span>Diện tích có rừng</span><strong><%= fmt.num(summary.established_forest_ha) %> ha</strong><span class="sub"><%= D.forestAsOf %></span></div></div>
   <div class="card kc"><%- cicon('plantation') %><div><span>Tỷ lệ có rừng</span><strong><%= fmt.num(summary.cover_percent_computed, 1) %>%</strong><span class="sub">40 xã</span></div></div>
   <div class="card kc"><%- cicon('fire') %><div><span>Điểm nóng (7 ngày)</span><strong><%= hotspots.length %></strong><span class="sub"><%= hotspots.filter(h => h.status === 'new').length %> chưa xử lý</span></div></div>
   <div class="card kc"><%- cicon('violation') %><div><span>Biến động nghi vấn</span><strong><%= candidates %></strong><span class="sub">xã cấp cháy III+: <%= peak %></span></div></div>

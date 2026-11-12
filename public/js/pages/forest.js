@@ -61,9 +61,6 @@
     KT.chart('ch-plan', { type: 'bar', data: { labels: P.plan.map((x) => x.name), datasets: [
       { label: 'QH đặc dụng', data: P.plan.map((x) => x.sp), backgroundColor: '#006b38' }, { label: 'QH phòng hộ', data: P.plan.map((x) => x.pr), backgroundColor: '#75bb25' }, { label: 'QH sản xuất', data: P.plan.map((x) => x.pd), backgroundColor: '#f8ce42' }] },
       options: { scales: { x: { stacked: true, ticks: { autoSkip: false, maxRotation: 70, font: { size: 10 } } }, y: { stacked: true } } } });
-    const colors = { 10: '#006400', 20: '#ffbb22', 30: '#ffff4c', 40: '#f096ff', 50: '#fa0000', 60: '#b4b4b4', 80: '#0064c8', 90: '#0096a0' };
-    const ks = Object.keys(P.wc.aoi_worldcover_ha).sort((a, b) => P.wc.aoi_worldcover_ha[b] - P.wc.aoi_worldcover_ha[a]);
-    KT.donut('ch-wc', ks.map((k) => P.wc.classes[k]), ks.map((k) => P.wc.aoi_worldcover_ha[k]), ks.map((k) => colors[k]));
   }
   function drawCat(key) {
     if (done[key]) return; done[key] = true;
@@ -71,28 +68,49 @@
     KT.chart(c, { type: 'bar', data: { labels: rows.map((r) => r.name), datasets: [{ label: 'ha', data: rows.map((r) => r.v), backgroundColor: c.dataset.color, borderRadius: 3 }] },
       options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { y: { ticks: { font: { size: 10.5 } } } } } });
   }
+  // ---------- Lớp phủ qua các năm (Google Dynamic World, chuẩn hoá) ----------
+  const L = P.lcs;
   let lcChart = null;
+  const lcKeys = L ? Object.keys(L.classes) : [];
   function drawLandcover(code) {
-    if (!P.lc) return;
-    const src = code ? P.lc.by_commune[code] : P.lc.aoi;
-    const ks = Object.keys(P.lc.classes);
-    const yr = (y) => src[y] || src[String(y)] || {};
+    if (!L) return;
+    const src = (code ? L.by_commune[code] : L.aoi) || {};
+    const yr = (k) => src[k] || {};
     if (lcChart) lcChart.destroy();
-    lcChart = KT.chart('ch-lc', { type: 'bar', data: { labels: P.lc.years.map(String), datasets: ks.map((k) => ({ label: P.lc.classes[k].label, data: P.lc.years.map((y) => yr(y)[k] || 0), backgroundColor: P.lc.classes[k].color })) },
-      options: { scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: (v) => KT.num(v) } } }, plugins: { legend: { position: 'bottom' } } } });
-    document.querySelector('#lc-table tbody').innerHTML = ks.map((k) => {
-      const a = yr(P.lc.years[0])[k] || 0; const b = yr(P.lc.years[P.lc.years.length - 1])[k] || 0;
-      return `<tr><td><span class="dot" style="background:${P.lc.classes[k].color}"></span> ${KT.esc(P.lc.classes[k].label)}</td>${P.lc.years.map((y) => `<td class="num">${KT.num(yr(y)[k] || 0)}</td>`).join('')}<td class="num" style="color:${b - a < 0 ? 'var(--red)' : 'var(--forest)'}">${b - a > 0 ? '+' : ''}${KT.num(b - a)}</td></tr>`;
-    }).join('');
+    lcChart = KT.chart('ch-lc', { type: 'bar', data: { labels: L.series.map((s) => s.year + (s.partial ? '*' : '')), datasets: lcKeys.map((k) => ({ label: L.classes[k].label, data: L.series.map((s) => yr(s.key)[k] || 0), backgroundColor: L.classes[k].color })) },
+      options: { scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: (x) => KT.num(x) } } }, plugins: { legend: { position: 'bottom' } } } });
+    document.querySelector('#lc-table tbody').innerHTML = lcKeys.filter((k) => L.series.some((s) => yr(s.key)[k])).map((k) => `<tr><td><span class="dot" style="background:${L.classes[k].color}"></span> ${KT.esc(L.classes[k].label)}</td>${L.series.map((s) => `<td class="num">${KT.num(yr(s.key)[k] || 0)}</td>`).join('')}</tr>`).join('');
+  }
+  function drawPair() {
+    if (!L) return;
+    let a = document.getElementById('lc-a').value; let b = document.getElementById('lc-b').value;
+    if (a === b) { document.getElementById('lc-change').innerHTML = '<p class="src">Chọn hai năm khác nhau.</p>'; document.getElementById('lc-matrix').innerHTML = ''; document.querySelector('#lc-communes tbody').innerHTML = ''; return; }
+    if (Number(a) > Number(b)) [a, b] = [b, a];
+    const pr = L.pairs[`${a}|${b}`]; if (!pr) return;
+    const ya = L.series.find((s) => s.key === a); const yb = L.series.find((s) => s.key === b);
+    const lab = `${ya.year} → ${yb.year}${yb.partial ? ' (tạm tính)' : ''}`;
+    document.getElementById('lc-pair-label').textContent = `(${lab})`;
+    const net = pr.gain_ha - pr.loss_ha;
+    const stat = (t, val, col) => `<div style="border:1px solid var(--line,#e5e7eb);border-radius:8px;padding:10px 12px"><div style="font-size:12.5px;color:var(--muted,#6b7280)">${t}</div><div style="font-size:20px;font-weight:700;color:${col || 'inherit'}">${val > 0 && t === 'Thay đổi ròng' ? '+' : ''}${KT.num(val)} <small style="font-size:12px;font-weight:400">ha</small></div></div>`;
+    document.getElementById('lc-change').innerHTML = `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">${stat('Cây gỗ giữ nguyên', pr.stable_ha)}${stat('Mất cây gỗ', pr.loss_ha, 'var(--red)')}${stat('Tăng cây gỗ', pr.gain_ha, 'var(--forest)')}${stat('Thay đổi ròng', net, net < 0 ? 'var(--red)' : 'var(--forest)')}</div>
+      <p class="src" style="margin:8px 0 0">So sánh trên ${KT.num(pr.compared_ha)} ha có dữ liệu cả hai năm. Biến động một năm có thể gồm sai số giải đoán (mây, mùa vụ); nên xem xu hướng nhiều năm.</p>`;
+    const used = lcKeys.map((k, i) => i).filter((i) => pr.matrix[i].some((x) => x) || pr.matrix.some((r) => r[i]));
+    const SHORT = { 1: 'Nước', 2: 'Cây gỗ', 3: 'Cỏ', 4: 'Ngập nước', 5: 'Nông nghiệp', 6: 'Cây bụi', 7: 'Xây dựng', 8: 'Đất trống' };
+    const lbl = (i) => KT.esc(SHORT[lcKeys[i]] || L.classes[lcKeys[i]].label);
+    document.getElementById('lc-matrix').innerHTML = `<table class="tbl compact"><thead><tr><th>${ya.year} ↓ / ${yb.year} →</th>${used.map((j) => `<th class="num">${lbl(j)}</th>`).join('')}</tr></thead><tbody>${used.map((i) => `<tr><td><span class="dot" style="background:${L.classes[lcKeys[i]].color}"></span> ${lbl(i)}</td>${used.map((j) => `<td class="num" style="${i === j ? 'font-weight:600;background:var(--bg-soft,#f3f4f6)' : ''}">${pr.matrix[i][j] ? KT.num(pr.matrix[i][j]) : '–'}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    const rows = Object.entries(pr.by_commune).map(([c, r]) => ({ c, ...r, net: r.gain_ha - r.loss_ha })).sort((x, z) => z.loss_ha - x.loss_ha);
+    const tb = document.querySelector('#lc-communes tbody');
+    tb.innerHTML = rows.map((r) => `<tr data-code="${r.c}"><td>${KT.esc(P.names[r.c] || r.c)}</td><td class="num">${KT.num(r.a_ha)}</td><td class="num">${KT.num(r.b_ha)}</td><td class="num" style="color:var(--red)">${KT.num(r.loss_ha)}</td><td class="num" style="color:var(--forest)">${KT.num(r.gain_ha)}</td><td class="num" style="color:${r.net < 0 ? 'var(--red)' : 'var(--forest)'}">${r.net > 0 ? '+' : ''}${KT.num(r.net)}</td></tr>`).join('');
   }
   const lcSel = document.getElementById('lc-commune');
   if (lcSel) lcSel.addEventListener('change', () => drawLandcover(lcSel.value));
+  ['lc-a', 'lc-b'].forEach((id) => { const e = document.getElementById(id); if (e) e.addEventListener('change', drawPair); });
   const CAT_KEY = { 'dac-dung': ['special_use_planning_ha', 'special'], 'phong-ho': ['protection_planning_ha', 'protection'], 'san-xuat': ['production_planning_ha', 'production'] };
   let v = null;
   const tabs = document.querySelector('[data-tabs="forest"]');
   const onTab = (t) => {
     if (t === 'phan-loai') drawPlan();
-    if (t === 'lop-phu' && !done.lc) { done.lc = true; drawLandcover(''); }
+    if (t === 'lop-phu' && !done.lc) { done.lc = true; drawLandcover(''); drawPair(); }
     if (CAT_KEY[t]) { drawCat(CAT_KEY[t][0]); setChoro(CAT_KEY[t][1]); }
   };
   tabs.addEventListener('tabchange', (e) => { onTab(e.detail); history.replaceState(null, '', `?tab=${e.detail}`); });
@@ -170,6 +188,8 @@
   // giá trị ô chọn = mã lớp (lc-2023, m-<id>…); năm lấy từ data-year
   function setYear(val) {
     const opt = [...yearSel.options].find((o) => o.value === String(val || 'official')) || yearSel.options[0];
+    // năm số liệu chính thức khác năm đang xem → tải lại trang theo năm đó
+    if (opt.value.startsWith('official-')) { const u = new URL(location.href); u.searchParams.set('nam', opt.dataset.statYear); location.href = u; return; }
     year = opt.value === 'official' ? 'official' : String(opt.dataset.year);
     const official = year === 'official';
     [...yearSel.options].forEach((o) => { if (o.value !== 'official') v.setVisible(`ov-${o.value}`, o === opt); });
@@ -177,9 +197,9 @@
     if (official) setChoro(document.querySelector('input[name=ftype]:checked') ? document.querySelector('input[name=ftype]:checked').value : null);
     else { v.setChoropleth(null); renderLegend(); }
     yearNote.hidden = official;
-    const lpr = opt.dataset.kind === 'map';
-    document.getElementById('map-title').textContent = official ? `Bản đồ hiện trạng tài nguyên rừng năm ${KT.D.forestYear}` : `${lpr ? 'Bản đồ lớp phủ rừng LPR' : 'Bản đồ lớp phủ'} năm ${year} (dữ liệu dự án)`;
-    if (!official) yearNote.textContent = `${lpr ? 'Bản đồ lớp phủ rừng LPR' : 'Bản đồ lớp phủ (ảnh viễn thám, 15 m)'} năm ${year} – dữ liệu dự án, không phải số liệu công bố. Lọc theo loại rừng chỉ áp dụng cho số liệu hiện trạng ${KT.D.forestYear}.`;
+    const project = opt.dataset.kind === 'project';
+    document.getElementById('map-title').textContent = official ? `Bản đồ hiện trạng tài nguyên rừng năm ${KT.D.forestYear}` : project ? `Bản đồ lớp phủ năm ${year} của dự án (tham khảo)` : `Lớp phủ năm ${year} – Dynamic World`;
+    if (!official) yearNote.textContent = project ? `Bản đồ do dự án cung cấp năm ${year} – chỉ để đối chiếu, không dùng cho thống kê.` : `Lớp phủ chuẩn hoá Google Dynamic World năm ${year}${(L && (L.series.find((x) => x.year === Number(year)) || {}).partial) ? ' (tạm tính đến nay)' : ''}; bấm vào xã để xem diện tích các lớp. Lọc theo loại rừng chỉ áp dụng cho số liệu hiện trạng ${KT.D.forestYear}.`;
     renderLegend();
   }
   yearSel.addEventListener('change', () => setYear(yearSel.value));
@@ -191,10 +211,11 @@
   }));
   document.querySelectorAll('[data-show-year]').forEach((b) => b.addEventListener('click', () => { yearSel.value = b.dataset.showYear; setYear(b.dataset.showYear); window.scrollTo({ top: 200, behavior: 'smooth' }); }));
   function lcRows(code) {
-    if (year === 'official' || !P.lc || !P.lc.by_commune[code]) return '';
-    const b = P.lc.by_commune[code][year] || P.lc.by_commune[code][Number(year)] || {};
-    const tot = Object.values(b).reduce((a, x) => a + x, 0);
-    return `<div class="pop" style="border-top:1px solid #e5e7eb;margin-top:6px;padding-top:6px"><h4>Lớp phủ năm ${year}</h4><table>${Object.keys(P.lc.classes).filter((k) => b[k]).map((k) => `<tr><td><span class="dot" style="background:${P.lc.classes[k].color}"></span> ${KT.esc(P.lc.classes[k].label)}</td><td>${KT.num(b[k])} ha${tot ? ` (${KT.num(b[k] / tot * 100, 1)}%)` : ''}</td></tr>`).join('')}</table></div>`;
+    const opt = yearSel.selectedOptions[0];
+    if (year === 'official' || !L || !opt || opt.dataset.kind !== 'dw' || !L.by_commune[code]) return '';
+    const b = L.by_commune[code][String(year)] || {};
+    const tot = Object.values(b).reduce((x, z) => x + z, 0);
+    return `<div class="pop" style="border-top:1px solid #e5e7eb;margin-top:6px;padding-top:6px"><h4>Lớp phủ năm ${year} (Dynamic World)</h4><table>${lcKeys.filter((k) => b[k]).map((k) => `<tr><td><span class="dot" style="background:${L.classes[k].color}"></span> ${KT.esc(L.classes[k].label)}</td><td>${KT.num(b[k])} ha${tot ? ` (${KT.num(b[k] / tot * 100, 1)}%)` : ''}</td></tr>`).join('')}</table></div>`;
   }
 
   v.map.on('click', 'communes-fill', (e) => {

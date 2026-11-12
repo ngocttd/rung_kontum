@@ -38,7 +38,7 @@ pub.get('/boundaries/province', (req, res) => res.json(repo.province()));
 
 pub.get('/boundaries/communes', (req, res) => {
   const fc = repo.communeFeatures();
-  const by = Object.fromEntries(repo.communes().map((c) => [c.code, c]));
+  const by = Object.fromEntries(repo.communes(req.query.nam).map((c) => [c.code, c]));
   const hist = repo.firmsHistory();
   res.json({
     type: 'FeatureCollection',

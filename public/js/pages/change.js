@@ -70,7 +70,7 @@
   const legend = document.getElementById('legend');
   P.overlays.forEach((o) => v.define(`ov-${o.id}`, { ...KT.layers.overlay(o), visible: o.id === 'forest-loss-risk' }));
   v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province()).define('candidates', { ...KT.layers.candidates(), visible: true });
-  const MODES = { risk: ['forest-loss-risk'], loss: ['hansen-loss'], cand: ['change-latest'], img: ['s2-2025-wet-true'], lc: ['lc-forest-change-1991-2023'] };
+  const MODES = { risk: ['forest-loss-risk'], loss: ['hansen-loss'], cand: ['change-latest'], img: ['s2-latest'] };
   function setMode(m) {
     document.querySelectorAll('#mode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
     P.overlays.forEach((o) => v.setVisible(`ov-${o.id}`, MODES[m].includes(o.id)));
@@ -78,6 +78,15 @@
     legend.innerHTML = ovs.map((o) => KT.overlayLegendHtml(o)).join('') + '<div style="margin-top:8px"><h4>Vùng biến động nghi vấn</h4><div class="row"><span class="sw" style="background:#ff3d7f"></span>Chưa xác minh</div><div class="row"><span class="sw" style="background:#b81725"></span>Xác nhận mất rừng</div></div>';
   }
   setMode('risk');
+  // cột mất tán cây: chọn 5 năm gần nhất hoặc từng năm (theo dữ liệu Hansen mới nhất)
+  const ly = document.getElementById('loss-year');
+  if (ly) ly.addEventListener('click', (e) => e.stopPropagation());
+  if (ly) ly.addEventListener('change', () => {
+    const ys = ly.value === '5' ? P.last5 : [ly.value];
+    const sum = (o) => ys.reduce((a, y) => a + (Number(o[y]) || 0), 0);
+    document.querySelectorAll('[data-loss]').forEach((td) => { td.textContent = KT.num(sum(JSON.parse(td.dataset.loss || '{}'))); });
+    document.getElementById('loss-total').textContent = KT.num(sum(P.aoiLoss));
+  });
   document.getElementById('mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });
   document.querySelector('[data-act=home]').addEventListener('click', () => v.fitAOI());
 

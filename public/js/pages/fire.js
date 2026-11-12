@@ -56,7 +56,7 @@
         extra: (ms) => [{ type: 'line', label: 'Diện tích cháy MCD64A1 (ha)', data: ms.map((m) => (P.burnedMonthly ? P.burnedMonthly[m] ?? null : null)), borderColor: '#f58b1f', yAxisID: 'y2', tension: 0.3 }],
         scales: { y2: { position: 'right', beginAtZero: true, grid: { display: false } } } });
       const bc = Object.entries(P.history.byCommune).sort((a, b) => b[1] - a[1]).slice(0, 12);
-      KT.chart('ch-hist-commune', { type: 'bar', data: { labels: bc.map(([c]) => P.names[c] || c), datasets: [{ label: 'Điểm nóng 2024–2026', data: bc.map(([, n]) => n), backgroundColor: '#f58b1f', borderRadius: 3 }] },
+      KT.chart('ch-hist-commune', { type: 'bar', data: { labels: bc.map(([c]) => P.names[c] || c), datasets: [{ label: 'Số điểm nóng', data: bc.map(([, n]) => n), backgroundColor: '#f58b1f', borderRadius: 3 }] },
         options: { indexAxis: 'y', plugins: { legend: { display: false } } } });
     };
     document.querySelector('[data-tabs="fire"]').addEventListener('tabchange', (e) => { if (e.detail === 'lich-su') drawHist(); history.replaceState(null, '', `?tab=${e.detail}`); });

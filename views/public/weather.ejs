@@ -61,7 +61,7 @@
         </div>
       </section>
       <section class="card">
-        <div class="card-h"><h2><%- ic('clock-history') %> Khí hậu 2024–2025 (trung bình 40 điểm)</h2></div>
+        <div class="card-h"><h2><%- ic('clock-history') %> Khí hậu <%= climate && climate.length ? climate[0].month.slice(5) + '/' + climate[0].month.slice(0, 4) + '–' + climate[climate.length - 1].month.slice(5) + '/' + climate[climate.length - 1].month.slice(0, 4) : '' %> (trung bình 40 điểm)</h2></div>
         <div class="card-b"><div class="chart-box tall"><canvas id="ch-climate"></canvas></div>
           <p class="src" style="margin:4px 0 0">Nhiệt độ 2 m trung bình tháng: ERA5-Land (tái phân tích). Lượng mưa tháng: CHIRPS (ước tính vệ tinh) và ERA5-Land. Không phải số liệu trạm khí tượng.</p></div>
       </section>

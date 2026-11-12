@@ -22,7 +22,18 @@ function communeAt(lon, lat) {
 }
 
 // ---------- official forest statistics (QĐ 1047/QĐ-UBND, số liệu 31/12/2025) ----------
-function officialStats() { return readJson(P('processed', 'forest-statistics-2025-kon-tum-communes.json')) || []; }
+// Số liệu hiện trạng rừng chính thức theo năm (scripts/import_official_statistics.py, danh mục forest-statistics-index.json).
+// Không truyền năm → năm mới nhất. Năm không có → năm mới nhất.
+function statYears() {
+  const idx = readJson(P('processed', 'forest-statistics-index.json'));
+  const ys = idx && idx.years && idx.years.length ? idx.years : [{ year: 2025, file: 'forest-statistics-2025-kon-tum-communes.json' }];
+  return ys.slice().sort((a, b) => a.year - b.year);
+}
+function statYear(year) { const ys = statYears(); return (ys.find((y) => String(y.year) === String(year)) || ys[ys.length - 1]).year; }
+function officialStats(year) {
+  const y = statYears().find((x) => x.year === statYear(year));
+  return readJson(P('processed', y.file)) || [];
+}
 function landcover() { return readJson(P('web', 'commune-landcover-terrain.json')); }
 // trang/API công khai: kỳ so sánh lấy theo bản đã công bố (không lộ bản nháp chờ duyệt) + kỳ tuỳ chọn đã công bố
 function forestChange() {
@@ -38,9 +49,9 @@ function landcoverHistory() { return readJson(P('web', 'landcover-history.json')
 function fieldSamples() { return readJson(P('web', 'field-samples.geojson')) || { type: 'FeatureCollection', features: [] }; }
 function fireDanger() { return readJson(P('web', 'fire-danger.json')); }
 
-function communes() {
+function communes(year) {
   const fc = communeFeatures();
-  const stats = Object.fromEntries(officialStats().map((s) => [s.commune_code, s]));
+  const stats = Object.fromEntries(officialStats(year).map((s) => [s.commune_code, s]));
   const lc = landcover();
   const fcg = forestChange();
   const fd = fireDanger();
@@ -55,7 +66,7 @@ function communes() {
       centroid: centroid(f.geometry),
       official: s,
       landcover: lc ? lc.communes[p.code] : null,
-      loss: loss ? { annual: loss, total: lossTotal, last5: ['2020', '2021', '2022', '2023', '2024'].reduce((a, y) => a + loss[y], 0), treecover2000: fcg.history.treecover2000_ha[p.code] } : null,
+      loss: loss ? { annual: loss, total: lossTotal, last5: Object.keys(loss).sort().slice(-5).reduce((a, y) => a + loss[y], 0), treecover2000: fcg.history.treecover2000_ha[p.code] } : null,
       risk: fcg ? fcg.forecast.risk_by_commune[p.code] : null,
       danger: danger[p.code] || null,
     };
@@ -66,8 +77,8 @@ function communeByCode(code) { return communes().find((c) => c.code === code) ||
 
 function sum(arr, f) { return arr.reduce((a, x) => a + (Number(f(x)) || 0), 0); }
 
-function forestSummary() {
-  const s = officialStats();
+function forestSummary(year) {
+  const s = officialStats(year);
   const natural = sum(s, (x) => x.natural_area_ha);
   const forest = sum(s, (x) => x.established_forest_ha);
   return {
@@ -85,6 +96,7 @@ function forestSummary() {
     as_of: s[0] ? s[0].as_of : null,
     decision: s[0] ? s[0].decision : null,
     source_url: s[0] ? s[0].source_url : null,
+    year: statYear(year), years: statYears().map((y) => y.year),
     scope: 'Tổng 40 xã/phường hiện hành có phần lớn diện tích thuộc vùng Kon Tum cũ (toàn xã, chưa cắt theo ranh tỉnh cũ)',
   };
 }
@@ -390,7 +402,7 @@ function dataFreshness() {
 function fileExists(p) { try { return fs.statSync(p).isFile(); } catch { return false; } }
 
 module.exports = {
-  communeFeatures, province, communeAt, officialStats, communes, communeByCode, forestSummary, landcover,
+  communeFeatures, province, communeAt, officialStats, statYears, statYear, communes, communeByCode, forestSummary, landcover,
   hotspots, publicHotspot, backfillHotspotSnapshots, RETENTION, firmsMeta, firmsHistory, burnedHistory, HOTSPOT_STATUS, SENSORS,
   forestChange, landcoverHistory, fieldSamples, changeCandidates, CANDIDATE_STATUS, fireDanger,
   weatherSnapshot, dailyForecast, climateMonthly, openMeteo, ndviSeries,

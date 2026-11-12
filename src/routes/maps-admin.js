@@ -31,7 +31,11 @@ r.get('/', requirePerm('dashboard.view'), async (req, res, next) => {
       return res.set('Content-Type', 'text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="danh-sach-ban-do.csv"').send(`﻿${csv}`);
     }
     const counts = { all: all.length }; all.forEach((d) => { counts[d.format] = (counts[d.format] || 0) + 1; });
-    return res.render('admin/maps', { title: 'Quản lý bản đồ', list, counts, filter: req.query, years: [...new Set(all.map((d) => d.map_year).filter(Boolean))].sort() });
+    counts.raster = all.filter((d) => d.format !== 'pdf').length;
+    // hai mục tách riêng: dữ liệu bản đồ (GeoTIFF/ảnh – hiển thị thành lớp) và bản đồ PDF (tài liệu)
+    const pdf = req.query.loai === 'pdf';
+    res.locals.section = pdf ? 'maps-pdf' : 'maps';
+    return res.render('admin/maps', { title: pdf ? 'Bản đồ PDF (tài liệu)' : 'Dữ liệu bản đồ (GeoTIFF / ảnh)', pdf, list, counts, filter: req.query, years: [...new Set(all.map((d) => d.map_year).filter(Boolean))].sort() });
   } catch (e) { return next(e); }
 });
 
@@ -56,6 +60,7 @@ r.get('/:id', requirePerm('dashboard.view'), async (req, res, next) => {
   try {
     const d = await maps.get(req.params.id);
     if (!d) return next();
+    res.locals.section = d.format === 'pdf' ? 'maps-pdf' : 'maps';
     return res.render('admin/map-detail', { title: d.title, d, step: req.query.buoc });
   } catch (e) { return next(e); }
 });

@@ -2,14 +2,15 @@
 <%- include('../partials/header') %>
 <%
   const sources = [
-    ['Hiện trạng rừng 2025 theo xã', 'UBND tỉnh Quảng Ngãi – QĐ 1047/QĐ-UBND ngày 31/3/2026 và phụ lục', 'Văn bản công bố công khai', 'Theo đợt công bố hằng năm', 'Số liệu diện tích, nguồn gốc, quy hoạch 3 loại rừng, tỷ lệ che phủ'],
+    ['Hiện trạng rừng ' + D.forestYear + ' theo xã (các năm: ' + D.statYears.join(', ') + ')', 'UBND tỉnh Quảng Ngãi – ' + D.decision + (D.decisionDate ? ' ngày ' + D.decisionDate : '') + ' và phụ lục', 'Văn bản công bố công khai', 'Theo đợt công bố hằng năm', 'Số liệu diện tích, nguồn gốc, quy hoạch 3 loại rừng, tỷ lệ che phủ'],
     ['Ranh giới Kon Tum trước 2025', 'Government of Viet Nam / HDX qua geoBoundaries (2020)', 'CC BY / theo nguồn', 'Cố định (lịch sử)', 'Phạm vi vùng nghiên cứu'],
     ['Ranh giới 40 xã/phường hiện hành', 'vietnamese-provinces-database v5.2.0', 'Theo kho nguồn mở', 'Theo phiên bản dữ liệu', 'Đơn vị thống kê, bản đồ cấp xã'],
     ['Mất tán cây ' + D.hansenFirst + '–' + D.hansenLast, 'Hansen/UMD/Google/USGS/NASA – Global Forest Change (phiên bản mới nhất)', 'CC BY 4.0', 'Hằng năm', 'Lịch sử biến động, nhãn huấn luyện mô hình dự báo'],
-    ['Ảnh Sentinel-2', 'Copernicus (ESA) qua Google Earth Engine', 'Copernicus data policy', 'Chuỗi tháng 01/2024–09/2026; mùa 2024–2025', 'NDVI/NDMI/NBR, phát hiện biến động nghi vấn'],
+    ['Ảnh Sentinel-2', 'Copernicus (ESA) qua Google Earth Engine', 'Copernicus data policy', 'Chuỗi tháng ' + D.s2First + '–' + D.s2Month + ' (tự cập nhật hằng tháng)', 'NDVI/NDMI/NBR, phát hiện biến động nghi vấn'],
+    ['Lớp phủ theo năm', 'Google Dynamic World V1 (Sentinel-2) qua Google Earth Engine', 'CC BY 4.0', 'Hằng năm (năm hiện tại tạm tính)', 'Diện tích lớp phủ, ma trận chuyển đổi, mất/tăng cây gỗ theo xã'],
     ['Lớp phủ đất', 'ESA WorldCover 2021 v200', 'CC BY 4.0', 'Cố định (2021)', 'Đối chiếu lớp phủ, yếu tố mô hình'],
     ['Địa hình', 'Copernicus DEM GLO-30 (2024_1) – DLR/Airbus, ESA', 'Copernicus DEM licence', 'Cố định', 'Độ cao, độ dốc'],
-    ['Khí tượng lịch sử', 'ERA5-Land (C3S/ECMWF), CHIRPS (UCSB)', 'Copernicus licence / CC', 'Độ trễ vài ngày', 'Chuỗi chỉ số nguy cơ cháy 2024–2026'],
+    ['Khí tượng lịch sử', 'ERA5-Land (C3S/ECMWF), CHIRPS (UCSB)', 'Copernicus licence / CC', 'Độ trễ vài ngày', 'Chuỗi chỉ số nguy cơ cháy (cập nhật hằng ngày)'],
     ['Khí tượng gần đây và dự báo', 'Open-Meteo.com (mô hình best match)', 'CC BY 4.0', 'Mỗi 6 giờ khi bật lịch', 'Dự báo cấp nguy cơ cháy 7 ngày'],
     ['Thời tiết hiện tại', 'OpenWeather (gọi từ máy chủ)', 'Theo gói dịch vụ', '30 phút', 'Thông tin thời tiết theo xã'],
     ['Điểm nóng cháy', 'NASA FIRMS (LANCE NRT MODIS/VIIRS); lịch sử GEE FIRMS', 'NASA open data', '1–3 giờ (nguồn), bản lưu 7 ngày', 'Cảnh báo điểm nóng, kiểm định chỉ số nguy cơ'],
@@ -55,11 +56,11 @@
       <section class="card card-b">
         <h2 style="font-size:17px;margin-bottom:10px">Số liệu vùng nghiên cứu</h2>
         <table class="kv">
-          <tr><td>Số xã, phường</td><td><%= communes.length %> (37 xã, 3 phường)</td></tr>
+          <tr><td>Số xã, phường</td><td><%= communes.length %> (<%= communes.filter(c => /^Phường/i.test(c.fullName)).length %> phường)</td></tr>
           <tr><td>Diện tích tự nhiên</td><td><%= fmt.num(summary.natural_area_ha) %> ha</td></tr>
           <tr><td>Diện tích có rừng</td><td><%= fmt.num(summary.established_forest_ha) %> ha</td></tr>
           <tr><td>Rừng tự nhiên</td><td><%= fmt.num(summary.natural_forest_ha) %> ha</td></tr>
-          <tr><td>Cây gỗ (WorldCover 2021)</td><td><%= fmt.num(landcover.aoi_worldcover_ha['10']) %> ha</td></tr>
+          <% const lcL = lcs && lcs.series.filter(x => !x.partial).pop(); if (lcL) { %><tr><td>Cây gỗ (Dynamic World <%= lcL.year %>)</td><td><%= fmt.num(lcs.aoi[lcL.key][String(lcs.forest_class)]) %> ha</td></tr><% } %>
           <tr><td>Số liệu tính đến</td><td><%= fmt.ymd(summary.as_of) %></td></tr>
         </table>
         <p class="src"><%= summary.scope %>.</p>

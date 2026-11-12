@@ -132,7 +132,7 @@ r.post('/du-lieu/lop/:id/mac-dinh', requirePerm('data.manage'), (req, res) => {
 // trang mô tả API quản lý lớp (cho đơn vị tích hợp)
 r.get('/du-lieu/api', requirePerm('dashboard.view'), (req, res) => {
   res.render('admin/layers-api', { title: 'API quản lý lớp dữ liệu', section: 'layers', endpoints: require('./api-v1').ENDPOINTS,
-    base: `${req.protocol}://${req.get('host')}`, custom: repo.customLayers(true) });
+    base: (require('../config').publicBaseUrl || `${req.protocol}://${req.get('host')}`), custom: repo.customLayers(true) });
 });
 
 const layersSvc = require('../services/layers');
@@ -201,7 +201,51 @@ r.post('/anh-ve-tinh/phan-loai/:month/cong-bo', requirePerm('data.manage'), (req
 
 // ---------- A04 forest resources ----------
 r.get('/tai-nguyen', requirePerm('dashboard.view'), (req, res) => {
-  res.render('admin/forest', { title: 'Quản lý hiện trạng rừng', section: 'forest', communes: repo.communes().filter((c) => c.official), summary: repo.forestSummary(), validation: readJson(path.join(paths.processed, 'official-statistics-validation.json')) });
+  const pending = req.session.officialCheck || null;
+  res.render('admin/forest', { title: 'Quản lý hiện trạng rừng', section: 'forest', communes: repo.communes(req.query.nam).filter((c) => c.official), summary: repo.forestSummary(req.query.nam),
+    years: repo.statYears(), pending });
+});
+// ---------- Chuỗi lớp phủ hằng năm (Dynamic World) ----------
+r.get('/tai-nguyen/lop-phu', requirePerm('dashboard.view'), (req, res) => {
+  const lcSvc = require('../services/landcover');
+  res.render('admin/landcover', { title: 'Chuỗi lớp phủ hằng năm', section: 'forest', series: lcSvc.series(), manifest: lcSvc.manifest(), status: lcSvc.status() });
+});
+r.post('/tai-nguyen/lop-phu/cap-nhat', requirePerm('jobs.run'), (req, res) => {
+  require('../services/landcover').update();
+  flash(req, 'ok', 'Đang tải năm mới từ Dynamic World và tính lại (vài phút) – tải lại trang để xem kết quả.');
+  res.redirect('/quan-tri/tai-nguyen/lop-phu');
+});
+// Nạp số liệu hiện trạng rừng theo quyết định công bố mới: bước 1 kiểm tra (xem trước), bước 2 nạp
+const OFFICIAL_DIR = path.join(paths.uploads, 'official');
+function runOfficial(file, b, check) {
+  const args = [path.join(paths.scripts, 'import_official_statistics.py'), file, '--as-of', String(b.as_of || ''), '--decision', String(b.decision || '').trim(), '--date', String(b.decision_date || '').trim()];
+  if (b.sheet) args.push('--sheet', String(b.sheet)); if (b.url) args.push('--url', String(b.url));
+  if (check) args.push('--check');
+  const r = require('child_process').spawnSync(config.python, args, { encoding: 'utf8', timeout: 120000, env: { ...process.env, PYTHONIOENCODING: 'utf-8' }, windowsHide: true });
+  try { return JSON.parse(String(r.stdout || '').trim().split('\n').pop()); } catch { return { ok: false, error: (String(r.stderr || '').split('\n').filter(Boolean).pop() || 'Không chạy được bộ nạp') }; }
+}
+r.post('/tai-nguyen/so-lieu', requirePerm('data.manage'), memUpload(20, /sheet|excel|xlsx|octet-stream/i).single('file'), checkCsrf, (req, res) => {
+  const b = req.body;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.as_of || '') || !String(b.decision || '').trim() || !/^\d{2}\/\d{2}\/\d{4}$/.test(b.decision_date || '')) { flash(req, 'error', 'Nhập ngày số liệu (yyyy-mm-dd), số quyết định và ngày quyết định (dd/mm/yyyy).'); return res.redirect('/quan-tri/tai-nguyen#cap-nhat'); }
+  if (!req.file || !/\.xlsx$/i.test(req.file.originalname)) { flash(req, 'error', 'Chọn tệp Excel (.xlsx) phụ lục của quyết định.'); return res.redirect('/quan-tri/tai-nguyen#cap-nhat'); }
+  fs.mkdirSync(OFFICIAL_DIR, { recursive: true });
+  const file = path.join(OFFICIAL_DIR, `${crypto.createHash('sha256').update(req.file.buffer).digest('hex').slice(0, 16)}.xlsx`);
+  fs.writeFileSync(file, req.file.buffer);
+  const rep = runOfficial(file, b, true);
+  if (!rep.ok) { flash(req, 'error', `Không nạp được: ${rep.error}`); return res.redirect('/quan-tri/tai-nguyen#cap-nhat'); }
+  req.session.officialCheck = { file: path.basename(file), original: req.file.originalname, meta: { as_of: b.as_of, decision: b.decision, decision_date: b.decision_date, sheet: b.sheet || '', url: b.url || '' }, report: rep };
+  return res.redirect('/quan-tri/tai-nguyen#cap-nhat');
+});
+r.post('/tai-nguyen/so-lieu/xac-nhan', requirePerm('data.manage'), (req, res) => {
+  const p = req.session.officialCheck;
+  if (!p) return res.redirect('/quan-tri/tai-nguyen');
+  if (req.body.action === 'cancel') { delete req.session.officialCheck; return res.redirect('/quan-tri/tai-nguyen'); }
+  const rep = runOfficial(path.join(OFFICIAL_DIR, path.basename(p.file)), p.meta, false);
+  delete req.session.officialCheck;
+  if (!rep.ok) { flash(req, 'error', `Không nạp được: ${rep.error}`); return res.redirect('/quan-tri/tai-nguyen#cap-nhat'); }
+  store.audit(me(req), 'forest.statistics.import', String(rep.year), { decision: p.meta.decision, matched: rep.matched, file: p.original });
+  flash(req, 'ok', `Đã nạp số liệu hiện trạng năm ${rep.year} (${p.meta.decision}): ${rep.matched}/${rep.expected} xã. Các trang Tài nguyên rừng, Thống kê, Bản đồ dùng số liệu mới; năm cũ vẫn chọn xem được.`);
+  return res.redirect(`/quan-tri/tai-nguyen?nam=${rep.year}`);
 });
 
 // ---------- A05 analysis jobs ----------
@@ -513,7 +557,7 @@ r.post('/phan-anh/:id/diem-chay', requirePerm('alerts.manual'), (req, res, next)
 r.use('/ban-do', require('./maps-admin'));
 
 // ---------- A12 documents ----------
-r.get('/tai-lieu', requirePerm('dashboard.view'), (req, res) => res.render('admin/documents', { title: 'Quản lý tài liệu – bản đồ PDF', section: 'docs', docs: repo.documents(), categories: repo.DOC_CATEGORIES }));
+r.get('/tai-lieu', requirePerm('dashboard.view'), (req, res) => res.render('admin/documents', { title: 'Quản lý tài liệu, văn bản', section: 'docs', docs: repo.documents(), categories: repo.DOC_CATEGORIES }));
 r.post('/tai-lieu/tai-len', requirePerm('docs.manage'), memUpload(40, /pdf/i).single('file'), checkCsrf, (req, res) => {
   if (!req.file) { flash(req, 'error', 'Chọn tệp PDF hợp lệ (≤ 40 MB).'); return res.redirect('/quan-tri/tai-lieu'); }
   if (req.file.buffer.slice(0, 5).toString() !== '%PDF-') { flash(req, 'error', 'Tệp không phải PDF.'); return res.redirect('/quan-tri/tai-lieu'); }

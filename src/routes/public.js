@@ -54,7 +54,7 @@ r.get('/', (req, res) => {
     title: 'Trang chủ', nav: 'home',
     summary: repo.forestSummary(), hotspots: hs, firms: repo.firmsMeta(), weather: weatherSummary(), danger: dangerSummary(),
     reportCounts: reports.counts(), alertFeed: alerts.feed({ limit: 4 }), articles: content.list().slice(0, 4), documents: repo.documents().filter((d) => d.type === 'pdf').slice(0, 3),
-    change: fcg ? { loss2024: fcg.history.aoi_annual_loss_ha[String(Math.max(...Object.keys(fcg.history.aoi_annual_loss_ha).map(Number)))], candidates: repo.changeCandidates().features.length, auc: fcg.forecast.validation.auc } : null,
+    change: fcg ? { lossLast: fcg.history.aoi_annual_loss_ha[String(Math.max(...Object.keys(fcg.history.aoi_annual_loss_ha).map(Number)))], candidates: repo.changeCandidates().features.length, auc: fcg.forecast.validation.auc } : null,
     overlays: repo.overlays(),
   });
 });
@@ -72,18 +72,21 @@ r.get('/ban-do', async (req, res) => {
 
 r.get('/tai-nguyen-rung', async (req, res, next) => {
   try {
-    const communes = repo.communes().sort((a, b) => (b.official ? b.official.established_forest_ha : 0) - (a.official ? a.official.established_forest_ha : 0));
+    const nam = req.query.nam;
+    const communes = repo.communes(nam).sort((a, b) => (b.official ? b.official.established_forest_ha : 0) - (a.official ? a.official.established_forest_ha : 0));
     // lớp bản đồ lấy từ danh mục lớp (quản trị chỉnh ở Dữ liệu không gian): năm lớp phủ + lớp "Hiển thị thêm"
     const mapLayers = await maps.publishedLayers().catch(() => []);
     const items = (await require('../services/layerCatalog').full({ mapLayers })).filter((i) => !i.hidden);
     const byMap = Object.fromEntries(mapLayers.map((m) => [`m-${m.id}`, m]));
     const years = {};
     for (const it of items.filter((i) => i.group === 'landcover' || i.group === 'map-lpr')) {
-      const y = it.kind === 'map' ? Number(it.year) : Number((it.id.match(/^lc-(\d{4})$/) || [])[1]);
+      const y = Number(it.year) || Number((it.id.match(/^(?:lc|dw)-(\d{4})$/) || [])[1]);
       if (!y) continue;
-      (years[y] = years[y] || []).push(it); // ưu tiên lớp 15 m của hệ thống (đứng trước trong danh mục)
+      // lớp Dynamic World (chuẩn hoá) đứng trước; bản đồ của dự án đánh dấu "tham khảo"
+      (years[y] = years[y] || []).push({ id: it.id, title: it.title, kind: it.kind, project: it.group === 'map-lpr' });
     }
-    const yearLayers = Object.keys(years).map(Number).sort((a, b) => b - a).map((y) => ({ year: y, layers: years[y].map((it) => ({ id: it.id, title: it.title, kind: it.kind })) }));
+    Object.values(years).forEach((l) => l.sort((x, z) => x.project - z.project));
+    const yearLayers = Object.keys(years).map(Number).sort((a, b) => b - a).map((y) => ({ year: y, layers: years[y] }));
     const extras = items.filter((i) => i.on_forest && i.id !== 'communes' && (i.kind === 'overlay' || i.kind === 'map' || i.kind === 'vector'));
     const overlays = repo.overlays();
     for (const it of items.filter((i) => i.kind === 'map' && (i.group === 'map-lpr' || i.on_forest))) {
@@ -92,9 +95,9 @@ r.get('/tai-nguyen-rung', async (req, res, next) => {
         tiles: m.display && m.display.tiles ? { url: '/ban-do-chuyen-de/tiles/' + m.id + '/{z}/{x}/{y}.png', minzoom: m.display.tiles.minzoom, maxzoom: m.display.tiles.maxzoom, bounds: m.display.tiles.bounds } : undefined });
     }
     res.render('public/forest', {
-      title: 'Tài nguyên rừng', nav: 'forest', summary: repo.forestSummary(), communes, landcover: repo.landcover(), photos: repo.photos(),
-      overlays, fcg: repo.forestChange(), lc: repo.landcoverHistory(), tab: req.query.tab || 'tong-quan', yearLayers, extras,
-      classLatest: require('../services/imagery').classifications().find((c) => c.published) || null,
+      title: 'Tài nguyên rừng', nav: 'forest', summary: repo.forestSummary(nam), communes, photos: repo.photos(),
+      overlays, fcg: repo.forestChange(), tab: req.query.tab || 'tong-quan', yearLayers, extras,
+      lcs: require('../services/landcover').series(),
     });
   } catch (e) { next(e); }
 });
@@ -114,7 +117,7 @@ r.get('/bien-dong-rung', (req, res) => {
   const communes = repo.communes().filter((c) => c.risk).sort((a, b) => b.risk.expected_loss_ha - a.risk.expected_loss_ha);
   res.render('public/change', {
     title: 'Biến động và dự báo mất rừng', nav: 'forest', fcg, candidates: cands.features.map((f) => f.properties).sort((a, b) => b.area_ha - a.area_ha),
-    communes, overlays: repo.overlays(), readiness: repo.readiness(), selected: req.query.diem || null, lc: repo.landcoverHistory(),
+    communes, overlays: repo.overlays(), readiness: repo.readiness(), selected: req.query.diem || null,
   });
 });
 
@@ -280,7 +283,7 @@ async function mapDocuments() {
   const layers = await maps.publishedLayers().catch(() => []);
   const key = (t) => String(t || '').replace(/\s*[–-]\s*(PDF|ảnh)\s*$/i, '').trim().toLowerCase();
   const twin = Object.fromEntries(layers.map((l) => [key(l.title), l.id]));
-  return rows.map((m) => ({
+  return rows.filter((m) => m.format === 'pdf').map((m) => ({
     twinLayer: m.format === 'pdf' ? twin[key(m.title)] || null : null,
     id: `map-${m.id}`, title: m.title, category: 'ban-do-chuyen-de', categoryLabel: 'Bản đồ chuyên đề', issuer: m.source_org || null, number: m.map_scale ? `Tỷ lệ ${m.map_scale}` : null,
     issued: m.map_year ? String(m.map_year) : null, description: m.description, type: m.format === 'pdf' ? 'pdf' : m.format === 'package' ? 'mpk' : 'tif', bytes: m.size_bytes, sha256: m.sha256,
@@ -339,7 +342,7 @@ r.get('/tai-lieu/tep/:id', (req, res, next) => {
 });
 
 r.get('/gioi-thieu', (req, res) => res.render('public/about', {
-  title: 'Giới thiệu', nav: 'about', summary: repo.forestSummary(), landcover: repo.landcover(), photos: repo.photos(), communes: repo.communes(),
+  title: 'Giới thiệu', nav: 'about', summary: repo.forestSummary(), lcs: require('../services/landcover').series(), photos: repo.photos(), communes: repo.communes(),
 }));
 
 r.get('/thoi-tiet', (req, res) => {
@@ -352,17 +355,17 @@ r.get('/thoi-tiet', (req, res) => {
 });
 
 r.get('/thong-ke', (req, res) => {
-  const communes = repo.communes();
+  const communes = repo.communes(req.query.nam);
   res.render('public/statistics', {
-    title: 'Thống kê – Báo cáo', nav: 'stats', summary: repo.forestSummary(), communes, fcg: repo.forestChange(), history: repo.firmsHistory(),
+    title: 'Thống kê – Báo cáo', nav: 'stats', summary: repo.forestSummary(req.query.nam), communes, fcg: repo.forestChange(), history: repo.firmsHistory(),
     burned: repo.burnedHistory(), danger: dangerSummary(), landcover: repo.landcover(), topic: req.query.chu_de || 'tai-nguyen',
     dangerMonthly: repo.fireDanger() ? repo.fireDanger().monthly_class_counts : null,
   });
 });
 
-function statRows() {
-  const D0 = require('../lib/dataContext').dataContext();
-  return repo.communes().map((c) => {
+function statRows(nam) {
+  const D0 = require('../lib/dataContext').dataContext(nam);
+  return repo.communes(nam).map((c) => {
     const o = c.official || {};
     return {
       'Mã xã': c.code, 'Tên xã/phường': c.fullName, 'Diện tích tự nhiên (ha)': o.natural_area_ha, 'Rừng đã thành rừng (ha)': o.established_forest_ha,
@@ -373,12 +376,12 @@ function statRows() {
     };
   });
 }
-const statNote = () => { const D0 = require('../lib/dataContext').dataContext(); return `Nguồn: ${D0.decision} ngày ${D0.decisionDate} (số liệu ${D0.forestAsOf}, toàn xã hiện hành); Hansen GFC đến ${D0.hansenLast}; mô hình dự báo và cấp nguy cơ cháy do hệ thống tính tự động, chưa phải cảnh báo chính thức.`; };
+const statNote = (nam) => { const D0 = require('../lib/dataContext').dataContext(nam); return `Nguồn: ${D0.decision} ngày ${D0.decisionDate} (số liệu ${D0.forestAsOf}, toàn xã hiện hành); Hansen GFC đến ${D0.hansenLast}; mô hình dự báo và cấp nguy cơ cháy do hệ thống tính tự động, chưa phải cảnh báo chính thức.`; };
 
 r.get('/thong-ke/xuat.csv', (req, res) => {
-  const rows = statRows();
+  const rows = statRows(req.query.nam);
   const head = Object.keys(rows[0]);
-  const csv = [`# ${statNote()}`, head.join(','), ...rows.map((x) => head.map((h) => (x[h] === null || x[h] === undefined ? '' : `"${String(x[h]).replace(/"/g, '""')}"`)).join(','))].join('\r\n');
+  const csv = [`# ${statNote(req.query.nam)}`, head.join(','), ...rows.map((x) => head.map((h) => (x[h] === null || x[h] === undefined ? '' : `"${String(x[h]).replace(/"/g, '""')}"`)).join(','))].join('\r\n');
   res.set('Content-Type', 'text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="thong-ke-rung-kon-tum.csv"').send(`﻿${csv}`);
 });
 
@@ -386,11 +389,11 @@ r.get('/thong-ke/xuat.xlsx', async (req, res, next) => {
   try {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Thống kê theo xã');
-    const rows = statRows();
+    const rows = statRows(req.query.nam);
     ws.columns = Object.keys(rows[0]).map((k) => ({ header: k, key: k, width: Math.max(12, k.length + 2) }));
     rows.forEach((x) => ws.addRow(x));
     ws.getRow(1).font = { bold: true };
-    ws.addRow([]); ws.addRow([statNote()]);
+    ws.addRow([]); ws.addRow([statNote(req.query.nam)]);
     res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').set('Content-Disposition', 'attachment; filename="thong-ke-rung-kon-tum.xlsx"');
     await wb.xlsx.write(res);
     res.end();

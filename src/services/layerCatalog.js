@@ -8,10 +8,10 @@ const repo = require('../data/repo');
 const DEFAULT_GROUPS = [
   { key: 'admin', title: 'Ranh giới hành chính', section: 'HÀNH CHÍNH', cls: 'sec-admin', icon: 'geo-fill', tab: 'theme' },
   { key: 'forest', title: 'Hiện trạng rừng', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
-  { key: 'landcover', title: 'Lớp phủ 1991 – 2014 – 2023 (dữ liệu dự án, 15 m)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
-  { key: 'map-lpr', title: 'Lớp phủ rừng LPR các năm (bản đồ dự án)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
+  { key: 'landcover', title: 'Lớp phủ theo năm (Dynamic World, chuẩn hoá)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
+  { key: 'map-lpr', title: 'Bản đồ lớp phủ của dự án (tham khảo)', section: 'TÀI NGUYÊN RỪNG', cls: 'sec-forest', icon: 'tree-fill', tab: 'theme' },
   { key: 'change', title: 'Biến động và dự báo mất rừng', section: 'BIẾN ĐỘNG RỪNG', cls: 'sec-forest', icon: 'graph-up-arrow', tab: 'theme' },
-  { key: 'map-change', title: 'Biến động lớp phủ (bản đồ dự án)', section: 'BIẾN ĐỘNG RỪNG', cls: 'sec-forest', icon: 'graph-up-arrow', tab: 'theme' },
+  { key: 'map-change', title: 'Bản đồ biến động lớp phủ của dự án (tham khảo)', section: 'BIẾN ĐỘNG RỪNG', cls: 'sec-forest', icon: 'graph-up-arrow', tab: 'theme' },
   { key: 'fire', title: 'Điểm nóng và nguy cơ cháy', section: 'CẢNH BÁO CHÁY RỪNG', cls: 'sec-fire', icon: 'fire', tab: 'theme' },
   { key: 'fire-env', title: 'Yếu tố môi trường gây cháy', section: 'CẢNH BÁO CHÁY RỪNG', cls: 'sec-fire', icon: 'fire', tab: 'theme' },
   { key: 'map-lst', title: 'Nhiệt độ bề mặt các năm (bản đồ dự án)', section: 'CẢNH BÁO CHÁY RỪNG', cls: 'sec-fire', icon: 'fire', tab: 'theme' },
@@ -60,13 +60,13 @@ const STATIC = [
   ['communes', 'vector', 'admin', 'Ranh giới xã/phường', 'sym:boundary-commune', 'vietnamese-provinces-database v5.2.0, cắt theo ranh Kon Tum cũ', { on: true, forest: true }],
   ['cover', 'choro', 'forest', '@cover', 'sym:forest-protection', 'Tỷ lệ che phủ công bố theo xã (@decision)', {}],
   ['forest', 'choro', 'forest', '@area', 'sym:forest-special-use', 'Diện tích đã thành rừng theo xã (@decision)', {}],
-  ['lc-2023', 'overlay', 'landcover', 'Lớp phủ năm 2023', 'sym:forest-evergreen', null, {}],
-  ['lc-2014', 'overlay', 'landcover', 'Lớp phủ năm 2014', 'sym:forest-mixed', null, {}],
-  ['lc-1991', 'overlay', 'landcover', 'Lớp phủ năm 1991', 'sym:forest-conifer', null, {}],
-  ['samples', 'vector', 'landcover', 'Mẫu thực địa 2025', 'mk:survey', 'Mau_KON_TUM_2025 – 389 điểm, dữ liệu thực tế dự án', {}],
+  ['lc-2023', 'overlay', 'map-lpr', 'Lớp phủ năm 2023', 'sym:forest-evergreen', null, {}],
+  ['lc-2014', 'overlay', 'map-lpr', 'Lớp phủ năm 2014', 'sym:forest-mixed', null, {}],
+  ['lc-1991', 'overlay', 'map-lpr', 'Lớp phủ năm 1991', 'sym:forest-conifer', null, {}],
+  ['samples', 'vector', 'map-lpr', 'Mẫu thực địa 2025', 'mk:survey', 'Mau_KON_TUM_2025 – 389 điểm, dữ liệu thực tế dự án', {}],
   ['change-latest', 'overlay', 'change', null, 'sym:change-suspected', null, {}],
   ['candidates', 'vector', 'change', 'Vùng biến động nghi vấn (Sentinel-2)', 'sym:change-suspected', 'Sentinel-2 chuỗi tháng 100 m – phân tích tự động theo kỳ, chưa xác minh hiện trường', {}],
-  ['lc-forest-change-1991-2023', 'overlay', 'change', 'Mất / tăng rừng 1991–2023', 'sym:change-suspected', null, {}],
+  ['lc-forest-change-1991-2023', 'overlay', 'map-change', 'Mất / tăng rừng 1991–2023', 'sym:change-suspected', null, {}],
   ['hansen-loss', 'overlay', 'change', '@loss', 'sym:change-suspected', null, {}],
   ['forest-loss-risk', 'overlay', 'change', '@risk', 'sym:risk-4', null, {}],
   ['risk', 'choro', 'change', 'Xác suất mất rừng (theo xã)', 'sym:risk-3', '@riskInfo', {}],
@@ -95,6 +95,7 @@ const STATIC = [
 // nhóm cho lớp ảnh sinh tự động (theo id / group trong overlays.json)
 function autoGroup(o) {
   if (o.group === 'change-run') return 'change';
+  if (o.group === 'landcover' || /^dw-\d{4}$/.test(o.id)) return 'landcover';
   if (o.group === 'class') return 'class';
   if (o.group === 'fire-env') return 'fire-env';
   if (o.group === 'weather') return o.id.startsWith('wx-era') ? 'reanalysis' : 'weather';
@@ -147,8 +148,8 @@ async function full({ mapLayers } = {}) {
   for (const o of Object.values(ov)) {
     if (known.has(o.id)) continue;
     const g = autoGroup(o);
-    items.push({ id: o.id, kind: 'overlay', group: g, title: o.title, icon: g === 'weather' || g === 'reanalysis' ? wxIcon(o.id) : g === 'fire-env' ? `ic2:${o.id.startsWith('lst') ? 'temperature' : 'water'}` : g === 'class' ? 'ic2:forest' : g === 'change' ? 'sym:change-suspected' : 'ic2:map',
-      info: `${o.title} – ${o.source}. ${o.meaning || ''}${o.resolution ? ` (${o.resolution})` : ''}`, default_on: false, on_forest: false, hidden: false, sort: (order += 10), source: 'auto', deletable: false });
+    items.push({ id: o.id, kind: 'overlay', group: g, title: o.title, year: o.year || null, icon: g === 'landcover' ? 'sym:forest-evergreen' : g === 'weather' || g === 'reanalysis' ? wxIcon(o.id) : g === 'fire-env' ? `ic2:${o.id.startsWith('lst') ? 'temperature' : 'water'}` : g === 'class' ? 'ic2:forest' : g === 'change' ? 'sym:change-suspected' : 'ic2:map',
+      info: `${o.title} – ${o.source}. ${o.meaning || ''}${o.resolution ? ` (${o.resolution})` : ''}`, default_on: false, on_forest: false, hidden: false, sort: g === 'landcover' && o.year ? 5000 - o.year : (order += 10), source: 'auto', deletable: false });
   }
   for (const m of maps.slice().sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.map_year || 0) - (b.map_year || 0) || a.title.localeCompare(b.title, 'vi'))) {
     const dup = mapDuplicate(m);

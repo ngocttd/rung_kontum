@@ -1,0 +1,15 @@
+<%- include('_top') %>
+<div class="adm-tabs"><a href="/quan-tri/tai-nguyen">Hiện trạng rừng (số liệu công bố)</a><a class="on" href="/quan-tri/tai-nguyen/lop-phu">Chuỗi lớp phủ hằng năm</a></div>
+<section class="card">
+  <div class="card-h"><h2><%- ic('clock-history') %> Chuỗi lớp phủ hằng năm – Google Dynamic World</h2>
+    <% if (can('jobs.run')) { %><form method="post" action="/quan-tri/tai-nguyen/lop-phu/cap-nhat" style="margin-left:auto"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-sm" <%= status.running ? 'disabled' : '' %>><%- ic('arrow-repeat') %> <%= status.running ? 'Đang cập nhật…' : 'Cập nhật ngay' %></button></form><% } %></div>
+  <div class="card-b">
+    <div class="note info" style="margin:0 0 10px">Thống kê ở tab “Lớp phủ qua các năm” dùng <b>Google Dynamic World V1</b> – bộ lớp phủ chuẩn hoá toàn cầu giải đoán từ ảnh Sentinel-2 (10 m, 9 lớp, CC BY 4.0), không dùng bản đồ ảnh/GeoTIFF/PDF do dự án cung cấp (các bản đồ đó vẫn xem được như lớp tham khảo trên bản đồ). Mỗi năm lấy lớp phổ biến nhất của từng ô 100 m. Năm hiện tại là <b>tạm tính</b> và được tính lại mỗi lần cập nhật; tác vụ chạy tự động cùng “Ảnh Sentinel-2 tháng mới…” (ngày 5 hằng tháng).</div>
+    <% if (series) { %><div class="table-wrap"><table class="tbl" data-tools="off"><thead><tr><th>Năm</th><th class="num">Số ảnh</th><th>Thời gian</th><th class="num">Cây gỗ (ha)</th><th class="num">Độ phủ dữ liệu</th><th>Ghi chú</th></tr></thead><tbody>
+      <% series.series.slice().reverse().forEach(s => { %><tr><td><b><%= s.year %></b></td><td class="num"><%= s.images || '—' %></td><td class="src"><%= s.period %></td><td class="num"><%= fmt.num((series.aoi[s.key] || {})[String(series.forest_class)]) %></td><td class="num"><%= fmt.num(series.coverage[s.key] * 100, 1) %>%</td><td><%= s.partial ? 'Tạm tính (năm chưa kết thúc)' : '' %></td></tr><% }) %>
+    </tbody></table></div><p class="src">Tính lúc <%= fmt.dateTime(series.generated_at) %>. <%= series.note %></p><% } else { %><div class="empty-state">Chưa có dữ liệu – bấm “Cập nhật ngay”.</div><% } %>
+    <% if (status.last) { %><p class="src">Lần cập nhật gần nhất: <%= fmt.dateTime(status.last.at) %> – <%= status.last.build && status.last.build.ok ? 'thành công' : 'lỗi: ' + ((status.last.collect && status.last.collect.error) || (status.last.build && status.last.build.error)) %></p><% } %>
+  </div>
+</section>
+<%- include('_bottom') %>
+</body></html>

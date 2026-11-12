@@ -16,6 +16,8 @@ function sessionSecret() {
 }
 
 module.exports = {
+  // địa chỉ công khai cố định cho đường dẫn API chia sẻ (vd https://webgis.example.vn); bỏ trống = theo tên miền của yêu cầu (sau Caddy)
+  publicBaseUrl: String(process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, ''),
   ROOT,
   port: Number(process.env.PORT || 3000),
   host: process.env.HOST || '0.0.0.0',

@@ -48,7 +48,7 @@
 </section>
 
 <section class="kpi-strip home-kpi">
-  <div class="kpi" title="<%= summary.scope %>"><%- cicon('forest') %><div><strong><%= fmt.num(summary.established_forest_ha) %> <small>ha</small></strong><span>Diện tích có rừng</span><span class="sub">40 xã · số liệu 31/12/2025 (QĐ 1047)</span></div></div>
+  <div class="kpi" title="<%= summary.scope %>"><%- cicon('forest') %><div><strong><%= fmt.num(summary.established_forest_ha) %> <small>ha</small></strong><span>Diện tích có rừng</span><span class="sub">40 xã · số liệu <%= D.forestAsOf %><%= D.decisionShort ? ' (' + D.decisionShort + ')' : '' %></span></div></div>
   <div class="kpi"><%- cicon('plantation') %><div><strong><%= fmt.num(summary.cover_percent_computed, 1) %>%</strong><span>Tỷ lệ có rừng / diện tích tự nhiên</span><span class="sub">tính từ tổng 40 xã</span></div></div>
   <div class="kpi"><%- cicon('fire') %><div><strong><%= hotspots.length %></strong><span>Điểm nóng vệ tinh (7 ngày)</span><span class="sub"><%= hotspots.filter(h => ['new','assigned','verifying'].includes(h.status)).length %> chưa xác minh · <%= hotspots.filter(h => ['confirmed','handling','closed'].includes(h.status)).length %> xác nhận cháy · cập nhật <%= fmt.dateTime(firms.collected_at) %></span></div></div>
   <div class="kpi"><%- cicon('temperature') %><div><strong><%= fmt.num(weather.temp, 0) %>°C</strong><span>Nhiệt độ TB · độ ẩm <%= fmt.num(weather.humidity, 0) %>%</span><span class="sub"><%= weather.points %> điểm · <%= fmt.dateTime(weather.dt) %></span></div></div>
@@ -100,8 +100,8 @@
           <div>
             <h3 style="font-size:14px">Dự báo nguy cơ mất rừng</h3>
             <% if (change) { %>
-              <p style="margin:6px 0"><strong style="font-size:24px;color:var(--navy)"><%= fmt.num(change.loss2024) %> ha</strong> mất tán cây năm <%= D.hansenLast %></p>
-              <p class="src" style="margin:0">Mô hình <%= D.forecastLabel %> kiểm định AUC <%= fmt.num(change.auc, 2) %> trên giai đoạn 2023–2024</p>
+              <p style="margin:6px 0"><strong style="font-size:24px;color:var(--navy)"><%= fmt.num(change.lossLast) %> ha</strong> mất tán cây năm <%= D.hansenLast %></p>
+              <p class="src" style="margin:0">Mô hình <%= D.forecastLabel %> kiểm định AUC <%= fmt.num(change.auc, 2) %> trên giai đoạn <%= D.validationLabel %></p>
             <% } %>
             <a href="/bien-dong-rung#du-bao" class="btn btn-outline btn-sm" style="margin-top:8px">Xem bản đồ nguy cơ</a>
           </div>
