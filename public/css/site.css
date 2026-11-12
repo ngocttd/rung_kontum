@@ -269,7 +269,7 @@ th.sortable[data-dir=desc]::after { content: ' ▼'; color: var(--blue); }
 .lt-group:not([open]) > summary::after { transform: rotate(-90deg); }
 .lt-item { display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 22px; font-size: 13.2px; }
 .lt-item input[type=checkbox] { accent-color: var(--forest); width: 15px; height: 15px; flex: none; }
-.lt-item label { display: flex; align-items: center; gap: 7px; cursor: pointer; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lt-item label { display: flex; align-items: center; gap: 7px; cursor: pointer; flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; padding: 2px 0; }
 .lt-item .sw { width: 15px; height: 12px; border-radius: 2px; flex: none; }
 .lt-item img.mk { width: 16px; height: 16px; }
 .lt-item { flex-wrap: wrap; }

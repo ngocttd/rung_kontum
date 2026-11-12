@@ -38,9 +38,14 @@
       <div class="card-h"><h2><%- ic('funnel-fill') %> Bộ lọc dữ liệu</h2></div>
       <div class="card-b">
         <label class="field"><span>Năm bản đồ</span><select class="input" id="map-year">
-          <option value="official" data-stat-year="<%= D.forestYear %>" title="Số liệu hiện trạng rừng theo <%= D.decision %>"><%= D.forestYear %> – Hiện trạng (<%= D.decisionShort %>)</option>
-          <% D.statYears.slice().reverse().filter(y => y !== D.forestYear).forEach(y => { %><option value="official-<%= y %>" data-stat-year="<%= y %>"><%= y %> – Hiện trạng (số liệu công bố)</option><% }) %>
-          <% yearLayers.forEach(yl => { yl.layers.forEach(it => { %><option value="<%= it.id %>" data-year="<%= yl.year %>" data-kind="<%= it.project ? 'project' : 'dw' %>" title="<%= it.title %>"><%= yl.year %> – <%= it.project ? (it.kind === 'map' ? 'bản đồ LPR dự án (tham khảo)' : 'bản đồ 15 m dự án (tham khảo)') : 'Lớp phủ (Dynamic World)' %></option><% }) }) %>
+          <% const yl2 = yearLayers.flatMap(yl => yl.layers.map(it => ({ ...it, year: yl.year }))); %>
+          <optgroup label="Hiện trạng rừng (số liệu công bố)">
+            <option value="official" data-stat-year="<%= D.forestYear %>" title="Số liệu hiện trạng rừng theo <%= D.decision %>"><%= D.forestYear %> (<%= D.decisionShort %>)</option>
+            <% D.statYears.slice().reverse().filter(y => y !== D.forestYear).forEach(y => { %><option value="official-<%= y %>" data-stat-year="<%= y %>"><%= y %></option><% }) %>
+          </optgroup>
+          <% [['dw', 'Lớp phủ theo năm (Dynamic World)'], ['project', 'Bản đồ của dự án (tham khảo)']].forEach(([k, g]) => { const its = yl2.filter(it => (it.project ? 'project' : 'dw') === k); if (its.length) { %>
+          <optgroup label="<%= g %>"><% its.forEach(it => { %><option value="<%= it.id %>" data-year="<%= it.year %>" data-kind="<%= k %>" title="<%= it.title %>"><%= it.year %><%= k === 'project' ? (it.kind === 'map' ? ' – LPR' : ' – 15 m') : ' – lớp phủ' %></option><% }) %></optgroup>
+          <% } }) %>
         </select></label>
         <p class="src" id="year-note" hidden style="margin:-4px 0 10px"></p>
         <div class="field"><span>Loại rừng</span>
