@@ -39,9 +39,10 @@
       <section class="card card-b" id="bien-dong">
         <h2 style="font-size:20px;margin-bottom:10px">Đọc đúng thông tin biến động và dự báo mất rừng</h2>
         <ul style="margin:0;padding-left:18px;line-height:1.75">
-          <li><b>Biến động nghi vấn</b>: vùng ảnh Sentinel-2 có NDVI và NBR giảm mạnh so với cùng kỳ hai năm trước, lặp lại ít nhất 2 tháng, trong vùng còn rừng đến 2024. Là đầu vào để kiểm tra, chưa phải kết luận.</li>
+          <li><b>Biến động nghi vấn</b>: vùng ảnh Sentinel-2 có NDVI và NBR giảm mạnh so với cùng kỳ 1–2 năm trước, lặp lại ít nhất 2 tháng, trong vùng còn rừng đến <%= D.hansenLast %> (Hansen). Là đầu vào để kiểm tra, chưa phải kết luận.</li>
           <li><b>Rụng lá theo mùa</b>: rừng khộp rụng lá mạnh mùa khô; các vùng phát hiện trong tháng 1–4 được đánh dấu để loại trừ trường hợp này.</li>
           <li><b>Mất tán cây (Hansen)</b>: diện tích tán cây bị thay thế trong năm, gồm cả khai thác rừng trồng theo chu kỳ.</li>
+          <li><b>Lớp phủ theo năm (Dynamic World)</b>: lớp phủ chuẩn hoá toàn cầu giải đoán từ Sentinel-2; “cây gỗ” gồm cả rừng trồng, cây lâu năm nên khác diện tích rừng pháp lý. Bản đồ ảnh/GeoTIFF/PDF do dự án cung cấp chỉ để tham khảo, không dùng tính số liệu.</li>
           <li><b>Nguy cơ mất rừng <%= D.forecastLabel %></b>: xác suất từ mô hình học máy dựa trên lịch sử mất rừng, khoảng cách tới khu canh tác, địa hình. <% if (fv) { %>Kiểm định trên <%= D.hansenLast - 1 %>–<%= D.hansenLast %>: AUC <%= fmt.num(fv.auc, 2) %>; 10% diện tích nguy cơ cao nhất chứa <%= fmt.num(fv.top10pct_capture * 100, 0) %>% số ô bị mất thực tế.<% } %> Dùng để ưu tiên tuần tra, không dùng để kết luận vi phạm.</li>
         </ul>
       </section>

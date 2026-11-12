@@ -5,7 +5,7 @@
 #                                                                                       # kèm bung gói dữ liệu cập nhật
 # Lần đầu (thư mục đang là bản bung từ zip, chưa có .git) script tự gắn git vào thư mục, không xoá data\, storage\, .env.
 # Các bước: sao lưu (backup.ps1 nếu có) → dừng dịch vụ → lấy mã mới → bung dữ liệu (nếu có) → npm ci → migration
-# → pip (khi requirements.txt đổi) → chạy lệnh bổ sung (nếu có) → khởi động → kiểm tra trang chủ.
+# → pip (khi requirements.txt đổi) → chuỗi lớp phủ Dynamic World (nếu chưa có) → chạy lệnh bổ sung (nếu có) → khởi động → kiểm tra trang chủ.
 param(
   [string]$App = (Split-Path -Parent $PSScriptRoot),
   [string]$Repo = 'https://github.com/ngocttd/rung_kontum.git',
@@ -13,6 +13,7 @@ param(
   [string]$Service = 'WebGISKonTum',
   [string]$DataTar = '',
   [switch]$SkipBackup,
+  [switch]$Landcover,   # tính lại chuỗi lớp phủ Dynamic World (tự chạy khi VPS chưa có data\web\landcover-series.json)
   [switch]$AutoGeoref   # chạy lại tự định vị ảnh bản đồ toàn tỉnh (cần khi nâng cấp lên bản 11/11/2026)
 )
 $ErrorActionPreference = 'Stop'
@@ -66,6 +67,18 @@ try {
   if ((Test-Path $py) -and (Test-Path requirements.txt) -and ((Get-FileHash requirements.txt).Hash -ne $reqBefore)) {
     Step 'requirements.txt thay đổi – cài thư viện Python'
     Run $py @('-m', 'pip', 'install', '-r', 'requirements.txt')
+  }
+
+  # Chuỗi lớp phủ hằng năm (Google Dynamic World) – dữ liệu nằm trong data\ (không theo git): dựng khi chưa có hoặc khi chỉ định -Landcover.
+  # Có gói dữ liệu (data\collected\dynamic-world) thì chỉ tính lại (vài phút); chưa có thì tải từ GEE (.secrets\gee-key.json, ~20–30 phút).
+  if ($Landcover -or -not (Test-Path (Join-Path $App 'data\web\landcover-series.json'))) {
+    Step 'Chuỗi lớp phủ hằng năm (Dynamic World)'
+    $pyx = if (Test-Path $py) { $py } else { 'python' }
+    try {
+      if (-not (Test-Path (Join-Path $App 'data\collected\dynamic-world\manifest.json'))) { Run $pyx @('-X', 'utf8', 'scripts\collect_dynamic_world.py') }
+      Run $pyx @('-X', 'utf8', 'scripts\landcover_series.py', 'build')
+      Run node @('scripts	o_webp.cjs')
+    } catch { Write-Warning "Chưa dựng được chuỗi lớp phủ: $($_.Exception.Message). Sau khi khởi động có thể bấm Quản trị › Tài nguyên rừng › Chuỗi lớp phủ hằng năm › Cập nhật ngay." }
   }
 
   if ($AutoGeoref) { Step 'Tự định vị ảnh bản đồ toàn tỉnh (data\Data_thuc_te)'; Run node @('scripts\autogeoref_real_maps.cjs') }

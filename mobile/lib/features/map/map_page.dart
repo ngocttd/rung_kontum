@@ -237,7 +237,7 @@ class _MapPageState extends ConsumerState<MapPage> {
           ),
         if (measure != Measure.none) Positioned(left: 12, right: 12, bottom: 84, child: _measureBar()),
         // nhóm lớp nhanh (prototype)
-        Positioned(left: 8, right: 8, bottom: 8, child: _quickBar()),
+        Positioned(left: 8, right: 8, bottom: 8, child: _quickBar(rasters)),
       ]),
     );
   }
@@ -252,10 +252,13 @@ class _MapPageState extends ConsumerState<MapPage> {
         ),
       );
 
-  Widget _quickBar() {
+  Widget _quickBar(List<Map> rasters) {
+    // lớp phủ chuẩn hoá Dynamic World năm mới nhất đã trọn (dw-YYYY); không dùng bản đồ dự án
+    final dw = rasters.map((r) => r['id'].toString()).where((id) => RegExp(r'^dw-\d{4}$').hasMatch(id)).toList()..sort();
+    final forestId = dw.length > 1 ? dw[dw.length - 2] : (dw.isNotEmpty ? dw.last : 'lc-2023');
     final groups = <(String, IconData, List<String>)>[
       ('Hành chính', Icons.account_balance_outlined, ['province', 'communes']),
-      ('Rừng', Icons.forest_outlined, ['lc-2023']),
+      ('Rừng', Icons.forest_outlined, [forestId]),
       ('Điểm cháy', Icons.local_fire_department_outlined, ['hotspots']),
       ('Ảnh vệ tinh', Icons.satellite_alt_outlined, ['s2-latest']),
       ('Biến động', Icons.park_outlined, ['candidates']),

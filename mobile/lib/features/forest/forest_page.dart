@@ -129,7 +129,7 @@ class _Types extends StatelessWidget {
         ),
       if (byYear.isNotEmpty)
         SectionCard(
-          title: 'Lớp phủ 1991 – 2014 – 2023 (dữ liệu dự án, 15 m)',
+          title: (lc?['title'] ?? 'Lớp phủ theo năm').toString(),
           child: Column(children: [
             for (final k in classes.keys)
               Padding(
@@ -140,7 +140,7 @@ class _Types extends StatelessWidget {
                 ]),
               ),
             Row(children: [const Expanded(child: SizedBox()), for (final y in years) SizedBox(width: 78, child: Text(y, textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, color: AppColors.muted)))]),
-            const SourceNote('Đơn vị: ha. Phân loại từ ảnh vệ tinh – lớp “Rừng” là lớp phủ, chưa phải hiện trạng rừng pháp lý.'),
+            SourceNote('Đơn vị: ha. ${lc?['partial_note'] ?? ''} Google Dynamic World – “Cây gỗ” gồm rừng, rừng trồng, cây lâu năm; chưa phải hiện trạng rừng pháp lý.'),
           ]),
         ),
     ]);

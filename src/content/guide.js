@@ -122,7 +122,7 @@ const publicGuide = {
     },
     {
       id: 'thoi-tiet', title: '10. Thời tiết và tin tức', icon: 'cloud-sun-fill', img: 'p-weather', caption: 'Trang Thời tiết',
-      intro: 'Trang Thời tiết hiển thị thời tiết hiện tại, dự báo 7 ngày, khí hậu 2024–2025 và thời tiết từng xã. Trang Tin tức đăng thông báo, hướng dẫn, văn bản chính sách đã được cán bộ xuất bản.',
+      intro: 'Trang Thời tiết hiển thị thời tiết hiện tại, dự báo 7 ngày, khí hậu theo tháng (ERA5-Land, CHIRPS – tự nối dài khi có tháng mới) và thời tiết từng xã. Trang Tin tức đăng thông báo, hướng dẫn, văn bản chính sách đã được cán bộ xuất bản.',
       steps: ['Chọn xã trong bảng “Thời tiết các xã” để xem chi tiết.', 'Ở trang Tin tức, lọc theo chuyên mục và nhấp tiêu đề để đọc toàn văn.'],
     },
     {
@@ -266,8 +266,10 @@ const adminGuide = {
         '“Cập nhật khí tượng Open-Meteo và chỉ số nguy cơ cháy” – mặc định mỗi 3 giờ.',
         '“Cập nhật tái phân tích ERA5-Land (GEE)…” – mặc định mỗi ngày (ERA5-Land trễ khoảng 5 ngày).',
         '“Ảnh Sentinel-2 tháng mới, biến động nghi vấn và dự báo nguy cơ mất rừng” – chỉ chọn được mỗi tháng (mặc định) hoặc mỗi quý; chạy ngày 5 lúc 02:00 (quý: tháng 1, 4, 7, 10) để tháng vừa kết thúc đã đủ ảnh. Ảnh quang học hay bị mây nên không đặt chu kỳ ngày/tuần. Dòng báo lỗi có liên kết “xem nhật ký lỗi”.',
+        'Tác vụ hằng tháng còn tự: tải lớp phủ Google Dynamic World năm hiện tại (tạm tính) và năm mới, tính lại tab “Lớp phủ qua các năm”; tự nâng lên phiên bản Hansen GFC mới khi được phát hành (năm mất tán cây, cửa sổ huấn luyện và giai đoạn dự báo tự dịch theo). Tác vụ hằng ngày tải thêm chuỗi điểm nóng/vùng cháy lịch sử và nhiệt độ bề mặt MODIS.',
         '“Dựng lại lớp ảnh bản đồ…” – chỉ chạy tay khi dữ liệu nền thay đổi.',
         'Khung “Phân tích biến động rừng”: (1) Tự động theo lịch – chọn “Chờ duyệt trước khi công bố” hoặc “Tự công bố”; khi có kết quả mới chờ duyệt, bấm “Công bố kết quả mới”. (2) Chạy thủ công – chỉ chọn từ tháng … đến tháng (từ 01/2025, tối đa 12 tháng) → “Chạy phân tích”.',
+        'Bảng “Các kỳ phân tích theo yêu cầu”: mỗi lần bấm “Chạy phân tích” ở khung (2) tạo một kỳ mã PT-xxxx (yêu cầu đến từ cán bộ có quyền chạy tác vụ, thường khi cần kiểm tra một khoảng thời gian cụ thể: sau mùa khô, sau tin báo phá rừng, trước đợt kiểm tra). Các kỳ xếp hàng chạy lần lượt: Chờ chạy → Đang chạy → Hoàn thành/Lỗi; bấm “Xem” để xem bản đồ ΔNDVI, danh sách vùng nghi vấn, ngưỡng đã dùng và nhật ký; “Công bố ra bản đồ” (người có quyền duyệt cảnh báo) để đưa lên bản đồ công khai, trang Biến động, MobileGIS; thu hồi công bố trước khi xoá.',
         'Kỳ đối chứng (cùng các tháng của 1–2 năm trước) và ngưỡng phát hiện do hệ thống tự xác định theo dữ liệu từng kỳ – người dùng không cần nhập; giá trị đã dùng hiện ở trang kết quả. Kết quả chỉ ra bản đồ công khai khi người có quyền bấm “Công bố ra bản đồ”.',
         'Điểm nóng NASA FIRMS là dịch vụ nền 30 phút/lần, có kiểm tra hạn mức khoá API trước khi tải.',
         'Đổi chu kỳ hoặc bật/tắt tự động ở cột “Tự động”, “Chu kỳ” rồi bấm “Lưu lịch”. “Chạy ngay” để chạy tức thì.',
@@ -343,6 +345,7 @@ const adminGuide = {
       id: 'nhat-ky', title: '14. Nhật ký hệ thống và cài đặt', icon: 'clock-history', img: 'a-audit', caption: 'Nhật ký hệ thống (chỉ ghi thêm, không sửa/xoá được)',
       intro: 'Nhật ký ghi mọi thao tác quan trọng: đăng nhập, xác minh, phê duyệt, xuất bản, thay đổi lịch chạy… Trang Cài đặt hiển thị trạng thái kết nối cơ sở dữ liệu PostGIS, khoá dịch vụ (chỉ báo có/không, không hiện giá trị), hạn mức FIRMS.',
       steps: ['Lọc nhật ký theo người dùng và nhóm hành động (đăng nhập, phản ánh, điểm nóng, biến động…).', 'Kiểm tra định kỳ trang Cài đặt để phát hiện dịch vụ ngoài bị lỗi.', 'Cài đặt › “Phiên bản ứng dụng MobileGIS”: khai báo phiên bản mới, phiên bản tối thiểu, nội dung cập nhật và liên kết tải (Android/iOS) → ứng dụng hiện thẻ “Có phiên bản mới” khi mở; “Gửi thông báo” đẩy tin tới mọi thiết bị.'],
+      notes: [{ type: 'tip', text: 'Cập nhật phiên bản mới trên VPS (kỹ thuật viên): mở PowerShell quyền Administrator, vào thư mục ứng dụng (C:\\webgis-kontum), chạy powershell -ExecutionPolicy Bypass -File .\\scripts\\update.ps1 (thêm -DataTar <gói dữ liệu .tar> khi có gói dữ liệu kèm theo). Script tự sao lưu, dừng dịch vụ, lấy mã từ git, bung gói dữ liệu, cài thư viện, áp migration, dựng chuỗi lớp phủ nếu chưa có, khởi động và kiểm tra trang chủ. Không sửa mã trực tiếp trên máy chủ; .env, .secrets, data, storage được giữ nguyên.' }],
       extra: [['a-settings', 'Cài đặt hệ thống']],
     },
   ],
@@ -418,7 +421,7 @@ const mobileGuide = {
     },
     {
       id: 'tai-nguyen', title: '7. Tài nguyên rừng và ảnh vệ tinh', icon: 'tree-fill',
-      intro: 'Tài nguyên rừng: tổng quan, cơ cấu 3 loại rừng, diện tích theo xã; thẻ Phân loại tách riêng rừng khộp; thẻ Biến động có mất tán cây hằng năm, dự báo nguy cơ mất rừng, biến động nghi vấn. Ảnh vệ tinh: sản phẩm Sentinel-2 đã xử lý, chỉ số NDVI/NDMI/NBR theo tháng, so sánh trước–sau.',
+      intro: 'Tài nguyên rừng: tổng quan, cơ cấu 3 loại rừng, diện tích theo xã (số liệu công bố mới nhất), lớp phủ Google Dynamic World năm đầu – năm gần nhất; thẻ Phân loại tách riêng rừng khộp; thẻ Biến động có mất tán cây hằng năm, dự báo nguy cơ mất rừng, biến động nghi vấn. Ảnh vệ tinh: sản phẩm Sentinel-2 đã xử lý, chỉ số NDVI/NDMI/NBR theo tháng, so sánh trước–sau.',
       phones: [P('m12-forest', 'Tài nguyên rừng'), P('m13-imagery', 'Ảnh vệ tinh')],
       notes: [{ type: 'warn', text: 'Rừng khộp rụng lá mùa khô: NDVI thấp mùa khô không đồng nghĩa mất rừng.' }],
     },

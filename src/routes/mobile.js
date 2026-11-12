@@ -165,7 +165,17 @@ r.get('/home', optionalAuth, (req, res) => {
     alerts: alerts.feed({ limit: 6 }), news: content.list({}).slice(0, 5).map(newsCard), freshness: repo.dataFreshness(),
   });
 });
-r.get('/forest/summary', (req, res) => res.json({ summary: repo.forestSummary(), communes: repo.communes().map((c) => ({ code: c.code, name: c.fullName, official: c.official, loss: c.loss ? { last5: c.loss.last5, annual: c.loss.annual } : null, risk: c.risk })), landcover: repo.landcoverHistory() ? (({ by_commune, ...x }) => x)(repo.landcoverHistory()) : null })); // eslint-disable-line camelcase
+// Lớp phủ cho ứng dụng: Google Dynamic World (chuẩn hoá) – năm đầu, năm trọn gần nhất, năm hiện tại (tạm tính)
+function mobileLandcover() {
+  const L = require('../services/landcover').series();
+  if (!L || !L.series.length) return null;
+  const full = L.series.filter((x) => !x.partial);
+  const pick = [...new Set([L.series[0], full[full.length - 1], L.series[L.series.length - 1]].filter(Boolean))];
+  const years = pick.map((x) => x.key);
+  return { title: `Lớp phủ ${years.join(' – ')} (Google Dynamic World)`, source: L.source, years: pick.map((x) => x.year + (x.partial ? '*' : '')),
+    by_year: Object.fromEntries(pick.map((x) => [x.year + (x.partial ? '*' : ''), L.aoi[x.key]])), classes: L.classes, partial_note: pick.some((x) => x.partial) ? '* tạm tính đến nay' : '' };
+}
+r.get('/forest/summary', (req, res) => res.json({ summary: repo.forestSummary(), communes: repo.communes().map((c) => ({ code: c.code, name: c.fullName, official: c.official, loss: c.loss ? { last5: c.loss.last5, annual: c.loss.annual } : null, risk: c.risk })), landcover: mobileLandcover() })); // eslint-disable-line camelcase
 r.get('/forest/change', (req, res) => {
   const fc = repo.forestChange();
   if (!fc) return res.status(404).json({ error: 'Chưa có dữ liệu', code: 'NOT_FOUND' });
