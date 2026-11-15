@@ -27,7 +27,7 @@ const fakeToken = () => `${crypto.randomBytes(11).toString('base64url')}:APA91b$
 (async () => {
   const admin = new Client({ host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5432), user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME || 'rung_kontum' });
   await admin.connect();
-  const cleanup = { reports: [], devices: [], sockets: [] };
+  const cleanup = { reports: [], devices: [], sockets: [], notifications: [] };
   let mock;
   try {
     const boot = (await call('GET', '/api/mobile/bootstrap')).j;
@@ -60,6 +60,13 @@ const fakeToken = () => `${crypto.randomBytes(11).toString('base64url')}:APA91b$
     ok(sDan.connected && sCb.connected, 'Kết nối Socket.IO /mobile bằng token truy cập');
     const bad = await new Promise((r) => { const s = io(`${BASE}/mobile`, { path: '/socket.io', transports: ['websocket'], auth: { token: 'sai' }, reconnection: false }); s.on('connect', () => { s.close(); r(false); }); s.on('connect_error', (e) => { s.close(); r(/TOKEN/.test(e.message)); }); });
     ok(bad, 'Token sai bị từ chối khi kết nối socket');
+
+    const selfTest = await call('POST', '/api/mobile/notifications/test', { token: dan.access_token });
+    if (selfTest.j && selfTest.j.id) cleanup.notifications.push(selfTest.j.id);
+    ok(selfTest.status === 200 && selfTest.j.ok && selfTest.j.id, 'API gửi thông báo thử tạo bản ghi thành công');
+    const selfNotification = await waitFor(() => inbox.dan.find((n) => n.id === selfTest.j.id));
+    ok(selfNotification && selfNotification.kind === 'system' && selfNotification.link.screen === 'notifications', 'Thông báo thử được giao qua Socket.IO với đúng màn hình đích');
+    ok(!inbox.cb.some((n) => n.id === selfTest.j.id), 'Thông báo thử riêng tư không gửi sang tài khoản khác');
 
     // phản ánh của người dân
     const loc = boot.communes[0].center;
@@ -158,6 +165,7 @@ const fakeToken = () => `${crypto.randomBytes(11).toString('base64url')}:APA91b$
     for (const s of cleanup.sockets) s.close();
     if (mock) mock.close();
     // dọn dữ liệu thử (tài khoản quản trị DB vì bảng xác minh bất biến)
+    await admin.query('DELETE FROM mobile.notifications WHERE id = ANY($1)', [cleanup.notifications]).catch(() => {});
     await admin.query("DELETE FROM mobile.notifications WHERE data->>'code' = ANY($1) OR source_ref LIKE ANY($2)", [cleanup.reports, cleanup.reports.map((c) => `pa:${c}:%`)]).catch(() => {});
     await admin.query("DELETE FROM mobile.notifications WHERE kind = 'verification' AND body LIKE '%kiểm thử thông báo%'").catch(() => {});
     await admin.query('DELETE FROM mobile.mobile_devices WHERE id = ANY($1)', [cleanup.devices]).catch(() => {});

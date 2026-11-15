@@ -13,7 +13,9 @@ Cấu hình Firebase công khai được lưu ở `lib/app/firebase_options.dart
 
 `ios/Runner/GoogleService-Info.plist` đã thêm vào Runner Resources và có trong archive. Đã tải `android/app/google-services.json` khớp package hiện tại; phiên này tập trung kiểm tra build iOS, chưa xác minh build/phân phối Android.
 
-Trên máy có `firebase.json` chứa các dart-define Firebase và `release.json` đã điền Firebase thật. Các URL API/quyền riêng tư/xóa tài khoản trong `release.json` vẫn cần tên miền production. Không dùng `firebase init` ghi đè `mobile/firebase.json`: đó là tệp dart-define của app, không phải cấu hình hosting.
+Trên máy có `firebase.json` chứa các dart-define Firebase và `release.json` đã điền Firebase thật. API và cổng web dùng `https://kontum.humgsoftware.pro.vn`; URL quyền riêng tư/xóa tài khoản trong `release.json` vẫn cần trang chính thức. Không dùng `firebase init` ghi đè `mobile/firebase.json`: đó là tệp dart-define của app, không phải cấu hình hosting.
+
+App mặc định dùng tên miền HTTPS này trên mọi nền tảng. Các cấu hình chạy trong VS Code và cấu hình release cũng dùng cùng địa chỉ; địa chỉ localhost đã lưu từ bản cài cũ tự chuyển khi mở lại app.
 
 ## Máy chủ gửi thông báo
 
@@ -37,7 +39,20 @@ node scripts/check_firebase_live.cjs
 
 Đã đạt: ký JWT → lấy OAuth token từ Google → FCM HTTP v1 xác thực bản tin APNs với `validate_only=true`. Không phát bản tin đến người dùng. Quyền IAM mới cần khoảng hai phút để có hiệu lực trong lần kiểm tra này.
 
-Chưa chuyển khóa/cấu hình lên VPS vì chưa có thông tin máy chủ production. Backend trên VPS cần các biến môi trường và tệp khóa tương ứng để gửi được.
+Chưa chuyển khóa/cấu hình lên VPS vì chưa có thông tin truy cập máy chủ. Kiểm tra `https://kontum.humgsoftware.pro.vn/api/mobile/bootstrap` ngày 01/11/2026: API hoạt động, `push.configured=false`; kết nối Socket.IO `/mobile` qua WSS thành công. Backend trên VPS cần các biến môi trường và tệp khóa tương ứng để gửi FCM được.
+
+## Kết quả test thông báo ngày 01/11/2026
+
+- `npm run test:notifications`: **4/4 đạt**, gồm bản tin APNs, OAuth/FCM giả lập và API khi chưa có PostgreSQL.
+- `flutter test test/notification_payload_test.dart test/notify_open_test.dart` (trong `mobile/`): **10/10 đạt**, gồm chống trùng, giữ riêng ID thông báo/đối tượng và mở đúng chi tiết khi chạm.
+- `flutter test test/server_url_test.dart`: **2/2 đạt**, kiểm tra chuyển localhost đã lưu sang HTTPS và giữ địa chỉ HTTPS đã chọn. Sau cập nhật bố cục điện thoại/iPad, toàn bộ `flutter test`: **53/53 đạt**; xem [LAYOUT.md](LAYOUT.md).
+- `flutter analyze --no-pub`: **không có lỗi**.
+- `scripts/test_push.cjs`: **25/25 đạt** với backend cục bộ, PostgreSQL 16.4/PostGIS và một xã giả lập trong thư mục tạm. Đã kiểm tra Socket.IO, hủy bản FCM sau ACK, hàng đợi khi ngắt socket, lịch sử/đã đọc, phân quyền người nhận và API tự gửi thông báo thử. Phần gửi FCM dùng HTTP server giả lập; trường hợp đóng app được mô phỏng bằng ngắt socket.
+- `node scripts/check_firebase_live.cjs`: **đạt** OAuth và FCM `validate_only` với Firebase thật; không phát thông báo đến thiết bị.
+
+Đã sửa API `/notifications/test` để trả `503 DB_REQUIRED` khi thiếu PostgreSQL, thay vì trả HTTP 200 khiến app báo đã gửi dù chưa tạo thông báo. Test FCM cũng ghi đè rõ project và OAuth URL giả lập để không bị `.env` nạp lại cấu hình Firebase thật.
+
+Môi trường DB/backend thử nghiệm đã được dọn sau khi chạy. Chưa có iPhone thật kết nối trong phiên test này; kết quả trên chưa xác minh nhận push nền/đã đóng qua APNs hoặc TestFlight. Phần khóa APNs bên dưới vẫn cần xác nhận.
 
 ## Phần APNs cần xác nhận
 

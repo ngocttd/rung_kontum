@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/api.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
@@ -15,7 +16,7 @@ class ReviewPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final v = ref.watch(pendingVerificationsProvider);
     final me = ref.watch(sessionProvider).user;
-    return Scaffold(
+    return ResponsiveScaffold(
       appBar: AppBar(title: const Text('Duyệt kết quả xác minh')),
       body: AsyncView(
         value: v,
@@ -91,7 +92,7 @@ class ReviewPage extends ConsumerWidget {
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
-        builder: (_) => DraggableScrollableSheet(
+        builder: (_) => SafeDraggableSheet(
           expand: false,
           initialChildSize: .7,
           builder: (_, sc) => ListView(controller: sc, padding: const EdgeInsets.fromLTRB(16, 0, 16, 20), children: [

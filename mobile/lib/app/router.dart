@@ -31,6 +31,7 @@ import '../features/reports/my_reports_page.dart';
 import '../features/reports/report_form_page.dart';
 import '../features/weather/weather_page.dart';
 import 'theme.dart';
+import 'layout.dart';
 
 /// Cầu nối Riverpod → GoRouter.refreshListenable (điều hướng lại khi đăng nhập/đăng xuất).
 class _SessionListenable extends ChangeNotifier {
@@ -168,9 +169,8 @@ class _ShellState extends ConsumerState<_Shell> with WidgetsBindingObserver {
     final pending = ref.watch(outboxProvider.select((o) => o.waiting + o.conflicts));
     return Scaffold(
       body: shell,
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: AppNavigationBar(
         selectedIndex: shell.currentIndex,
-        height: 66,
         onDestinationSelected: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
         destinations: [
           const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Trang chủ'),

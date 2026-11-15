@@ -1,5 +1,5 @@
 {
-  "API_BASE_URL": "https://YOUR_API_DOMAIN",
+  "API_BASE_URL": "https://kontum.humgsoftware.pro.vn",
   "DEMO_LOGIN": false,
   "PRIVACY_POLICY_URL": "https://YOUR_API_DOMAIN/privacy",
   "ACCOUNT_DELETION_URL": "https://YOUR_API_DOMAIN/account/delete",
@@ -7,5 +7,6 @@
   "FIREBASE_SENDER_ID": "YOUR_NUMERIC_SENDER_ID",
   "FIREBASE_IOS_API_KEY": "YOUR_IOS_API_KEY",
   "FIREBASE_IOS_APP_ID": "1:YOUR_NUMERIC_SENDER_ID:ios:YOUR_APP_ID",
-  "FIREBASE_IOS_BUNDLE_ID": "vn.gov.kontum.mobilegis"
+  "FIREBASE_IOS_BUNDLE_ID": "vn.gov.kontum.mobilegis",
+  "WEB_PORTAL_URL": "https://kontum.humgsoftware.pro.vn"
 }

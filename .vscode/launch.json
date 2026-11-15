@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter: MobileGIS (Debug)",
+      "cwd": "mobile",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "--dart-define=DEMO_LOGIN=true"
+      ]
+    },
+    {
+      "name": "Flutter: MobileGIS (Debug - Local Backend)",
+      "cwd": "mobile",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "--dart-define=API_BASE_URL=http://localhost:3000",
+        "--dart-define=DEMO_LOGIN=true"
+      ]
+    },
+    {
+      "name": "Flutter: MobileGIS (Profile Mode)",
+      "cwd": "mobile",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "profile",
+      "program": "lib/main.dart"
+    },
+    {
+      "name": "Node: Backend Server",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/server.js",
+      "restart": true,
+      "console": "integratedTerminal"
+    }
+  ]
+}

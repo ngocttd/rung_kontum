@@ -13,35 +13,37 @@ class DonutChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = items.fold<num>(0, (a, e) => a + e.$2);
-    return Row(children: [
-      SizedBox(
-        width: size,
-        height: size,
-        child: Stack(alignment: Alignment.center, children: [
-          PieChart(PieChartData(
-            sectionsSpace: 1.5,
-            centerSpaceRadius: size * .3,
-            sections: [for (final e in items) PieChartSectionData(value: e.$2.toDouble(), color: e.$3, radius: size * .17, showTitle: false)],
-          )),
-          if (center != null) Text(center!, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.navy)),
-        ]),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          for (final e in items)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(children: [
-                Container(width: 10, height: 10, decoration: BoxDecoration(color: e.$3, shape: BoxShape.circle)),
-                const SizedBox(width: 6),
-                Expanded(child: Text(e.$1, style: const TextStyle(fontSize: 12))),
-                Text(total == 0 ? '' : '${fmtNum(e.$2 * 100 / total, 1)}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-              ]),
-            ),
-        ]),
-      ),
+    final chart = SizedBox(
+      width: size,
+      height: size,
+      child: Stack(alignment: Alignment.center, children: [
+        PieChart(PieChartData(
+          sectionsSpace: 1.5,
+          centerSpaceRadius: size * .3,
+          sections: [for (final e in items) PieChartSectionData(value: e.$2.toDouble(), color: e.$3, radius: size * .17, showTitle: false)],
+        )),
+        if (center != null) SizedBox(width: size * .57, child: FittedBox(fit: BoxFit.scaleDown, child: Text(center!, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.navy)))),
+      ]),
+    );
+    final legend = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (final e in items)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(children: [
+            Container(width: 10, height: 10, decoration: BoxDecoration(color: e.$3, shape: BoxShape.circle)),
+            const SizedBox(width: 6),
+            Expanded(child: Text(e.$1, style: const TextStyle(fontSize: 12))),
+            const SizedBox(width: 8),
+            Text(total == 0 ? '' : '${fmtNum(e.$2 * 100 / total, 1)}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          ]),
+        ),
     ]);
+    return LayoutBuilder(builder: (context, constraints) {
+      if (constraints.maxWidth < 420) {
+        return Column(children: [chart, const SizedBox(height: 12), legend]);
+      }
+      return Row(children: [chart, const SizedBox(width: 16), Expanded(child: legend)]);
+    });
   }
 }
 

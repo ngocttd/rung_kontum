@@ -90,6 +90,7 @@ ThemeData buildTheme({bool highContrast = false}) {
         (s) => TextStyle(fontSize: 11.5, fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500, color: s.contains(WidgetState.selected) ? AppColors.forest : AppColors.muted),
       ),
     ),
+    bottomSheetTheme: const BottomSheetThemeData(constraints: BoxConstraints(maxWidth: 640)),
     chipTheme: base.chipTheme.copyWith(side: const BorderSide(color: AppColors.line)),
   );
 }

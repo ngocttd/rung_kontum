@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/api.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
@@ -16,7 +17,7 @@ class MyReportsPage extends StatelessWidget {
   const MyReportsPage({super.key, this.code});
   final String? code;
   @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Phản ánh của tôi')), body: MyReportsBody(code: code));
+  Widget build(BuildContext context) => ResponsiveScaffold(appBar: AppBar(title: const Text('Phản ánh của tôi')), body: MyReportsBody(code: code));
 }
 
 class MyReportsBody extends ConsumerStatefulWidget {
@@ -50,7 +51,7 @@ class _MyReportsBodyState extends ConsumerState<MyReportsBody> {
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
-        builder: (_) => DraggableScrollableSheet(
+        builder: (_) => SafeDraggableSheet(
           expand: false,
           initialChildSize: .65,
           builder: (_, sc) => ListView(controller: sc, padding: const EdgeInsets.fromLTRB(16, 0, 16, 20), children: [

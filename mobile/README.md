@@ -26,21 +26,21 @@ flutter test          # kiểm thử đơn vị
 
 ## 2. Chạy thử
 
-1. Chạy backend ở thư mục gốc: `npm start`, mặc định cổng 3000. Ở môi trường phát triển, máy chủ tự bật đăng nhập nhanh (`MOBILE_DEMO_LOGIN`).
-2. Chạy ứng dụng:
+Ứng dụng mặc định kết nối máy chủ **https://kontum.humgsoftware.pro.vn** trên Android, iOS và web. Bản cài cũ tự chuyển địa chỉ localhost đã lưu sang máy chủ này.
 
 ```bash
-# Android emulator (tự trỏ tới http://10.0.2.2:3000)
 flutter run
 
-# Điện thoại thật cùng mạng LAN với máy chạy backend
-flutter run --dart-define=API_BASE_URL=http://192.168.1.10:3000
+# Chỉ định rõ địa chỉ khi build/chạy:
+flutter run --dart-define=API_BASE_URL=https://kontum.humgsoftware.pro.vn
 
-# Bản web xem thử, do backend phục vụ tại http://localhost:3000/mobile-app/
+# Build bản web xem thử để backend phục vụ ở /mobile-app/:
 flutter build web --base-href /mobile-app/
 ```
 
 Địa chỉ máy chủ còn đổi được ngay trong ứng dụng: biểu tượng máy chủ ở màn đăng nhập, hoặc *Cá nhân → Cài đặt → Địa chỉ máy chủ*.
+
+Bố cục tự thích ứng với điện thoại nhỏ, iPad và chia đôi màn hình; navbar cập nhật vùng an toàn khi đổi giữa điều hướng 3 nút/vuốt. Chi tiết và cách kiểm tra: [LAYOUT.md](LAYOUT.md).
 
 ### Đăng nhập nhanh theo vai trò (môi trường thử nghiệm)
 
@@ -67,9 +67,9 @@ Tài khoản demo do máy chủ tạo, không có mật khẩu dùng được. K
 **Nhanh nhất** – build APK trỏ tới máy chủ đã triển khai:
 
 ```bat
-build-apk.bat https://webgis.kontum.gov.vn
+build-apk.bat https://kontum.humgsoftware.pro.vn
 :: hoặc PowerShell, thêm gói .aab cho Google Play:
-.uild-apk.ps1 -ApiUrl https://webgis.kontum.gov.vn -Aab
+.uild-apk.ps1 -ApiUrl https://kontum.humgsoftware.pro.vn -Aab
 ```
 
 Kết quả nằm trong `release\WebGISKonTum-<phiên bản>.apk` (và `.aab`).
@@ -97,8 +97,8 @@ storeFile=C:/keys/mobilegis-kontum.jks
 3. Build:
 
 ```bash
-flutter build appbundle --release --dart-define=API_BASE_URL=https://<ten-mien> --dart-define=DEMO_LOGIN=false   # Google Play
-flutter build apk --release --split-per-abi --dart-define=API_BASE_URL=https://<ten-mien> --dart-define=DEMO_LOGIN=false  # cài trực tiếp
+flutter build appbundle --release --dart-define=API_BASE_URL=https://kontum.humgsoftware.pro.vn --dart-define=DEMO_LOGIN=false   # Google Play
+flutter build apk --release --split-per-abi --dart-define=API_BASE_URL=https://kontum.humgsoftware.pro.vn --dart-define=DEMO_LOGIN=false  # cài trực tiếp
 ```
 
 Nếu chưa có `key.properties`, bản release tạm ký bằng khoá debug để chạy thử.
@@ -113,7 +113,7 @@ Phát hành App Store: xem [APP_STORE.md](APP_STORE.md), cấu hình `release.js
 
 ```bash
 cd ios && pod install && cd ..
-flutter build ipa --release --dart-define=API_BASE_URL=https://<ten-mien> --dart-define=DEMO_LOGIN=false
+flutter build ipa --release --dart-define=API_BASE_URL=https://kontum.humgsoftware.pro.vn --dart-define=DEMO_LOGIN=false
 ```
 
 Đặt Team, Bundle ID và chứng chỉ trong Xcode (`ios/Runner.xcworkspace`). Lời xin quyền vị trí, camera, thư viện ảnh và micro đã có tiếng Việt trong `ios/Runner/Info.plist`.

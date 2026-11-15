@@ -1,7 +1,7 @@
 # Phát hành MobileGIS Kon Tum lên App Store
 
 Ngày kiểm tra: 01/11/2026. Nguồn: `ngocttd/rung_kontum`, commit `f477afb`, nhánh sửa `fix/ios-app-store-readiness`.
-Mã app chính ở `mobile/`. Bản cũ `../kontum-mobile` được giữ nguyên. Đã lấy Bundle ID, Apple Team và mức Dart SDK tương thích từ bản cũ; giữ các thay đổi giao diện và nghiệp vụ mới trên GitHub.
+Mã app chính ở `mobile/`. Bản cũ `../kontum-mobile` được giữ để đối chiếu, cấu hình địa chỉ máy chủ đã đồng bộ với bản chính. Đã lấy Bundle ID, Apple Team và mức Dart SDK tương thích từ bản cũ; giữ các thay đổi giao diện và nghiệp vụ mới trên GitHub.
 
 ## Tình trạng hiện tại
 
@@ -14,8 +14,8 @@ Mã app chính ở `mobile/`. Bản cũ `../kontum-mobile` được giữ nguyê
 | App | MobileGIS Kon Tum, `1.0.0+10`, iOS tối thiểu 15.0 |
 | Bundle ID/Team | `vn.gov.kontum.mobilegis` / `F4BF8GHX56`, khớp cấu hình iOS có sẵn trên máy |
 | Phân tích mã | `flutter analyze`: không có lỗi/cảnh báo |
-| Flutter test | 19 bài đạt, gồm mở thông báo, tách ID và chống trùng, safe area |
-| Chạy app iOS | Đã cài và mở trên iPhone 18 Pro Max Simulator; màn hình đăng nhập hiện bình thường, thiếu backend được báo trong giao diện, không crash. Chưa xác minh đăng nhập/nghiệp vụ với máy chủ thật |
+| Flutter test | 53 bài đạt, gồm thông báo, địa chỉ máy chủ, bố cục, ngoại tuyến và dữ liệu Map; xem LAYOUT.md và MAP_OPTIMIZATION.md |
+| Chạy app iOS | Đã build/cài lại trên iPhone 18 Pro Max Simulator với API `https://kontum.humgsoftware.pro.vn`; màn hình đăng nhập tải thành công, không còn lỗi kết nối máy chủ. Chưa xác minh đăng nhập/nghiệp vụ bằng tài khoản thật |
 | Firebase thật | Project `even-metrics-413108`, iOS `vn.gov.kontum.mobilegis`; service account gửi FCM đã cấu hình, OAuth và FCM validate-only đã đạt |
 | FCM unit test | 2 bài đạt; HTTP v1/OAuth chạy với máy chủ giả lập cục bộ, không gửi đến Firebase thật |
 | Cấu hình phát hành | Đã thử 9 trường hợp kiểm tra với dữ liệu tổng hợp; file mẫu bị từ chối đúng vì chưa điền giá trị thật |
@@ -43,7 +43,7 @@ Hai file backend **phải triển khai cùng**: `src/services/field.js` và `src
 
 ## Những mục phải hoàn tất trước khi gửi Apple
 
-1. **API thật:** cung cấp tên miền HTTPS, chứng chỉ TLS hợp lệ, backend đang chạy và đủ dữ liệu. Bản build kiểm tra hiện chưa có API thật; không dùng localhost để upload.
+1. **API thật — đã có:** `https://kontum.humgsoftware.pro.vn`, đã kiểm tra bootstrap, dữ liệu công khai và Socket.IO qua HTTPS/WSS. App và cấu hình release mặc định dùng tên miền này. Backend hiện trả `push.configured=false`, cần cấu hình FCM trên VPS để nhận push nền.
 2. **Firebase thật — đã cấu hình:** app iOS production có đúng Bundle ID trên. Có cấu hình mặc định trong `lib/app/firebase_options.dart`, native `GoogleService-Info.plist`, cùng `firebase.json`/`release.json` trên máy. Có thể ghi đè đầy đủ bằng dart-define cho môi trường khác.
 3. **APNs trên Firebase:** tải khóa APNs `.p8` lên Firebase → Project settings → Cloud Messaging → Apple app configuration; điền Key ID/Team ID, bảo đảm khóa cho phép môi trường production và đúng topic/bundle. Không đóng gói `.p8` trong app.
 4. **Máy chủ gửi FCM — đã cấu hình tại máy này:** `.env` và `.secrets/firebase-service-account.json` dùng tài khoản `kontum-fcm-sender` có role FCM. API đã bật và Google đã chấp nhận bản tin validate-only. Khi triển khai VPS cần chuyển tệp bí mật an toàn và cấu hình tương ứng; không đóng gói khóa vào app/ZIP. Chưa triển khai lên máy chủ production.
@@ -59,7 +59,7 @@ Từ thư mục `mobile`:
 
 ```bash
 # release.json trên máy đã có Firebase thật.
-# Điền API_BASE_URL, PRIVACY_POLICY_URL, ACCOUNT_DELETION_URL chính thức.
+# API_BASE_URL đã có tên miền; điền PRIVACY_POLICY_URL, ACCOUNT_DELETION_URL chính thức.
 python3 scripts/check_ios_release.py release.json
 bash scripts/build_ios.sh release.json 10
 ```

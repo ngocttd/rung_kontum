@@ -7,12 +7,16 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/location.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
+import '../../widgets/network_map.dart';
 import 'object_page.dart';
+import 'map_data.dart';
+import 'map_geometry.dart';
 
 /// Vị trí cần mở bản đồ tới (từ tin, cảnh báo, nhiệm vụ…).
 class MapFocus {
@@ -45,12 +49,20 @@ class _MapPageState extends ConsumerState<MapPage> {
   Measure measure = Measure.none;
   final pts = <LatLng>[];
   List<Map<String, dynamic>> results = [];
+  bool _showMap = false;
+  bool _mapReady = false;
+  String? _baseUrl;
+  Widget? _baseTiles;
 
   @override
   void initState() {
     super.initState();
     final s = ref.read(sessionProvider);
     if (s.user != null && (s.user!.role == 'specialist' || s.user!.role == 'leader')) on.add('tasks');
+    // Phản hồi chọn tab trước khi khởi tạo FlutterMap trong khung tiếp theo.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _showMap = true);
+    });
   }
 
   @override
@@ -60,10 +72,13 @@ class _MapPageState extends ConsumerState<MapPage> {
   }
 
   void _applyFocus() {
+    if (!_mapReady || !mounted) return;
     final f = widget.focus;
     if (f is MapFocus) {
       if (f.layer != null) setState(() => on.add(f.layer!));
-      WidgetsBinding.instance.addPostFrameCallback((_) => map.move(f.point, f.zoom));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _mapReady) map.move(f.point, f.zoom);
+      });
     }
   }
 
@@ -114,31 +129,46 @@ class _MapPageState extends ConsumerState<MapPage> {
   }
 
   @override
+  void dispose() {
+    search.dispose();
+    map.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (!_showMap) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     final s = ref.watch(sessionProvider);
     final layers = ref.watch(layersProvider).asData?.value.data;
     final basemaps = ((s.map['basemaps'] as List?) ?? []).cast<Map>();
     final bm = basemaps.firstWhere((b) => b['id'] == basemap, orElse: () => basemaps.isEmpty ? {'url': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', 'attribution': '© OpenStreetMap'} : basemaps.first);
     final api = ref.watch(apiProvider);
     final rasters = ((layers?['raster'] as List?) ?? []).cast<Map>();
+    if (_baseTiles == null || _baseUrl != bm['url']) {
+      _baseUrl = bm['url'] as String;
+      _baseTiles = MapTileLayer(urlTemplate: _baseUrl!);
+    }
 
     final children = <Widget>[
-      TileLayer(urlTemplate: bm['url'] as String, userAgentPackageName: 'vn.gov.kontum.mobilegis', maxNativeZoom: 19),
+      _baseTiles!,
       for (final r in rasters.where((r) => on.contains(r['id'])))
         if (r['tiles'] != null)
           Opacity(
             opacity: opacity[r['id']] ?? 0.85,
-            child: TileLayer(
+            child: MapTileLayer(
+              key: ValueKey(r['id']),
               urlTemplate: api.url(r['tiles']['url'] as String),
               minNativeZoom: (r['tiles']['minzoom'] as num?)?.toInt() ?? 7,
               maxNativeZoom: (r['tiles']['maxzoom'] as num?)?.toInt() ?? 14,
-              userAgentPackageName: 'vn.gov.kontum.mobilegis',
-              tileProvider: NetworkTileProvider(headers: api.authHeaders),
+              headers: api.authHeaders,
+              allowMissingTiles: true,
             ),
           )
         else if (r['image']?['coordinates'] != null)
           OverlayImageLayer(overlayImages: [
-            OverlayImage(
+            MapOverlayImage(
               bounds: _boundsOf(r['image']['coordinates'] as List),
               imageProvider: NetworkImage(api.url(r['image']['url'] as String)),
               opacity: opacity[r['id']] ?? 0.85,
@@ -164,19 +194,25 @@ class _MapPageState extends ConsumerState<MapPage> {
 
     return Scaffold(
       body: Stack(children: [
-        FlutterMap(
+        NetworkMap(
+          noticeBottom: measure == Measure.none ? 84 : 144,
           mapController: map,
           options: MapOptions(
             initialCameraFit: CameraFit.bounds(bounds: _aoi, padding: const EdgeInsets.all(24)),
             minZoom: 6,
             maxZoom: 18,
             onTap: _tap,
-            onMapReady: _applyFocus,
+            onMapReady: () {
+              if (!mounted) return;
+              setState(() => _mapReady = true);
+              _applyFocus();
+            },
             interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
           ),
           children: children,
         ),
-        // tìm kiếm
+        if (_mapReady) ...[
+        // Đưa ô nhập/tìm kiếm vào khung sau khi canvas bản đồ đã sẵn sàng.
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -238,6 +274,7 @@ class _MapPageState extends ConsumerState<MapPage> {
         if (measure != Measure.none) Positioned(left: 12, right: 12, bottom: 84, child: _measureBar()),
         // nhóm lớp nhanh (prototype)
         Positioned(left: 8, right: 8, bottom: 8, child: _quickBar()),
+        ],
       ]),
     );
   }
@@ -358,7 +395,7 @@ class _MapPageState extends ConsumerState<MapPage> {
           groups.putIfAbsent(r['group_label']?.toString() ?? 'Khác', () => []).add(r);
         }
         final staff = ref.read(sessionProvider).user;
-        return DraggableScrollableSheet(
+        return SafeDraggableSheet(
           expand: false,
           initialChildSize: .7,
           maxChildSize: .95,
@@ -463,43 +500,60 @@ double polygonAreaM2(List<LatLng> p) {
 }
 
 // ---------- lớp vector ----------
-class _ProvinceLayer extends ConsumerWidget {
+class _ProvinceLayer extends ConsumerStatefulWidget {
   const _ProvinceLayer();
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final g = ref.watch(provinceGeoProvider).asData?.value.data;
-    if (g == null) return const SizedBox.shrink();
-    final lines = <Polyline>[];
-    for (final f in (g['features'] as List).cast<Map>()) {
-      for (final ring in ringsOf(f['geometry'] as Map)) {
-        lines.add(Polyline(points: ring.map((p) => LatLng(p[1], p[0])).toList(), color: const Color(0xFF9B4DFF), strokeWidth: 2.6));
-      }
+  ConsumerState<_ProvinceLayer> createState() => _ProvinceLayerState();
+}
+
+class _ProvinceLayerState extends ConsumerState<_ProvinceLayer> {
+  List<List<LatLng>>? _geometry;
+  Widget _layer = const SizedBox.shrink();
+
+  @override
+  Widget build(BuildContext context) {
+    final geometry = ref.watch(provinceMapGeometryProvider).asData?.value;
+    if (geometry != null && !identical(geometry, _geometry)) {
+      _geometry = geometry;
+      _layer = PolylineLayer(polylines: [
+        for (final ring in geometry)
+          Polyline(points: ring, color: const Color(0xFF9B4DFF), strokeWidth: 2.6),
+      ]);
     }
-    return PolylineLayer(polylines: lines);
+    return _layer;
   }
 }
 
-class _CommunesLayer extends ConsumerWidget {
+class _CommunesLayer extends ConsumerStatefulWidget {
   const _CommunesLayer({required this.choro});
   final String choro;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final g = ref.watch(communesGeoProvider).asData?.value.data;
-    if (g == null) return const SizedBox.shrink();
-    final polys = <Polygon>[];
-    for (final f in (g['features'] as List).cast<Map>()) {
-      final p = f['properties'] as Map;
+  ConsumerState<_CommunesLayer> createState() => _CommunesLayerState();
+}
+
+class _CommunesLayerState extends ConsumerState<_CommunesLayer> {
+  List<PolygonGeometry>? _geometry;
+  String? _choro;
+  Widget _layer = const SizedBox.shrink();
+
+  @override
+  Widget build(BuildContext context) {
+    final geometry = ref.watch(communeMapGeometryProvider).asData?.value;
+    if (geometry == null) return _layer;
+    if (identical(geometry, _geometry) && widget.choro == _choro) return _layer;
+    _geometry = geometry;
+    _choro = widget.choro;
+    final polygons = <Polygon>[];
+    for (final polygon in geometry) {
+      final p = polygon.properties;
       Color fill = Colors.transparent;
-      if (choro == 'danger_cls' && p['danger_cls'] != null) fill = AppColors.dangerOf(p['danger_cls'] as num).withValues(alpha: .45);
-      if (choro == 'cover' && p['cover'] != null) fill = Color.lerp(const Color(0xFFF5F0C8), AppColors.forestDark, ((p['cover'] as num) / 90).clamp(0, 1).toDouble())!.withValues(alpha: .55);
-      final geom = f['geometry'] as Map;
-      final polysCoords = geom['type'] == 'Polygon' ? [geom['coordinates'] as List] : (geom['coordinates'] as List).cast<List>();
-      for (final poly in polysCoords) {
-        final rings = poly.cast<List>().map((r) => r.map((c) => LatLng(((c as List)[1] as num).toDouble(), (c[0] as num).toDouble())).toList()).toList();
-        polys.add(Polygon(points: rings.first, holePointsList: rings.length > 1 ? rings.sublist(1) : null, color: fill, borderColor: Colors.white.withValues(alpha: .85), borderStrokeWidth: 1.1));
-      }
+      if (widget.choro == 'danger_cls' && p['danger_cls'] != null) fill = AppColors.dangerOf(p['danger_cls'] as num).withValues(alpha: .45);
+      if (widget.choro == 'cover' && p['cover'] != null) fill = Color.lerp(const Color(0xFFF5F0C8), AppColors.forestDark, ((p['cover'] as num) / 90).clamp(0, 1).toDouble())!.withValues(alpha: .55);
+      polygons.add(Polygon(points: polygon.rings.first, holePointsList: polygon.rings.length > 1 ? polygon.rings.sublist(1) : null, color: fill, borderColor: Colors.white.withValues(alpha: .85), borderStrokeWidth: 1.1));
     }
-    return PolygonLayer(polygons: polys);
+    // Giữ cả widget để flutter_map tái sử dụng cache chiếu/tối giản tọa độ.
+    _layer = PolygonLayer(polygons: polygons);
+    return _layer;
   }
 }
 

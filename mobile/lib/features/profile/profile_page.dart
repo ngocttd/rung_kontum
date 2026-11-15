@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/config.dart';
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/external_link.dart';
 import '../../core/api.dart';
 import '../../core/data.dart';
@@ -36,7 +37,7 @@ class ProfilePage extends ConsumerWidget {
           onTap: onTap,
         );
 
-    return Scaffold(
+    return ResponsiveScaffold(maxWidth: 760,
       appBar: AppBar(title: const Text('Cá nhân')),
       body: ListView(padding: const EdgeInsets.all(14), children: [
         Card(
@@ -117,8 +118,7 @@ class ProfilePage extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(context).viewInsets.bottom + 20),
+      builder: (_) => FormSheet(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Thông tin cá nhân', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           KV('Họ tên', u.name),

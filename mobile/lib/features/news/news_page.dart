@@ -5,6 +5,7 @@ import '../../core/share_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
@@ -27,7 +28,7 @@ class _NewsPageState extends ConsumerState<NewsPage> {
   Widget build(BuildContext context) {
     final cats = ((ref.watch(sessionProvider).catalogs['news_categories'] as Map?) ?? {}).cast<String, dynamic>();
     final v = ref.watch(newsProvider(cat));
-    return Scaffold(
+    return ResponsiveScaffold(
       appBar: AppBar(title: const Text('Tin tức'), automaticallyImplyLeading: widget.standalone),
       body: Column(children: [
         Padding(
@@ -74,7 +75,7 @@ class NewsDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final v = ref.watch(newsDetailProvider(slug));
     final api = ref.watch(apiProvider);
-    return Scaffold(
+    return ResponsiveScaffold(
       appBar: AppBar(actions: [
         IconButton(icon: const Icon(Icons.share_outlined), onPressed: () {
           final d = v.asData?.value.data;

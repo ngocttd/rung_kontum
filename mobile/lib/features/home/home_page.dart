@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/outbox.dart';
@@ -35,7 +36,7 @@ class HomePage extends ConsumerWidget {
       field ? (Icons.assignment_rounded, 'Nhiệm vụ\nhiện trường', AppColors.forestDark, '/tasks') : (Icons.history_rounded, 'Phản ánh\ncủa tôi', AppColors.blue, '/reports'),
     ];
 
-    return Scaffold(
+    return ResponsiveScaffold(
       appBar: AppBar(
         titleSpacing: 12,
         title: Row(children: [
@@ -44,7 +45,7 @@ class HomePage extends ConsumerWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Xin chào, ${u?.name ?? 'Khách'}', style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis),
-              Text(u?.roleLabel ?? 'Xem thông tin công khai', style: const TextStyle(fontSize: 11.5, color: AppColors.muted, fontWeight: FontWeight.w400)),
+              Text(u?.roleLabel ?? 'Xem thông tin công khai', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, color: AppColors.muted, fontWeight: FontWeight.w400)),
             ]),
           ),
         ]),
@@ -66,13 +67,13 @@ class HomePage extends ConsumerWidget {
         child: ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 24), children: [
           _Banner(),
           const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 3,
+          LayoutBuilder(builder: (context, constraints) => GridView.count(
+            crossAxisCount: constraints.maxWidth < 340 * (MediaQuery.textScalerOf(context).scale(12) / 12).clamp(1, 2) ? 2 : constraints.maxWidth < 600 ? 3 : constraints.maxWidth < 900 ? 4 : 6,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 8,
             crossAxisSpacing: 8,
-            childAspectRatio: 1.15,
+            mainAxisExtent: 100 + (MediaQuery.textScalerOf(context).scale(12) - 12).clamp(0, 24) * 3,
             children: [
               for (final t in tiles)
                 Card(
@@ -87,7 +88,7 @@ class HomePage extends ConsumerWidget {
                   ),
                 ),
             ],
-          ),
+          )),
           if (field) ...[const SizedBox(height: 12), const _WorkSummary()],
           const _PendingSync(),
           const SizedBox(height: 12),
@@ -107,10 +108,11 @@ class _Banner extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Stack(children: [
-          Image.asset('assets/images/p01-home-small.webp', height: 132, width: double.infinity, fit: BoxFit.cover),
+          Image.asset('assets/images/p01-home-small.webp', height: 132 + (MediaQuery.textScalerOf(context).scale(16) - 16).clamp(0, 32) * 6, width: double.infinity, fit: BoxFit.cover),
           Positioned.fill(child: Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xCC064A28), Color(0x22064A28)])))),
           const Positioned(
             left: 16,
+            right: 16,
             top: 22,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Kon Tum', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900)),
@@ -132,16 +134,11 @@ class _HomeData extends StatelessWidget {
     final alerts = ((d['alerts'] as List?) ?? []).cast<Map>();
     final news = ((d['news'] as List?) ?? []).cast<Map>();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
-        Expanded(child: KpiTile(icon: Icons.forest, value: fmtHa(f['established_forest_ha'] as num?), label: 'Diện tích có rừng', sub: 'đến ${fmtDate(f['as_of'])}')),
-        const SizedBox(width: 8),
-        Expanded(child: KpiTile(icon: Icons.donut_large, value: '${fmtNum(f['cover_percent_computed'] as num?, 1)} %', label: 'Tỷ lệ có rừng / DT tự nhiên', color: AppColors.leaf)),
-      ]),
-      const SizedBox(height: 8),
-      Row(children: [
-        Expanded(child: KpiTile(icon: Icons.whatshot, value: '${d['hotspots_7d'] ?? 0}', label: 'Điểm nóng vệ tinh 7 ngày', sub: '${d['hotspots_unverified'] ?? 0} chưa xác minh', color: AppColors.fire)),
-        const SizedBox(width: 8),
-        Expanded(child: KpiTile(icon: Icons.thermostat, value: danger == null ? '—' : 'Cấp ${danger['max_level']}', label: 'Cấp nguy cơ cháy cao nhất hôm nay', sub: 'chỉ số P – tự động', color: AppColors.dangerOf(danger?['max_level'] as num?))),
+      ResponsiveColumns(children: [
+        KpiTile(icon: Icons.forest, value: fmtHa(f['established_forest_ha'] as num?), label: 'Diện tích có rừng', sub: 'đến ${fmtDate(f['as_of'])}'),
+        KpiTile(icon: Icons.donut_large, value: '${fmtNum(f['cover_percent_computed'] as num?, 1)} %', label: 'Tỷ lệ có rừng / DT tự nhiên', color: AppColors.leaf),
+        KpiTile(icon: Icons.whatshot, value: '${d['hotspots_7d'] ?? 0}', label: 'Điểm nóng vệ tinh 7 ngày', sub: '${d['hotspots_unverified'] ?? 0} chưa xác minh', color: AppColors.fire),
+        KpiTile(icon: Icons.thermostat, value: danger == null ? '—' : 'Cấp ${danger['max_level']}', label: 'Cấp nguy cơ cháy cao nhất hôm nay', sub: 'chỉ số P – tự động', color: AppColors.dangerOf(danger?['max_level'] as num?)),
       ]),
       SourceNote('Số liệu rừng theo QĐ ${f['decision'] ?? ''}. Điểm nóng NASA FIRMS chưa phải cháy rừng đã xác nhận.'),
       const SizedBox(height: 12),

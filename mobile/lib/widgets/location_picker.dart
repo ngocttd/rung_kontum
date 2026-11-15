@@ -8,6 +8,7 @@ import '../core/format.dart';
 import '../core/location.dart';
 import '../core/session.dart';
 import 'common.dart';
+import 'network_map.dart';
 
 /// Ô vị trí dùng chung cho phản ánh / khảo sát / xác minh: GPS (kèm sai số) hoặc chọn trên bản đồ / nhập tay.
 class LocationField extends StatefulWidget {
@@ -113,10 +114,11 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Chọn vị trí'), actions: [TextButton(onPressed: () => Navigator.pop(context, center), child: const Text('Xong'))]),
       body: Stack(children: [
-        FlutterMap(
+        NetworkMap(
+          noticeBottom: 80,
           mapController: map,
           options: MapOptions(initialCenter: center, initialZoom: widget.initial == null ? 9 : 15, onPositionChanged: (c, _) => setState(() => center = c.center)),
-          children: [TileLayer(urlTemplate: url, userAgentPackageName: 'vn.gov.kontum.mobilegis')],
+          children: [MapTileLayer(urlTemplate: url)],
         ),
         const Center(child: Padding(padding: EdgeInsets.only(bottom: 36), child: Icon(Icons.location_on, size: 44, color: AppColors.fire))),
         Positioned(left: 12, right: 12, bottom: 16, child: Card(child: Padding(padding: const EdgeInsets.all(12), child: Text('Tâm bản đồ: ${fmtCoord(center.latitude, center.longitude)}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700))))),

@@ -6,6 +6,7 @@ import '../../core/share_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
@@ -46,7 +47,7 @@ class ObjectPage extends ConsumerWidget {
       _ => (p['title']?.toString() ?? 'Đối tượng', 'assets/images/p04-fire-small.webp', (p['statusLabel'] ?? '').toString(), AppColors.orange),
     };
 
-    return Scaffold(
+    return ResponsiveScaffold(
       body: CustomScrollView(slivers: [
         SliverAppBar(
           pinned: true,

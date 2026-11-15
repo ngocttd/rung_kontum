@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../app/layout.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -25,7 +26,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
     final v = ref.watch(assignmentsProvider);
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
+      child: ResponsiveScaffold(
         appBar: AppBar(
           title: const Text('Nhiệm vụ hiện trường'),
           automaticallyImplyLeading: widget.standalone,
@@ -78,9 +79,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => StatefulBuilder(
-        builder: (context, set) => Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(context).viewInsets.bottom + 16),
-          child: SingleChildScrollView(
+        builder: (context, set) => FormSheet(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Text('Giao nhiệm vụ khảo sát', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
@@ -119,7 +118,6 @@ class _TasksPageState extends ConsumerState<TasksPage> {
               ),
               const SourceNote('Giao xác minh điểm nóng / biến động / phản ánh thực hiện trên web quản trị (mục Cảnh báo, Phản ánh) – nhiệm vụ tự xuất hiện trên ứng dụng của cán bộ.'),
             ]),
-          ),
         ),
       ),
     );
