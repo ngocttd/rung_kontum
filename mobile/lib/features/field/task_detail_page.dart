@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/outbox.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
 import '../../widgets/items.dart';
+import '../../widgets/network_map.dart';
 import '../map/map_page.dart';
 import '../map/route_page.dart';
 import 'verification_page.dart';
@@ -25,7 +27,7 @@ class TaskDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final v = ref.watch(assignmentProvider(id));
     final u = ref.watch(sessionProvider).user;
-    return Scaffold(
+    return ResponsiveScaffold(
       appBar: AppBar(title: const Text('Chi tiết nhiệm vụ'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: () => ref.invalidate(assignmentProvider(id)))]),
       body: AsyncView(
         value: v,
@@ -62,10 +64,10 @@ class TaskDetailPage extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(14),
                 child: SizedBox(
                   height: 180,
-                  child: FlutterMap(
+                  child: NetworkMap(
                     options: MapOptions(initialCenter: pt, initialZoom: 14, interactionOptions: const InteractionOptions(flags: InteractiveFlag.none)),
                     children: [
-                      TileLayer(urlTemplate: (((ref.read(sessionProvider).map['basemaps'] as List?) ?? []).cast<Map>().firstOrNull?['url'] ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png') as String, userAgentPackageName: 'vn.gov.kontum.mobilegis'),
+                      MapTileLayer(urlTemplate: (((ref.read(sessionProvider).map['basemaps'] as List?) ?? []).cast<Map>().firstOrNull?['url'] ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png') as String),
                       MarkerLayer(markers: [Marker(point: pt, width: 34, height: 40, alignment: Alignment.topCenter, child: Image.asset('assets/markers/survey.png'))]),
                     ],
                   ),

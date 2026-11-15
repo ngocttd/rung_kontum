@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:share_plus/share_plus.dart';
-
+import '../../app/layout.dart';
 import '../../app/theme.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
+import '../../core/share_text.dart';
 import '../../widgets/common.dart';
 import '../field/verification_page.dart';
 import 'map_page.dart';
@@ -46,7 +46,7 @@ class ObjectPage extends ConsumerWidget {
       _ => (p['title']?.toString() ?? 'Đối tượng', 'assets/images/p04-fire-small.webp', (p['statusLabel'] ?? '').toString(), AppColors.orange),
     };
 
-    return Scaffold(
+    return ResponsiveScaffold(
       body: CustomScrollView(slivers: [
         SliverAppBar(
           pinned: true,
@@ -57,7 +57,7 @@ class ObjectPage extends ConsumerWidget {
             IconButton(
               tooltip: 'Chia sẻ',
               icon: const Icon(Icons.share_outlined),
-              onPressed: () => SharePlus.instance.share(ShareParams(text: '$title\nToạ độ: ${fmtCoord(data.point.latitude, data.point.longitude)}\nhttps://maps.google.com/?q=${data.point.latitude},${data.point.longitude}')),
+              onPressed: () => shareText(context, '$title\nToạ độ: ${fmtCoord(data.point.latitude, data.point.longitude)}\nhttps://maps.google.com/?q=${data.point.latitude},${data.point.longitude}'),
             ),
           ],
           flexibleSpace: FlexibleSpaceBar(

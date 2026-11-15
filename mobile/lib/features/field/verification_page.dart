@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/location.dart';
@@ -86,7 +87,7 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
     final s = ref.watch(sessionProvider);
     final verdicts = (((s.catalogs['verdicts'] as Map?)?[widget.args.kind] as Map?) ?? {}).cast<String, dynamic>();
     final types = ((s.catalogs['forest_types'] as Map?) ?? {}).cast<String, dynamic>();
-    return Scaffold(
+    return ResponsiveScaffold(maxWidth: 760,
       appBar: AppBar(title: const Text('Xác minh hiện trường')),
       body: ListView(padding: const EdgeInsets.all(14), children: [
         Text(widget.args.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.navy)),

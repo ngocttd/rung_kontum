@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../widgets/charts.dart';
@@ -18,7 +19,7 @@ class ForestPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
+      child: ResponsiveScaffold(
         appBar: AppBar(title: const Text('Tài nguyên rừng'), bottom: const TabBar(tabs: [Tab(text: 'Tổng quan'), Tab(text: 'Phân loại'), Tab(text: 'Biến động')])),
         body: TabBarView(children: [
           AsyncView(value: ref.watch(forestSummaryProvider), onRetry: () => ref.invalidate(forestSummaryProvider), builder: (Loaded<J> l) => _Overview(l.data)),
@@ -41,13 +42,7 @@ class _Overview extends StatelessWidget {
     return ListView(padding: const EdgeInsets.all(14), children: [
       ClipRRect(borderRadius: BorderRadius.circular(14), child: Image.asset('assets/images/p03-forest-small.webp', height: 120, fit: BoxFit.cover)),
       const SizedBox(height: 10),
-      GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 1.75,
+      ResponsiveColumns(
         children: [
           KpiTile(icon: Icons.forest, value: fmtHa(s['established_forest_ha'] as num?), label: 'Tổng diện tích có rừng'),
           KpiTile(icon: Icons.donut_large, value: '${fmtNum(s['cover_percent_computed'] as num?, 1)} %', label: 'Tỷ lệ có rừng', color: AppColors.leaf),

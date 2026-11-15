@@ -22,7 +22,11 @@ class AsyncView<T> extends StatelessWidget {
         data: (d) {
           final child = builder(d);
           if (d is Loaded && d.offline) {
-            return Column(children: [OfflineBanner(at: d.cachedAt), Expanded(child: child)]);
+            return LayoutBuilder(builder: (context, constraints) => Column(
+              mainAxisSize: constraints.hasBoundedHeight ? MainAxisSize.max : MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [OfflineBanner(at: d.cachedAt), constraints.hasBoundedHeight ? Expanded(child: child) : child],
+            ));
           }
           return child;
         },
@@ -158,8 +162,9 @@ class KV extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 128, child: Text(k, style: const TextStyle(color: AppColors.muted, fontSize: 13))),
-          Expanded(child: valueWidget ?? Text(v ?? '—', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500))),
+          Expanded(flex: 2, child: Text(k, style: const TextStyle(color: AppColors.muted, fontSize: 13))),
+          const SizedBox(width: 10),
+          Expanded(flex: 3, child: valueWidget ?? Text(v ?? '—', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500))),
         ]),
       );
 }

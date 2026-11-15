@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config.dart';
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/api.dart';
+import '../../core/external_link.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
 import '../profile/settings_page.dart';
@@ -77,7 +80,7 @@ class _LoginPageState extends ConsumerState<LoginPage> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(sessionProvider);
-    return Scaffold(
+    return ResponsiveScaffold(maxWidth: 480,
       backgroundColor: Colors.white,
       body: SafeArea(
         child: ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 24), children: [
@@ -123,10 +126,11 @@ class _LoginPageState extends ConsumerState<LoginPage> with SingleTickerProvider
           onSubmitted: (_) => _login(),
           decoration: InputDecoration(prefixIcon: const Icon(Icons.lock_outline), hintText: 'Mật khẩu', suffixIcon: IconButton(icon: Icon(hide ? Icons.visibility_outlined : Icons.visibility_off_outlined), onPressed: () => setState(() => hide = !hide))),
         ),
-        Row(children: [
-          Checkbox(value: remember, onChanged: (v) => setState(() => remember = v ?? true)),
-          const Text('Ghi nhớ đăng nhập'),
-          const Spacer(),
+        Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Checkbox(value: remember, onChanged: (v) => setState(() => remember = v ?? true)),
+            const Flexible(child: Text('Ghi nhớ đăng nhập')),
+          ]),
           TextButton(onPressed: _forgot, child: const Text('Quên mật khẩu?')),
         ]),
         FilledButton(onPressed: busy ? null : _login, child: busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Đăng nhập')),
@@ -150,5 +154,7 @@ class _LoginPageState extends ConsumerState<LoginPage> with SingleTickerProvider
           title: const Text('Tôi đồng ý chính sách: thông tin cá nhân chỉ cán bộ xử lý xem, không công khai.', style: TextStyle(fontSize: 13)),
         ),
         FilledButton(onPressed: busy ? null : _register, child: busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Đăng ký')),
+        if (AppConfig.privacyPolicyUrl.isNotEmpty)
+          TextButton(onPressed: () => openAccountLink(context, AppConfig.privacyPolicyUrl), child: const Text('Đọc chính sách quyền riêng tư')),
       ]);
 }

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/location.dart';
 import '../../core/outbox.dart';
 import '../../core/session.dart';
@@ -110,7 +111,7 @@ class _ReportFormPageState extends ConsumerState<ReportFormPage> {
     final types = ((s.catalogs['report_types'] as List?) ?? []).cast<Map>();
     return DefaultTabController(
       length: 2,
-      child: Scaffold(
+      child: ResponsiveScaffold(maxWidth: 760,
         appBar: AppBar(title: const Text('Phản ánh hiện trạng'), bottom: const TabBar(tabs: [Tab(text: 'Gửi phản ánh'), Tab(text: 'Lịch sử phản ánh')])),
         body: TabBarView(children: [
           ListView(padding: const EdgeInsets.all(14), children: [

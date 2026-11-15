@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../widgets/charts.dart';
 import '../../widgets/common.dart';
@@ -18,7 +19,7 @@ class ImageryPage extends ConsumerWidget {
     final v = ref.watch(imageryProvider);
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
+      child: ResponsiveScaffold(
         appBar: AppBar(title: const Text('Ảnh vệ tinh'), bottom: const TabBar(tabs: [Tab(text: 'Ảnh vệ tinh'), Tab(text: 'Chỉ số thực vật'), Tab(text: 'So sánh')])),
         body: AsyncView(
           value: v,
@@ -30,8 +31,8 @@ class ImageryPage extends ConsumerWidget {
               ListView(padding: const EdgeInsets.all(14), children: [
                 NoticeBox(l.data['satellite']?.toString() ?? 'Sentinel-2'),
                 const SizedBox(height: 10),
-                GridView.count(
-                  crossAxisCount: 2,
+                LayoutBuilder(builder: (context, constraints) => GridView.count(
+                  crossAxisCount: constraints.maxWidth < 600 ? 2 : 4,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisSpacing: 8,
@@ -50,7 +51,7 @@ class ImageryPage extends ConsumerWidget {
                         ),
                       ),
                   ],
-                ),
+                )),
                 const SourceNote('Chạm một ảnh để mở trên bản đồ. Ảnh tổng hợp median theo tháng/mùa, đã che mây.'),
               ]),
               ListView(padding: const EdgeInsets.all(14), children: [
@@ -95,8 +96,7 @@ class _CompareState extends State<_Compare> {
   Widget build(BuildContext context) {
     if (widget.products.length < 2) return const EmptyView('Chưa đủ sản phẩm ảnh để so sánh');
     Map pick(String id) => widget.products.firstWhere((p) => p['id'] == id, orElse: () => widget.products.first);
-    Widget side(String label, String id, ValueChanged<String> on) => Expanded(
-          child: Column(children: [
+    Widget side(String label, String id, ValueChanged<String> on) => Column(children: [
             DropdownButton<String>(
               value: id,
               isExpanded: true,
@@ -106,10 +106,9 @@ class _CompareState extends State<_Compare> {
             Text(label, style: const TextStyle(fontSize: 11, color: AppColors.muted)),
             const SizedBox(height: 4),
             AspectRatio(aspectRatio: .8, child: Container(color: const Color(0xFF0F2A1C), child: NetImage((pick(id)['image'] as Map?)?['url'] as String?, fit: BoxFit.contain))),
-          ]),
-        );
+          ]);
     return ListView(padding: const EdgeInsets.all(14), children: [
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [side('Trước', a, (v) => setState(() => a = v)), const SizedBox(width: 8), side('Sau', b, (v) => setState(() => b = v))]),
+      ResponsiveColumns(minColumnWidth: 260, maxColumns: 2, children: [side('Trước', a, (v) => setState(() => a = v)), side('Sau', b, (v) => setState(() => b = v))]),
       const SourceNote('So sánh trực quan hai sản phẩm cùng phạm vi. Phát hiện biến động định lượng do máy chủ tính (mục Biến động).'),
     ]);
   }

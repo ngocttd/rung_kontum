@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MobileGIS (Debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=https://kontum.humgsoftware.pro.vn",
+        "--dart-define=DEMO_LOGIN=true"
+      ]
+    },
+    {
+      "name": "MobileGIS (Debug - HTTPS Backend)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=https://kontum.humgsoftware.pro.vn",
+        "--dart-define=DEMO_LOGIN=true"
+      ]
+    },
+    {
+      "name": "MobileGIS (Profile Mode)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "profile",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=https://kontum.humgsoftware.pro.vn"
+      ]
+    }
+  ]
+}

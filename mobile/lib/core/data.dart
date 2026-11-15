@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api.dart';
+import 'cache_codec.dart';
 import 'session.dart';
 
 /// Kết quả có cờ "dữ liệu lưu sẵn" khi đọc từ bộ nhớ đệm do mất mạng.
@@ -15,19 +16,20 @@ class Loaded<T> {
 
 /// GET có bộ đệm: dữ liệu công khai (lớp bản đồ, thống kê, cảnh báo, tin) được lưu để dùng khi mất mạng.
 /// Dữ liệu nghiệp vụ cá nhân dùng khoá "cache:" và bị xoá khi đăng xuất.
-Future<Loaded<T>> cachedGet<T>(Ref ref, String path, {Map<String, dynamic>? query, bool personal = false}) async {
+Future<Loaded<T>> cachedGet<T>(Ref ref, String path, {Map<String, dynamic>? query, bool personal = false, bool backgroundCache = false}) async {
   final api = ref.read(apiProvider);
   final prefs = ref.read(prefsProvider);
   final key = '${personal ? 'cache:' : 'pub:'}$path?${query == null ? '' : jsonEncode(query)}';
   try {
     final data = await api.get<T>(path, query: query);
-    prefs.setString(key, jsonEncode({'at': DateTime.now().toIso8601String(), 'data': data}));
+    final encoded = await encodeCacheEntry({'at': DateTime.now().toIso8601String(), 'data': data}, background: backgroundCache);
+    prefs.setString(key, encoded);
     return Loaded<T>(data);
   } on ApiException catch (e) {
     if (!e.isNetwork) rethrow;
     final raw = prefs.getString(key);
     if (raw == null) rethrow;
-    final j = jsonDecode(raw) as Map;
+    final j = await decodeCacheEntry(raw, background: backgroundCache);
     return Loaded<T>(j['data'] as T, cachedAt: DateTime.tryParse(j['at'] as String));
   }
 }
@@ -39,10 +41,10 @@ final layersProvider = FutureProvider<Loaded<J>>((ref) {
   ref.watch(sessionProvider.select((s) => s.user?.role));
   return cachedGet<J>(ref, '/api/mobile/layers');
 });
-final communesGeoProvider = FutureProvider<Loaded<J>>((ref) => cachedGet<J>(ref, '/api/public/boundaries/communes'));
-final provinceGeoProvider = FutureProvider<Loaded<J>>((ref) => cachedGet<J>(ref, '/api/public/boundaries/province'));
+final communesGeoProvider = FutureProvider<Loaded<J>>((ref) => cachedGet<J>(ref, '/api/public/boundaries/communes', backgroundCache: true));
+final provinceGeoProvider = FutureProvider<Loaded<J>>((ref) => cachedGet<J>(ref, '/api/public/boundaries/province', backgroundCache: true));
 final hotspotsProvider = FutureProvider<Loaded<J>>((ref) => cachedGet<J>(ref, '/api/mobile/fire/hotspots'));
-final candidatesProvider = FutureProvider<Loaded<J>>((ref) => cachedGet<J>(ref, '/api/public/forest/candidates'));
+final candidatesProvider = FutureProvider<Loaded<J>>((ref) => cachedGet<J>(ref, '/api/public/forest/candidates', backgroundCache: true));
 final publicReportsProvider = FutureProvider<Loaded<J>>((ref) => cachedGet<J>(ref, '/api/mobile/reports/public', query: {'limit': 100}));
 final fireAlertsProvider = FutureProvider.family<Loaded<J>, String>((ref, type) => cachedGet<J>(ref, '/api/mobile/fire/alerts', query: {'limit': 100, if (type.isNotEmpty) 'type': type}));
 final dangerProvider = FutureProvider<Loaded<J>>((ref) => cachedGet<J>(ref, '/api/mobile/fire/danger'));

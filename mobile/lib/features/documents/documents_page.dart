@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
@@ -24,7 +25,7 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
   Widget build(BuildContext context) {
     final v = ref.watch(documentsProvider(cat));
     final api = ref.watch(apiProvider);
-    return Scaffold(
+    return ResponsiveScaffold(
       appBar: AppBar(title: const Text('Tài liệu – Bản đồ PDF')),
       body: Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(14, 8, 14, 0), child: TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Tìm kiếm tài liệu…', isDense: true), onChanged: (t) => setState(() => q = t.trim().toLowerCase()))),

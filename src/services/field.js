@@ -575,7 +575,7 @@ async function registerDevice(auth, b) {
       push_endpoint = CASE WHEN $10 THEN NULL ELSE COALESCE(EXCLUDED.push_endpoint, mobile.mobile_devices.push_endpoint) END,
       push_keys = CASE WHEN $10 THEN NULL ELSE COALESCE(EXCLUDED.push_keys, mobile.mobile_devices.push_keys) END,
       push_env = COALESCE(EXCLUDED.push_env, mobile.mobile_devices.push_env),
-      push_enabled = CASE WHEN EXCLUDED.push_endpoint IS NOT NULL THEN true ELSE mobile.mobile_devices.push_enabled END,
+      push_enabled = CASE WHEN $10 THEN false WHEN EXCLUDED.push_endpoint IS NOT NULL THEN true ELSE mobile.mobile_devices.push_enabled END,
       last_seen_at = now(), updated_at = now()`,
   [id, auth ? auth.sub : null, String(b.platform || '').slice(0, 20), String(b.app_version || '').slice(0, 20), communes, provider, endpoint, keys ? JSON.stringify(keys) : null, env, clearPush, Boolean(auth)]);
   const d = (await db.query('SELECT push_provider, push_enabled FROM mobile.mobile_devices WHERE id = $1', [id])).rows[0];

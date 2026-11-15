@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/notify_open.dart';
@@ -17,7 +18,7 @@ class NotificationsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final v = ref.watch(notificationsProvider);
-    return Scaffold(
+    return ResponsiveScaffold(
       appBar: AppBar(title: const Text('Thông báo'), actions: [
         TextButton(
           onPressed: () async {

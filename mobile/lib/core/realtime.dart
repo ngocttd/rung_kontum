@@ -1,6 +1,5 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:socket_io_client/socket_io_client.dart' as sio;
 
@@ -64,11 +63,13 @@ class Realtime extends Notifier<RealtimeState> {
       state = RealtimeState(connected: false, lastNotification: state.lastNotification);
       if ('$e'.contains('TOKEN_EXPIRED') && await api.refreshSession()) socket.connect();
     });
-    socket.on('notification', (data) {
+    socket.on('notification', (data) async {
+      if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) return;
       Map<String, dynamic>? n;
+      Function? acknowledge;
       if (data is List && data.isNotEmpty) {
         n = (data.first as Map).cast<String, dynamic>();
-        if (data.last is Function) (data.last as Function)({'ok': true}); // xác nhận đã nhận
+        if (data.last is Function) acknowledge = data.last as Function;
       } else if (data is Map) {
         n = data.cast<String, dynamic>();
       }
@@ -76,7 +77,15 @@ class Realtime extends Notifier<RealtimeState> {
       state = RealtimeState(connected: true, lastNotification: n);
       ref.invalidate(notificationsProvider);
       _refreshFor(n['kind'] as String?);
-      if (!kIsWeb) unawaited(LocalNotifs.show(n));
+      if (!kIsWeb) {
+        try {
+          await LocalNotifs.show(n);
+        } catch (e) {
+          debugPrint('[notification] $e');
+          return; // Máy chủ tiếp tục giao FCM nếu không hiển thị được qua socket.
+        }
+      }
+      acknowledge?.call({'ok': true});
     });
     socket.on('changed', (data) {
       final c = (data is Map ? data['collection'] : data is List && data.isNotEmpty ? (data.first as Map)['collection'] : null)?.toString();

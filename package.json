@@ -15,7 +15,8 @@
     "db:import": "node scripts/db_import.cjs",
     "post-restore": "node scripts/post_restore.cjs",
     "test:mobile": "node scripts/test_mobile_api.cjs",
-    "test:push": "node scripts/test_push.cjs"
+    "test:push": "node scripts/test_push.cjs",
+    "test:notifications": "node --test scripts/test_fcm_unit.cjs scripts/test_notification_api.cjs"
   },
   "engines": {
     "node": ">=20"
