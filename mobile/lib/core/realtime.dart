@@ -12,9 +12,15 @@ import 'session.dart';
 ///    không gửi push nền tảng trùng;
 ///  - "changed": dữ liệu web/mobile thay đổi → làm mới màn hình liên quan ngay (đồng bộ tức thời).
 class RealtimeState {
-  const RealtimeState({this.connected = false, this.lastNotification});
+  const RealtimeState({this.connected = false, this.lastNotification, this.hotspotAlert});
   final bool connected;
   final Map<String, dynamic>? lastNotification;
+
+  /// Điểm nóng vệ tinh MỚI xuất hiện trên bản đồ (chưa xác minh): { count, id, lat, lon, commune, at } – khung ứng dụng hiện thông báo trong ứng dụng.
+  final Map<String, dynamic>? hotspotAlert;
+
+  RealtimeState copyWith({bool? connected, Map<String, dynamic>? lastNotification, Map<String, dynamic>? hotspotAlert}) =>
+      RealtimeState(connected: connected ?? this.connected, lastNotification: lastNotification ?? this.lastNotification, hotspotAlert: hotspotAlert ?? this.hotspotAlert);
 }
 
 class Realtime extends Notifier<RealtimeState> {
@@ -57,10 +63,13 @@ class Realtime extends Notifier<RealtimeState> {
               }))
           .build(),
     );
-    socket.onConnect((_) => state = RealtimeState(connected: true, lastNotification: state.lastNotification));
-    socket.onDisconnect((_) => state = RealtimeState(connected: false, lastNotification: state.lastNotification));
+    socket.onConnect((_) {
+      state = state.copyWith(connected: true);
+      unawaited(_checkHotspots()); // lần đầu: ghi nhận danh sách hiện có; nối lại: phát hiện điểm nóng đến trong lúc mất kết nối
+    });
+    socket.onDisconnect((_) => state = state.copyWith(connected: false));
     socket.onConnectError((e) async {
-      state = RealtimeState(connected: false, lastNotification: state.lastNotification);
+      state = state.copyWith(connected: false);
       if ('$e'.contains('TOKEN_EXPIRED') && await api.refreshSession()) socket.connect();
     });
     socket.on('notification', (data) async {
@@ -74,7 +83,7 @@ class Realtime extends Notifier<RealtimeState> {
         n = data.cast<String, dynamic>();
       }
       if (n == null) return;
-      state = RealtimeState(connected: true, lastNotification: n);
+      state = state.copyWith(connected: true, lastNotification: n);
       ref.invalidate(notificationsProvider);
       _refreshFor(n['kind'] as String?);
       if (!kIsWeb) {
@@ -102,6 +111,7 @@ class Realtime extends Notifier<RealtimeState> {
     _socket?.dispose();
     _socket = null;
     _identity = null;
+    _knownHotspots = null;
     state = const RealtimeState();
   }
 
@@ -122,16 +132,60 @@ class Realtime extends Notifier<RealtimeState> {
     }
   }
 
+  Set<String>? _knownHotspots; // null = chưa có mốc so sánh (lần tải đầu chỉ ghi nhận, không báo)
+  bool _checking = false, _again = false;
+
+  /// Tải lại điểm nóng, so với danh sách đã biết: có điểm "mới phát hiện" xuất hiện → báo trong ứng dụng
+  /// (thông báo hệ thống do máy chủ gửi riêng qua Socket.IO/FCM).
+  Future<void> _checkHotspots() async {
+    if (_checking) {
+      _again = true;
+      return;
+    }
+    _checking = true;
+    try {
+      do {
+        _again = false;
+        final baseline = _knownHotspots == null;
+        if (!baseline) ref.invalidate(hotspotsProvider);
+        final g = (await ref.read(hotspotsProvider.future)).data;
+        final known = _knownHotspots ?? <String>{};
+        final fresh = <Map<String, dynamic>>[];
+        final now = DateTime.now().toUtc();
+        for (final f in ((g['features'] as List?) ?? const []).cast<Map>()) {
+          final p = (f['properties'] as Map).cast<String, dynamic>();
+          final id = p['id']?.toString();
+          if (id == null) continue;
+          final isNew = known.add(id);
+          final t = DateTime.tryParse(p['utc']?.toString() ?? '');
+          if (baseline || !isNew || (p['status'] ?? 'new') != 'new') continue;
+          if (t != null && now.difference(t) > const Duration(hours: 48)) continue;
+          final c = (f['geometry'] as Map)['coordinates'] as List;
+          fresh.add({...p, 'lon': (c[0] as num).toDouble(), 'lat': (c[1] as num).toDouble()});
+        }
+        _knownHotspots = known;
+        if (fresh.isEmpty) continue;
+        final first = fresh.first;
+        state = state.copyWith(hotspotAlert: {'count': fresh.length, 'id': first['id'], 'lat': first['lat'], 'lon': first['lon'], 'commune': first['commune'], 'at': DateTime.now().toIso8601String()});
+        // thông báo hệ thống/khay do máy chủ gửi (cán bộ theo địa bàn, người dân theo xã theo dõi) – ở đây chỉ báo trong ứng dụng, tránh trùng
+      } while (_again);
+    } catch (_) {
+      // ngoại tuyến hoặc lỗi tạm thời: giữ mốc cũ, lần sau so sánh lại
+    } finally {
+      _checking = false;
+    }
+  }
+
   void _refreshCollection(String? c) {
     switch (c) {
       case 'reports':
         ref.invalidate(myReportsProvider);
         ref.invalidate(publicReportsProvider);
       case 'alerts':
-        ref.invalidate(hotspotsProvider);
         ref.invalidate(fireAlertsProvider);
         ref.invalidate(candidatesProvider);
         ref.invalidate(homeProvider);
+        unawaited(_checkHotspots()); // tải lại điểm nóng và báo nếu có điểm mới
       case 'assignments':
         ref.invalidate(assignmentsProvider);
       case 'verifications':

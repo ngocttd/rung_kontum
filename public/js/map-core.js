@@ -20,6 +20,18 @@
     const j = await r.json(); cache[url] = Promise.resolve(j); return j;
   };
 
+  // Thông báo nổi trên trang (vd. điểm nóng mới): role="alert", tự tắt sau 15 giây, có nút hành động tuỳ chọn.
+  KT.toast = (text, { action, onAction, ms = 15000 } = {}) => {
+    let box = document.getElementById('kt-toasts');
+    if (!box) { box = document.createElement('div'); box.id = 'kt-toasts'; box.setAttribute('aria-live', 'assertive'); document.body.appendChild(box); }
+    const el = document.createElement('div'); el.className = 'kt-toast'; el.setAttribute('role', 'alert');
+    const msg = document.createElement('span'); msg.textContent = text; el.appendChild(msg);
+    const close = () => el.remove();
+    if (action) { const b = document.createElement('button'); b.type = 'button'; b.className = 'kt-toast-act'; b.textContent = action; b.addEventListener('click', () => { try { onAction && onAction(); } finally { close(); } }); el.appendChild(b); }
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'kt-toast-x'; x.setAttribute('aria-label', 'Đóng'); x.textContent = '×'; x.addEventListener('click', close); el.appendChild(x);
+    box.appendChild(el); setTimeout(close, ms);
+  };
+
   // Đồng bộ trực tiếp: máy chủ phát "changed" (Socket.IO /mobile, chung với MobileGIS) khi trạng thái xác minh,
   // điểm cháy nhập tay hay điểm nóng FIRMS mới thay đổi → bản đồ làm mới. Dự phòng: kiểm tra lại 2 phút/lần và khi quay lại tab.
   const liveSubs = [];
@@ -212,6 +224,7 @@
         async build(map) {
           const data = await KT.fetchCached('/api/public/fire/hotspots');
           if (!map.getSource('hotspots')) map.addSource('hotspots', { type: 'geojson', data });
+          const known = new Set(data.features.map((f) => f.properties.id)); // mốc so sánh: điểm nóng đã có lúc mở trang
           if (!map.getLayer('hotspots-glow')) map.addLayer({ id: 'hotspots-glow', type: 'circle', source: 'hotspots', paint: { 'circle-radius': 16, 'circle-color': '#ff5a1f', 'circle-opacity': 0.25, 'circle-blur': 0.6 } });
           if (!map.hotspotsLive) {
             map.hotspotsLive = true;
@@ -222,6 +235,13 @@
                 const fresh = await KT.fetchFresh('/api/public/fire/hotspots');
                 const src = map.getSource('hotspots');
                 if (src) src.setData(fresh);
+                // điểm nóng MỚI xuất hiện (chưa xác minh) → báo ngay trên trang, bấm để bay tới vị trí
+                const added = fresh.features.filter((f) => !known.has(f.properties.id) && (f.properties.status || 'new') === 'new');
+                fresh.features.forEach((f) => known.add(f.properties.id));
+                if (added.length) {
+                  const [lng, lat] = added[0].geometry.coordinates; const c = added[0].properties.commune;
+                  KT.toast(added.length > 1 ? `Có ${added.length} điểm nóng mới trên bản đồ (chưa xác minh)` : `Điểm nóng mới${c ? ` tại ${c}` : ''} (chưa xác minh)`, { icon: 'fire', action: 'Xem vị trí', onAction: () => map.flyTo({ center: [lng, lat], zoom: 12.5 }) });
+                }
                 document.dispatchEvent(new CustomEvent('kt:hotspots', { detail: fresh }));
               } catch (e) { /* giữ dữ liệu cũ */ } finally { busy = false; }
             };
@@ -438,4 +458,16 @@
     if (o.id === 'forest-loss-risk') return `<h4>${KT.esc(o.title)}</h4>${o.legend.map((l) => `<div class="row"><span class="sw" style="background:${l.color}"></span>Cấp ${l.value} – ${KT.RISK_LABEL[l.value]}</div>`).join('')}`;
     return `<h4>${KT.esc(o.title)}</h4><div class="ramp" style="background:linear-gradient(90deg,${o.legend.map((l) => l.color).join(',')})"></div><div class="ramp-l"><span>${o.legend[0].value}</span><span>${o.legend[o.legend.length - 1].value}</span></div>`;
   };
+})();
+
+/* Điện thoại: chú giải thu gọn sau nút "Chú giải" (không che nút đổi nền / bản đồ); máy tính để nguyên như cũ. */
+(function () {
+  const init = () => document.querySelectorAll('.map-shell').forEach((shell) => {
+    if (!shell.querySelector('.legend') || shell.querySelector('.legend-toggle')) return;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'legend-toggle'; b.setAttribute('aria-expanded', 'false'); b.textContent = 'Chú giải';
+    b.addEventListener('click', () => { const open = shell.classList.toggle('legend-open'); b.setAttribute('aria-expanded', String(open)); });
+    shell.appendChild(b);
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

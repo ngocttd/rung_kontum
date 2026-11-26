@@ -683,3 +683,22 @@ button.pg { font: inherit; font-weight: 600; }
 #ar-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; min-width: 150px; flex: 1 1 150px; }
 #ar-form .btn { flex: none; height: 38px; }
 #ar-legend { right: 10px; bottom: 26px; left: auto; top: auto; font-size: 11.5px; }
+
+/* thông báo nổi (KT.toast) – vd. điểm nóng mới xuất hiện trên bản đồ */
+#kt-toasts { position: fixed; right: 16px; bottom: 16px; z-index: 2000; display: grid; gap: 8px; max-width: min(420px, calc(100vw - 32px)); }
+.kt-toast { display: flex; align-items: center; gap: 10px; background: var(--red); color: #fff; padding: 11px 12px 11px 14px; border-radius: var(--radius); box-shadow: 0 6px 20px rgba(9, 45, 73, .3); font-weight: 600; font-size: 14px; }
+.kt-toast span { flex: 1; }
+.kt-toast button { font: inherit; cursor: pointer; border: 0; border-radius: 6px; color: inherit; }
+.kt-toast-act { background: rgba(255, 255, 255, .22); padding: 5px 10px; font-weight: 700; white-space: nowrap; }
+.kt-toast-act:hover { background: rgba(255, 255, 255, .35); }
+.kt-toast-x { background: transparent; font-size: 20px; line-height: 1; padding: 0 4px; opacity: .85; }
+
+/* chú giải bản đồ trên điện thoại: nút bật/tắt, bảng nằm phía dưới bản đồ */
+.legend-toggle { display: none; }
+@media (max-width: 720px) {
+  .map-shell .legend-toggle { display: inline-flex; align-items: center; gap: 6px; position: absolute; left: 10px; bottom: 28px; z-index: 5; font: inherit; font-size: 13px; font-weight: 700; color: var(--navy); background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 6px 12px; box-shadow: var(--shadow); cursor: pointer; }
+  .map-shell .legend-toggle::before { content: ''; width: 10px; height: 10px; border-radius: 3px; background: linear-gradient(135deg, var(--r1), var(--r3), var(--r5)); }
+  .map-shell:not(:has(.legend:not([hidden]))) .legend-toggle { display: none; }
+  .map-shell .legend { left: 10px !important; right: 10px !important; top: auto !important; bottom: 66px !important; width: auto; max-height: 55%; }
+  .map-shell:not(.legend-open) .legend { display: none; }
+}

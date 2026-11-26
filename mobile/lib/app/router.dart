@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../core/notify_local.dart';
 import '../core/notify_open.dart';
@@ -165,6 +166,25 @@ class _ShellState extends ConsumerState<_Shell> with WidgetsBindingObserver {
     ref.listen(sessionProvider.select((s) => s.user?.id), (a, b) {
       ref.read(realtimeProvider.notifier).connect();
       ref.read(pushProvider.notifier).enable();
+    });
+    // điểm nóng vệ tinh mới xuất hiện trên bản đồ → báo ngay trong ứng dụng, chạm "Xem" để bay tới vị trí
+    ref.listen(realtimeProvider.select((s) => s.hotspotAlert), (a, b) {
+      if (b == null || identical(a, b)) return;
+      final n = (b['count'] as num?)?.toInt() ?? 1;
+      final lat = (b['lat'] as num?)?.toDouble(), lon = (b['lon'] as num?)?.toDouble();
+      final m = ScaffoldMessenger.of(context);
+      m.hideCurrentSnackBar();
+      m.showSnackBar(SnackBar(
+        duration: const Duration(seconds: 12),
+        backgroundColor: AppColors.fire,
+        behavior: SnackBarBehavior.floating,
+        content: Row(children: [
+          const Icon(Icons.local_fire_department, color: Colors.white),
+          const SizedBox(width: 10),
+          Expanded(child: Text(n > 1 ? 'Có $n điểm nóng mới trên bản đồ (chưa xác minh)' : 'Điểm nóng mới${b['commune'] != null ? ' tại ${b['commune']}' : ''} (chưa xác minh)', style: const TextStyle(fontWeight: FontWeight.w700))),
+        ]),
+        action: lat == null || lon == null ? null : SnackBarAction(label: 'Xem', textColor: Colors.white, onPressed: () => context.go('/map', extra: MapFocus(LatLng(lat, lon), zoom: 13, layer: 'hotspots'))),
+      ));
     });
     final u = ref.watch(sessionProvider.select((s) => s.user));
     final field = u != null && (u.role == 'specialist' || u.role == 'leader');

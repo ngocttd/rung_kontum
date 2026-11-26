@@ -46,6 +46,7 @@ class _MapPageState extends ConsumerState<MapPage> {
   String choro = ''; // '', danger_cls, cover
   int hotspotHours = 168;
   Fix? me;
+  bool legendOpen = false;
   Measure measure = Measure.none;
   final pts = <LatLng>[];
   List<Map<String, dynamic>> results = [];
@@ -141,6 +142,10 @@ class _MapPageState extends ConsumerState<MapPage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final s = ref.watch(sessionProvider);
+    // đăng nhập/đăng xuất sau khi mở bản đồ: lớp nhiệm vụ nội bộ chỉ dành cho cán bộ/lãnh đạo
+    ref.listen(sessionProvider.select((x) => x.user?.role), (a, b) {
+      setState(() => b == 'specialist' || b == 'leader' ? on.add('tasks') : on.remove('tasks'));
+    });
     final layers = ref.watch(layersProvider).asData?.value.data;
     final basemaps = ((s.map['basemaps'] as List?) ?? []).cast<Map>();
     final bm = basemaps.firstWhere((b) => b['id'] == basemap, orElse: () => basemaps.isEmpty ? {'url': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', 'attribution': '© OpenStreetMap'} : basemaps.first);
@@ -259,6 +264,7 @@ class _MapPageState extends ConsumerState<MapPage> {
           child: Column(children: [
             _btn(Icons.layers_outlined, 'Lớp dữ liệu', () => _layerSheet(rasters)),
             _btn(Icons.public, 'Bản đồ nền', () => _basemapSheet(basemaps)),
+            _btn(Icons.legend_toggle, 'Chú giải', () => setState(() => legendOpen = !legendOpen), active: legendOpen),
             _btn(Icons.my_location, 'Vị trí của tôi', _locate),
             _btn(Icons.straighten, 'Đo đạc', _measureMenu, active: measure != Measure.none),
             _btn(Icons.zoom_out_map, 'Toàn vùng', () => map.fitCamera(CameraFit.bounds(bounds: _aoi, padding: const EdgeInsets.all(24)))),
@@ -270,6 +276,13 @@ class _MapPageState extends ConsumerState<MapPage> {
             right: 70,
             top: MediaQuery.of(context).padding.top + 74,
             child: NoticeBox('Sai số GPS lớn (±${me!.accuracy!.round()} m). Khi gửi dữ liệu có thể chọn vị trí trên bản đồ.', warn: true),
+          ),
+        if (legendOpen)
+          Positioned(
+            left: 8,
+            right: 66,
+            bottom: measure != Measure.none ? 140 : 84,
+            child: ConstrainedBox(constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .42), child: _legendPanel(rasters)),
           ),
         if (measure != Measure.none) Positioned(left: 12, right: 12, bottom: 84, child: _measureBar()),
         // nhóm lớp nhanh (prototype)
@@ -288,6 +301,99 @@ class _MapPageState extends ConsumerState<MapPage> {
           child: IconButton(tooltip: tip, icon: Icon(i, color: active ? Colors.white : AppColors.navy), onPressed: f),
         ),
       );
+
+  /// Chú giải: chỉ liệt kê ký hiệu của các lớp đang bật (cùng bộ biểu tượng với bản đồ web).
+  Widget _legendPanel(List<Map> rasters) {
+    final cat = ref.read(sessionProvider).catalogs;
+    final typeLabels = {for (final t in ((cat['report_types'] as List?) ?? []).cast<Map>()) t['key'].toString(): t['label'].toString()};
+    Widget head(String t) => Padding(padding: const EdgeInsets.only(top: 8, bottom: 2), child: Text(t, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.forest, letterSpacing: .4)));
+    Widget row(Widget sym, String label) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(children: [SizedBox(width: 28, child: Center(child: sym)), const SizedBox(width: 8), Expanded(child: Text(label, style: const TextStyle(fontSize: 12)))]),
+        );
+    Widget pin(String asset) => Image.asset('assets/markers/$asset.png', height: 24);
+    Widget box(Color c, {Color? border}) => Container(width: 18, height: 12, decoration: BoxDecoration(color: c, border: border == null ? null : Border.all(color: border, width: 1.5), borderRadius: BorderRadius.circular(2)));
+    Widget line(Color c, double w) => Container(width: 22, height: w, color: c);
+    Widget dot(Color c) => Container(width: 14, height: 14, decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)]));
+
+    final w = <Widget>[];
+    if (on.contains('province') || on.contains('communes')) {
+      w.add(head('RANH GIỚI'));
+      if (on.contains('province')) w.add(row(line(const Color(0xFF9B4DFF), 3), 'Ranh giới Kon Tum (cũ)'));
+      if (on.contains('communes')) w.add(row(line(Colors.grey.shade400, 1.5), 'Ranh giới xã/phường'));
+    }
+    if (on.contains('communes') && choro == 'danger_cls') {
+      w.add(head('CẤP NGUY CƠ CHÁY HÔM NAY'));
+      const names = {1: 'Cấp I – Thấp', 2: 'Cấp II – Trung bình', 3: 'Cấp III – Cao', 4: 'Cấp IV – Nguy hiểm', 5: 'Cấp V – Cực kỳ nguy hiểm'};
+      for (final e in names.entries) {
+        w.add(row(box(AppColors.dangerOf(e.key).withValues(alpha: .6)), e.value));
+      }
+    }
+    if (on.contains('communes') && choro == 'cover') {
+      w.add(head('TỶ LỆ CHE PHỦ RỪNG'));
+      w.add(Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(height: 10, decoration: BoxDecoration(borderRadius: BorderRadius.circular(3), gradient: const LinearGradient(colors: [Color(0xFFF5F0C8), AppColors.forestDark]))),
+          const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('0 %', style: TextStyle(fontSize: 11)), Text('90 % trở lên', style: TextStyle(fontSize: 11))]),
+        ]),
+      ));
+    }
+    if (on.contains('hotspots')) {
+      w.add(head('ĐIỂM NÓNG / CHÁY RỪNG'));
+      for (final h in const [
+        ('hotspot-unverified', 'Điểm nóng mới (chưa xác minh)'),
+        ('fire-investigating', 'Cần / đang xác minh'),
+        ('fire-confirmed', 'Đã xác nhận cháy / đang xử lý'),
+        ('fire-rejected', 'Không phải cháy rừng'),
+        ('fire-resolved', 'Đã kết thúc'),
+      ]) {
+        w.add(row(pin(h.$1), h.$2));
+      }
+    }
+    if (on.contains('reports')) {
+      w.add(head('PHẢN ÁNH CÔNG KHAI'));
+      for (final e in _reportIcons.entries) {
+        w.add(row(pin(e.value), typeLabels[e.key] ?? _reportFallback[e.key] ?? e.key));
+      }
+      w.add(const Padding(padding: EdgeInsets.only(top: 2), child: Text('Vị trí phản ánh được làm tròn ~1 km để bảo mật người gửi.', style: TextStyle(fontSize: 10.5, color: AppColors.muted))));
+    }
+    if (on.contains('candidates')) {
+      w.add(head('BIẾN ĐỘNG RỪNG NGHI VẤN'));
+      for (final c in const [('new', 'Mới phát hiện – chưa xác minh'), ('verifying', 'Đang xác minh'), ('confirmed', 'Đã xác nhận mất rừng'), ('seasonal', 'Rụng lá mùa khô'), ('rejected', 'Không phải mất rừng')]) {
+        w.add(row(dot(StatusChip.toneOf(c.$1)), c.$2));
+      }
+    }
+    if (on.contains('tasks')) {
+      w.add(head('HIỆN TRƯỜNG'));
+      w.add(row(pin('survey'), 'Nhiệm vụ hiện trường (nội bộ)'));
+    }
+    if (me != null) {
+      w.add(head('VỊ TRÍ CỦA BẠN'));
+      w.add(row(dot(AppColors.blue), 'Vị trí GPS (vòng tròn = sai số)'));
+    }
+    for (final r in rasters.where((r) => on.contains(r['id']) && (r['legend'] as List?)?.isNotEmpty == true)) {
+      w.add(head(r['title'].toString().toUpperCase()));
+      w.add(_Legend((r['legend'] as List).cast<Map>(), inset: 0));
+    }
+    if (w.isEmpty) w.add(const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Text('Chưa bật lớp nào. Bấm biểu tượng lớp để bật.', style: TextStyle(fontSize: 12, color: AppColors.muted))));
+
+    return Card(
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 4, 8),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.legend_toggle, size: 18, color: AppColors.navy),
+            const SizedBox(width: 6),
+            const Expanded(child: Text('Chú giải', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.navy))),
+            IconButton(visualDensity: VisualDensity.compact, tooltip: 'Đóng', icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() => legendOpen = false)),
+          ]),
+          Flexible(child: SingleChildScrollView(child: Padding(padding: const EdgeInsets.only(right: 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: w)))),
+        ]),
+      ),
+    );
+  }
 
   Widget _quickBar(List<Map> rasters) {
     // lớp phủ chuẩn hoá Dynamic World năm mới nhất đã trọn (dw-YYYY); không dùng bản đồ dự án
@@ -464,12 +570,31 @@ class _H extends StatelessWidget {
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 4), child: Text(t, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.forest, letterSpacing: .5)));
 }
 
+/// Biểu tượng phản ánh theo loại (cùng bộ với web: máy chủ gửi `marker` cho từng loại).
+const _reportIcons = {
+  'chay-rung': 'fire-investigating',
+  'pha-rung': 'forest-violation',
+  'lan-chiem': 'land-encroachment',
+  'van-chuyen': 'timber-transport',
+  'dong-vat': 'wildlife',
+  'khac': 'report-other',
+};
+const _reportFallback = {
+  'chay-rung': 'Cháy rừng',
+  'pha-rung': 'Phá rừng, khai thác trái phép',
+  'lan-chiem': 'Xâm lấn đất rừng',
+  'van-chuyen': 'Vận chuyển lâm sản trái phép',
+  'dong-vat': 'Động vật hoang dã',
+  'khac': 'Khác',
+};
+
 class _Legend extends StatelessWidget {
-  const _Legend(this.items);
+  const _Legend(this.items, {this.inset = 20});
   final List<Map> items;
+  final double inset;
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 16, 8),
+        padding: EdgeInsets.fromLTRB(inset, 0, 16, 8),
         child: Wrap(spacing: 10, runSpacing: 4, children: [
           for (final l in items)
             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -624,7 +749,7 @@ class _ReportsLayer extends ConsumerWidget {
     for (final r in ((d['items'] as List?) ?? []).cast<Map>()) {
       if (r['lat'] == null) continue;
       final pt = LatLng((r['lat'] as num).toDouble(), (r['lon'] as num).toDouble());
-      final icon = {'chay-rung': 'fire-investigating', 'pha-rung': 'forest-violation', 'lan-chiem': 'land-encroachment', 'van-chuyen': 'timber-transport', 'dong-vat': 'wildlife'}[r['type']] ?? 'report-other';
+      final icon = _reportIcons[r['type']] ?? 'report-other';
       markers.add(Marker(point: pt, width: 30, height: 36, alignment: Alignment.topCenter, child: GestureDetector(onTap: () => context.push('/object', extra: ObjectRef(kind: 'report', id: r['code'].toString(), props: r.cast<String, dynamic>(), point: pt)), child: Image.asset('assets/markers/$icon.png'))));
     }
     return MarkerLayer(markers: markers);
