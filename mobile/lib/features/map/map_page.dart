@@ -41,7 +41,7 @@ class _MapPageState extends ConsumerState<MapPage> {
   final map = MapController();
   final search = TextEditingController();
   String basemap = 'satellite';
-  final on = <String>{'province', 'communes', 'hotspots'};
+  final on = <String>{'province', 'communes', 'hotspots', 'reports'};
   final opacity = <String, double>{};
   String choro = ''; // '', danger_cls, cover
   int hotspotHours = 168;
@@ -283,6 +283,28 @@ class _MapPageState extends ConsumerState<MapPage> {
             right: 66,
             bottom: measure != Measure.none ? 140 : 84,
             child: ConstrainedBox(constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .42), child: _legendPanel(rasters)),
+          )
+        else
+          Positioned(
+            left: 12,
+            bottom: measure != Measure.none ? 140 : 84,
+            child: Material(
+              color: Colors.white,
+              elevation: 3,
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => setState(() => legendOpen = true),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.legend_toggle, size: 17, color: AppColors.forest),
+                    SizedBox(width: 5),
+                    Text('Chú giải', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.navy)),
+                  ]),
+                ),
+              ),
+            ),
           ),
         if (measure != Measure.none) Positioned(left: 12, right: 12, bottom: 84, child: _measureBar()),
         // nhóm lớp nhanh (prototype)
@@ -399,37 +421,45 @@ class _MapPageState extends ConsumerState<MapPage> {
     // lớp phủ chuẩn hoá Dynamic World năm mới nhất đã trọn (dw-YYYY); không dùng bản đồ dự án
     final dw = rasters.map((r) => r['id'].toString()).where((id) => RegExp(r'^dw-\d{4}$').hasMatch(id)).toList()..sort();
     final forestId = dw.length > 1 ? dw[dw.length - 2] : (dw.isNotEmpty ? dw.last : 'lc-2023');
+    final u = ref.read(sessionProvider).user;
+    final hasTasks = u != null && (u.role == 'specialist' || u.role == 'leader' || u.role == 'admin');
     final groups = <(String, IconData, List<String>)>[
       ('Hành chính', Icons.account_balance_outlined, ['province', 'communes']),
       ('Rừng', Icons.forest_outlined, [forestId]),
       ('Điểm cháy', Icons.local_fire_department_outlined, ['hotspots']),
-      ('Ảnh vệ tinh', Icons.satellite_alt_outlined, ['s2-latest']),
+      ('Phản ánh', Icons.campaign_outlined, ['reports']),
       ('Biến động', Icons.park_outlined, ['candidates']),
+      if (hasTasks) ('Nhiệm vụ', Icons.assignment_outlined, ['tasks']),
     ];
+    Widget btn((String, IconData, List<String>) g) {
+      final active = g.$3.every(on.contains);
+      return InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => setState(() {
+          for (final id in g.$3) {
+            active ? on.remove(id) : on.add(id);
+          }
+        }),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(g.$2, size: 22, color: active ? AppColors.forest : AppColors.muted),
+            Text(g.$1, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: active ? AppColors.forest : AppColors.muted)),
+          ]),
+        ),
+      );
+    }
+
     return Card(
       elevation: 3,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(children: [
-          for (final g in groups)
-            Expanded(
-              child: InkWell(
-                onTap: () => setState(() {
-                  final all = g.$3.every(on.contains);
-                  for (final id in g.$3) {
-                    all ? on.remove(id) : on.add(id);
-                  }
-                }),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(g.$2, color: g.$3.every(on.contains) ? AppColors.forest : AppColors.muted),
-                    Text(g.$1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: g.$3.every(on.contains) ? AppColors.forest : AppColors.muted)),
-                  ]),
-                ),
-              ),
-            ),
-        ]),
+        child: LayoutBuilder(builder: (context, c) {
+          if (c.maxWidth >= groups.length * 68) {
+            return Row(children: [for (final g in groups) Expanded(child: btn(g))]);
+          }
+          return SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [for (final g in groups) btn(g)]));
+        }),
       ),
     );
   }

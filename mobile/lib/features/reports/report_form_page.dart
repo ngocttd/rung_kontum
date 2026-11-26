@@ -110,9 +110,12 @@ class _ReportFormPageState extends ConsumerState<ReportFormPage> {
     final s = ref.watch(sessionProvider);
     final types = ((s.catalogs['report_types'] as List?) ?? []).cast<Map>();
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: ResponsiveScaffold(maxWidth: 760,
-        appBar: AppBar(title: const Text('Phản ánh hiện trạng'), bottom: const TabBar(tabs: [Tab(text: 'Gửi phản ánh'), Tab(text: 'Lịch sử phản ánh')])),
+        appBar: AppBar(
+          title: const Text('Phản ánh hiện trạng'),
+          bottom: const TabBar(tabs: [Tab(text: 'Gửi phản ánh'), Tab(text: 'Công khai'), Tab(text: 'Của tôi')]),
+        ),
         body: TabBarView(children: [
           ListView(padding: const EdgeInsets.all(14), children: [
             DropdownButtonFormField<String>(
@@ -159,6 +162,7 @@ class _ReportFormPageState extends ConsumerState<ReportFormPage> {
             const SizedBox(height: 6),
             const Text('Mất mạng? Phản ánh được lưu trên máy và tự gửi khi có mạng.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.muted)),
           ]),
+          const PublicReportsBody(),
           const MyReportsBody(),
         ]),
       ),

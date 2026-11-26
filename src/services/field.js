@@ -237,7 +237,7 @@ async function getAssignment(id) {
 
 // TC05: a specialist only sees tasks given to them or (unassigned) tasks inside their commune scope
 function canOpen(auth, a) {
-  if (['leader'].includes(auth.role)) return true;
+  if (['leader', 'admin'].includes(auth.role)) return true;
   if (auth.role !== 'specialist') return false;
   if (a.assignee_id === auth.sub) return true;
   return !a.assignee_id && (!auth.scope || auth.scope === a.scope_id);
@@ -253,7 +253,7 @@ async function listAssignments(auth, { status, mine } = {}) {
       vals.push(auth.scope);
       where.push('(a.assignee_id = $1 OR (a.assignee_id IS NULL AND ($2::text IS NULL OR a.scope_id = $2)))');
     }
-  } else need(auth.role === 'leader', 403, 'FORBIDDEN', 'Không có quyền xem nhiệm vụ hiện trường.');
+  } else need(['leader', 'admin'].includes(auth.role), 403, 'FORBIDDEN', 'Không có quyền xem nhiệm vụ hiện trường.');
   if (status) { vals.push(String(status).split(',')); where.push(`a.status = ANY($${vals.length})`); }
   const r = await db.query(`${ASG_SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY (a.status IN ('approved','cancelled')), a.due_at NULLS LAST, a.created_at DESC LIMIT 300`, vals);
   return r.rows.map(asgView);
@@ -265,8 +265,16 @@ async function openAssignment(auth, id) {
   need(a, 404, 'NOT_FOUND', 'Không tìm thấy nhiệm vụ.');
   need(canOpen(auth, a), 403, 'OUT_OF_SCOPE', 'Nhiệm vụ không thuộc địa bàn hoặc không được giao cho bạn.');
   const target = a.ref_id ? targetInfo(a.kind, a.ref_id) : null;
-  const ver = await db.query('SELECT v.*, ST_Y(v.geom) lat, ST_X(v.geom) lon FROM mobile.incident_verifications v WHERE assignment_id = $1 ORDER BY created_at', [a.id]);
-  return { ...a, target, verifications: ver.rows };
+  const [ver, surv] = await Promise.all([
+    db.query('SELECT v.*, ST_Y(v.geom) lat, ST_X(v.geom) lon FROM mobile.incident_verifications v WHERE assignment_id = $1 ORDER BY created_at', [a.id]),
+    db.query('SELECT id, code, geom_type, forest_type, is_dipterocarp, season, leaf_state, status, surveyor, observed_at, area_ha, length_m, review_note FROM mobile.field_surveys WHERE assignment_id = $1 ORDER BY created_at', [a.id]),
+  ]);
+  return {
+    ...a,
+    target,
+    verifications: ver.rows.map((v) => ({ ...v, verdict_label: (VERDICTS[v.alert_kind] || {})[v.verdict] })),
+    surveys: surv.rows,
+  };
 }
 function targetInfo(kind, ref) {
   if (kind === 'hotspot') { const h = repo.hotspots({ staff: true }).find((x) => x.id === ref); return h ? { ...h, decision: undefined } : null; }

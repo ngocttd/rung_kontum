@@ -69,6 +69,7 @@ final assignmentsProvider = FutureProvider<Loaded<J>>((ref) {
 });
 final assignmentProvider = FutureProvider.family<Loaded<J>, String>((ref, id) => cachedGet<J>(ref, '/api/mobile/assignments/$id', personal: true));
 final pendingVerificationsProvider = FutureProvider<J>((ref) => ref.read(apiProvider).get<J>('/api/mobile/verifications', query: {'review_status': 'pending', 'limit': 100}));
+final pendingSurveysProvider = FutureProvider<J>((ref) => ref.read(apiProvider).get<J>('/api/mobile/surveys', query: {'status': 'pending_review', 'limit': 100}));
 final mySurveysProvider = FutureProvider<Loaded<J>>((ref) => cachedGet<J>(ref, '/api/mobile/surveys', query: {'limit': 100}, personal: true));
 final notificationsProvider = FutureProvider<J>((ref) {
   ref.watch(sessionProvider.select((s) => s.user?.id));

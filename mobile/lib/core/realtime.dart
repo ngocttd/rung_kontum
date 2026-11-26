@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,11 +27,17 @@ class RealtimeState {
 
 class Realtime extends Notifier<RealtimeState> {
   sio.Socket? _socket;
+  Timer? _poll;
   String? _identity; // user id hoặc 'guest' của kết nối hiện tại
+  String? _baseUrl;
+  final Set<String> _notifiedHotspotIds = {};
 
   @override
   RealtimeState build() {
-    ref.onDispose(() => _socket?.dispose());
+    ref.onDispose(() {
+      _poll?.cancel();
+      _socket?.dispose();
+    });
     return const RealtimeState();
   }
 
@@ -38,6 +46,16 @@ class Realtime extends Notifier<RealtimeState> {
     final s = ref.read(sessionProvider);
     if (!s.ready) return;
     final api = ref.read(apiProvider);
+    if (_baseUrl != null && _baseUrl != api.baseUrl) {
+      _knownHotspots = null;
+      _notifiedHotspotIds.clear();
+    }
+    _baseUrl = api.baseUrl;
+    _poll ??= Timer.periodic(const Duration(minutes: 2), (_) {
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(_checkHotspots());
+      }
+    });
     final id = '${api.baseUrl}|${s.user?.id ?? 'guest'}';
     if (_socket != null && _identity == id) {
       if (!_socket!.connected) _socket!.connect();
@@ -83,6 +101,8 @@ class Realtime extends Notifier<RealtimeState> {
         n = data.cast<String, dynamic>();
       }
       if (n == null) return;
+      final hid = (n['link'] is Map ? (n['link'] as Map)['id'] : null)?.toString();
+      if (hid != null && hid.isNotEmpty) _notifiedHotspotIds.add(hid);
       state = state.copyWith(connected: true, lastNotification: n);
       ref.invalidate(notificationsProvider);
       _refreshFor(n['kind'] as String?);
@@ -108,11 +128,13 @@ class Realtime extends Notifier<RealtimeState> {
   void subscribe(List<String> communes) => _socket?.emit('subscribe', communes);
 
   void disconnect() {
+    _poll?.cancel();
+    _poll = null;
     _socket?.dispose();
     _socket = null;
     _identity = null;
-    _knownHotspots = null;
-    state = const RealtimeState();
+    // Giữ _knownHotspots để khi mở lại ứng dụng vẫn phát hiện được điểm nóng xuất hiện lúc ở nền.
+    state = state.copyWith(connected: false);
   }
 
   void _refreshFor(String? kind) {
@@ -135,8 +157,8 @@ class Realtime extends Notifier<RealtimeState> {
   Set<String>? _knownHotspots; // null = chưa có mốc so sánh (lần tải đầu chỉ ghi nhận, không báo)
   bool _checking = false, _again = false;
 
-  /// Tải lại điểm nóng, so với danh sách đã biết: có điểm "mới phát hiện" xuất hiện → báo trong ứng dụng
-  /// (thông báo hệ thống do máy chủ gửi riêng qua Socket.IO/FCM).
+  /// Tải lại điểm nóng, so với danh sách đã biết: có điểm mới xuất hiện trên bản đồ → báo ngay trong ứng dụng
+  /// và hiển thị thông báo hệ thống nếu máy chủ chưa gửi riêng qua Socket.IO.
   Future<void> _checkHotspots() async {
     if (_checking) {
       _again = true;
@@ -157,17 +179,51 @@ class Realtime extends Notifier<RealtimeState> {
           final id = p['id']?.toString();
           if (id == null) continue;
           final isNew = known.add(id);
+          final status = (p['status'] ?? 'new').toString();
           final t = DateTime.tryParse(p['utc']?.toString() ?? '');
-          if (baseline || !isNew || (p['status'] ?? 'new') != 'new') continue;
-          if (t != null && now.difference(t) > const Duration(hours: 48)) continue;
+          if (baseline || !isNew || ['rejected', 'closed'].contains(status)) continue;
+          if (status == 'new' && t != null && now.difference(t) > const Duration(days: 7)) continue;
           final c = (f['geometry'] as Map)['coordinates'] as List;
           fresh.add({...p, 'lon': (c[0] as num).toDouble(), 'lat': (c[1] as num).toDouble()});
         }
         _knownHotspots = known;
         if (fresh.isEmpty) continue;
         final first = fresh.first;
-        state = state.copyWith(hotspotAlert: {'count': fresh.length, 'id': first['id'], 'lat': first['lat'], 'lon': first['lon'], 'commune': first['commune'], 'at': DateTime.now().toIso8601String()});
-        // thông báo hệ thống/khay do máy chủ gửi (cán bộ theo địa bàn, người dân theo xã theo dõi) – ở đây chỉ báo trong ứng dụng, tránh trùng
+        final firstId = first['id'].toString();
+        final confirmed = first['status'] == 'confirmed' || first['status'] == 'handling';
+        state = state.copyWith(hotspotAlert: {
+          'count': fresh.length,
+          'id': firstId,
+          'lat': first['lat'],
+          'lon': first['lon'],
+          'commune': first['commune'],
+          'confirmed': confirmed,
+          'at': DateTime.now().toIso8601String(),
+        });
+        if (!kIsWeb) {
+          Future<void>.delayed(const Duration(milliseconds: 1800), () async {
+            if (!ref.mounted || _notifiedHotspotIds.contains(firstId)) return;
+            _notifiedHotspotIds.add(firstId);
+            final place = first['commune'] != null ? ' tại ${first['commune']}' : '';
+            final title = fresh.length > 1
+                ? 'Phát hiện ${fresh.length} điểm nóng mới trên bản đồ'
+                : (confirmed ? 'Cảnh báo cháy rừng$place (đã xác nhận)' : 'Điểm nóng mới$place (chưa xác minh)');
+            final body = confirmed
+                ? 'Điểm cháy đã xác minh vừa cập nhật trên bản đồ. Chạm để xem chi tiết vị trí.'
+                : 'Điểm dị thường nhiệt vừa xuất hiện trên bản đồ Kon Tum. Chạm để kiểm tra vị trí và trạng thái xác minh.';
+            try {
+              await LocalNotifs.show({
+                'id': 'hs-map:$firstId',
+                'notification_id': '',
+                'kind': confirmed ? 'fire_confirmed' : 'fire_report',
+                'priority': 'high',
+                'title': title,
+                'body': body,
+                'link': {'screen': 'hotspot', 'id': firstId, 'lat': first['lat'], 'lon': first['lon'], 'commune': first['commune']},
+              });
+            } catch (_) {}
+          });
+        }
       } while (_again);
     } catch (_) {
       // ngoại tuyến hoặc lỗi tạm thời: giữ mốc cũ, lần sau so sánh lại
@@ -193,6 +249,8 @@ class Realtime extends Notifier<RealtimeState> {
         ref.invalidate(assignmentsProvider);
       case 'surveys':
         ref.invalidate(mySurveysProvider);
+        ref.invalidate(pendingSurveysProvider);
+        ref.invalidate(assignmentsProvider);
       case 'news':
         ref.invalidate(newsProvider);
         ref.invalidate(homeProvider);

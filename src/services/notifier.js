@@ -104,7 +104,7 @@ async function scan() {
       });
     }
     // c) hồ sơ phản ánh của người dân đổi trạng thái / có phản hồi
-    for (const r of store.filter('reports', (x) => x.created_by && x.timeline && x.timeline.length > 1)) {
+    for (const r of store.filter('reports', (x) => x.created_by && store.get('users', x.created_by) && x.timeline && x.timeline.length > 1)) {
       const last = r.timeline[r.timeline.length - 1];
       if (!recent(last.at)) continue;
       const label = reports.STATUS[last.status] ? reports.STATUS[last.status].label : last.status;
@@ -140,13 +140,13 @@ async function scan() {
         target_roles: ['specialist', 'leader'], target_communes: r.commune_code ? [r.commune_code] : null, priority: fire ? 'high' : 'normal',
       });
     }
-    // g) điểm cháy nhập tay chờ xác minh → cán bộ phụ trách xã (điểm từ phản ánh đã báo ở mục f)
+    // g) điểm cháy nhập tay chờ xác minh → cán bộ phụ trách xã + lãnh đạo (điểm từ phản ánh đã báo ở mục f)
     for (const h of repo.hotspots()) {
-      if (!h.manual || h.manual.report_code || h.status !== 'new' || !recent(h.utc)) continue;
+      if (!h.manual || h.manual.report_code || !['new', 'assigned'].includes(h.status) || !recent(h.utc)) continue;
       await add({
         source_ref: `ch-new:${h.manual.code}`, kind: 'fire_report', title: `Tin báo cháy ${h.manual.code} cần xác minh${h.commune ? ` – ${h.commune}` : ''}`,
         body: h.sensorLabel, data: { screen: 'hotspot', id: h.id, commune: h.communeCode, lat: h.lat, lon: h.lon },
-        target_roles: ['specialist'], target_communes: h.communeCode ? [h.communeCode] : null, priority: 'high',
+        target_roles: ['specialist', 'leader'], target_communes: h.communeCode ? [h.communeCode] : null, priority: 'high',
       });
     }
     // h) điểm nóng vệ tinh (FIRMS) MỚI xuất hiện trên bản đồ → cán bộ phụ trách xã + lãnh đạo để kịp xác minh.
@@ -154,21 +154,22 @@ async function scan() {
     //    Dùng kind 'fire_report' (đã có trong ràng buộc CSDL) – mã nguồn khác biệt qua source_ref `hn:`. Giới hạn số bản tin mỗi lượt quét.
     let hot = 0;
     for (const h of repo.hotspots()) {
-      if (h.manual || h.status !== 'new' || !h.communeCode || Date.now() - new Date(h.utc).getTime() > HOTSPOT_NEW_MS) continue;
+      if (h.manual || h.status !== 'new' || Date.now() - new Date(h.utc).getTime() > RECENT_MS) continue;
       if (hot >= HOTSPOT_BATCH) break;
       const inForest = Boolean(h.context && h.context.in_forest);
       const strong = String(h.confidence || '').toLowerCase() === 'high' || Number(h.confidence) >= 80;
-      const cit = create({
-        source_ref: `hn-pub:${h.id}`, kind: 'fire_report', title: `Điểm nóng mới tại ${h.commune} (chưa xác minh)`,
+      const place = h.commune || 'vùng giám sát Kon Tum';
+      const cit = h.communeCode ? create({
+        source_ref: `hn-pub:${h.id}`, kind: 'fire_report', title: `Điểm nóng mới tại ${place} (chưa xác minh)`,
         body: 'Vệ tinh vừa phát hiện nhiệt bất thường gần khu vực này, chưa xác định là cháy rừng (có thể là đốt nương rẫy). Tránh xa khu vực, không đốt lửa; nếu thấy cháy lan hãy gọi 114 hoặc báo kiểm lâm/chính quyền xã.',
         data: { screen: 'hotspot', id: h.id, commune: h.communeCode, lat: h.lat, lon: h.lon, public_only: true },
         target_communes: [h.communeCode], is_public: true, priority: 'normal', expires_at: new Date(Date.now() + 2 * 864e5).toISOString(),
-      }).catch((e) => { console.warn('[notifier] không tạo được thông báo hn-pub:', e.message); return null; });
+      }).catch((e) => { console.warn('[notifier] không tạo được thông báo hn-pub:', e.message); return null; }) : Promise.resolve(null);
       if (await create({
-        source_ref: `hn:${h.id}`, kind: 'fire_report', title: `Điểm nóng mới – ${h.commune}${inForest ? ' (trong vùng rừng)' : ''}`,
+        source_ref: `hn:${h.id}`, kind: 'fire_report', title: `Điểm nóng mới – ${place}${inForest ? ' (trong vùng rừng)' : ''}`,
         body: `${h.sensorLabel} phát hiện lúc ${new Date(h.utc).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })} – chưa xác minh. Cần kiểm tra thực địa để xác nhận cháy rừng hay đốt nương rẫy.`,
         data: { screen: 'hotspot', id: h.id, commune: h.communeCode, lat: h.lat, lon: h.lon },
-        target_roles: ['specialist', 'leader'], target_communes: [h.communeCode], priority: inForest || strong ? 'high' : 'normal',
+        target_roles: ['specialist', 'leader'], target_communes: h.communeCode ? [h.communeCode] : null, priority: inForest || strong ? 'high' : 'normal',
         expires_at: new Date(Date.now() + 2 * 864e5).toISOString(),
       }).catch((e) => { console.warn('[notifier] không tạo được thông báo hn:', e.message); return null; })) { hot += 1; created += 1; }
       if (await cit) created += 1;

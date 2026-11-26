@@ -154,7 +154,7 @@ class _ShellState extends ConsumerState<_Shell> with WidgetsBindingObserver {
     final d = LocalNotifs.tapped.value;
     if (d == null || !mounted) return;
     LocalNotifs.tapped.value = null;
-    if (ref.read(sessionProvider).signedIn && d['notification_id'] != null) {
+    if (ref.read(sessionProvider).signedIn && RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch('${d['notification_id'] ?? ''}')) {
       ref.read(apiProvider).post('/api/mobile/notifications/read', {'ids': [d['notification_id']]}).catchError((_) => <String, dynamic>{});
     }
     openNotificationLink(context, ref, d);
@@ -167,11 +167,17 @@ class _ShellState extends ConsumerState<_Shell> with WidgetsBindingObserver {
       ref.read(realtimeProvider.notifier).connect();
       ref.read(pushProvider.notifier).enable();
     });
-    // điểm nóng vệ tinh mới xuất hiện trên bản đồ → báo ngay trong ứng dụng, chạm "Xem" để bay tới vị trí
+    // điểm nóng / điểm cháy mới xuất hiện trên bản đồ → báo ngay trong ứng dụng, chạm "Xem" để bay tới vị trí
     ref.listen(realtimeProvider.select((s) => s.hotspotAlert), (a, b) {
       if (b == null || identical(a, b)) return;
       final n = (b['count'] as num?)?.toInt() ?? 1;
+      final confirmed = b['confirmed'] == true;
       final lat = (b['lat'] as num?)?.toDouble(), lon = (b['lon'] as num?)?.toDouble();
+      final label = n > 1
+          ? 'Có $n điểm nóng mới trên bản đồ'
+          : confirmed
+              ? 'Cảnh báo cháy rừng${b['commune'] != null ? ' tại ${b['commune']}' : ''} (đã xác nhận)'
+              : 'Điểm nóng mới${b['commune'] != null ? ' tại ${b['commune']}' : ''} (chưa xác minh)';
       final m = ScaffoldMessenger.of(context);
       m.hideCurrentSnackBar();
       m.showSnackBar(SnackBar(
@@ -181,7 +187,7 @@ class _ShellState extends ConsumerState<_Shell> with WidgetsBindingObserver {
         content: Row(children: [
           const Icon(Icons.local_fire_department, color: Colors.white),
           const SizedBox(width: 10),
-          Expanded(child: Text(n > 1 ? 'Có $n điểm nóng mới trên bản đồ (chưa xác minh)' : 'Điểm nóng mới${b['commune'] != null ? ' tại ${b['commune']}' : ''} (chưa xác minh)', style: const TextStyle(fontWeight: FontWeight.w700))),
+          Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
         ]),
         action: lat == null || lon == null ? null : SnackBarAction(label: 'Xem', textColor: Colors.white, onPressed: () => context.go('/map', extra: MapFocus(LatLng(lat, lon), zoom: 13, layer: 'hotspots'))),
       ));

@@ -55,7 +55,7 @@ class ProfilePage extends ConsumerWidget {
           child: Column(children: [
             if (u != null) item(Icons.person_outline, 'Thông tin cá nhân', () => _account(context, ref, u)),
             item(Icons.campaign_outlined, 'Quản lý phản ánh của tôi', () => context.push('/reports')),
-            if (u != null && (u.role == 'specialist' || u.role == 'leader')) item(Icons.assignment_outlined, 'Nhiệm vụ hiện trường', () => context.push('/tasks')),
+            if (u != null && u.isStaff) item(Icons.assignment_outlined, 'Nhiệm vụ hiện trường', () => context.push('/tasks')),
             if (u?.can('field.review') == true) item(Icons.fact_check_outlined, 'Duyệt kết quả xác minh', () => context.push('/review')),
             item(Icons.notifications_none, 'Thông báo', () => context.push('/notifications'), badge: unread),
             item(Icons.sync, 'Dữ liệu ngoại tuyến & đồng bộ', () => context.push('/sync'), badge: o.waiting + o.conflicts, trailing: o.online ? null : 'Ngoại tuyến'),

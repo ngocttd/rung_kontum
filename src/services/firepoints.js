@@ -51,6 +51,12 @@ function create(user, input, { canVerify = false } = {}) {
   const note = String(input.note || '').trim().slice(0, 1000) || (status === 'confirmed' ? 'Xác nhận cháy khi nhập thủ công' : 'Nhập thủ công, chờ xác minh');
   store.setDecision('hotspot', refOf(code), { status, note, assignee: input.assignee || null }, user);
   store.audit(user, 'firepoint.create', code, { source, status, report: row.report_code });
+  setImmediate(() => {
+    try {
+      require('./realtime').broadcast('alerts');
+      if (require('../db/pool').enabled) require('./notifier').scan().catch(() => {});
+    } catch { /* ignore */ }
+  });
   return { row, ref: refOf(code), status };
 }
 

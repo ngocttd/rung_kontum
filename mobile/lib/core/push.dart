@@ -119,9 +119,15 @@ class PushService extends Notifier<PushState> {
     bool current() => ref.mounted && operation == _operation;
     try {
       final fm = FirebaseMessaging.instance;
-      final perm = interactive
-          ? await fm.requestPermission(alert: true, badge: true, sound: true)
-          : await fm.getNotificationSettings();
+      final prompted = p.getBool('push_prompted') == true;
+      var perm = await fm.getNotificationSettings();
+      if ((interactive || !prompted) &&
+          perm.authorizationStatus != AuthorizationStatus.authorized &&
+          perm.authorizationStatus != AuthorizationStatus.provisional) {
+        if (!interactive) await p.setBool('push_prompted', true);
+        perm = await fm.requestPermission(alert: true, badge: true, sound: true);
+        await LocalNotifs.requestPermission();
+      }
       if (!current()) return;
       if (perm.authorizationStatus != AuthorizationStatus.authorized && perm.authorizationStatus != AuthorizationStatus.provisional) {
         state = const PushState(channel: PushChannel.fcm, message: 'Chọn Bật / đăng ký lại để cho phép thông báo. Nếu đã từ chối, hãy bật trong Cài đặt điện thoại.');

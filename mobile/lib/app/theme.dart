@@ -64,6 +64,7 @@ ThemeData buildTheme({bool highContrast = false}) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.forest,
+        foregroundColor: Colors.white,
         minimumSize: const Size(48, 48),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
