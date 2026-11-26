@@ -21,6 +21,9 @@ r.use((req, res, next) => {
   return next();
 });
 
+// mã bộ dữ liệu là UUID: mã khác định dạng → 404, không đưa xuống database
+r.param('id', (req, res, next, id) => next(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? undefined : 'route'));
+
 r.get('/', requirePerm('dashboard.view'), async (req, res, next) => {
   try {
     const list = await maps.list({ format: req.query.loai, status: req.query.trang_thai, q: req.query.q, year: req.query.nam, category: req.query.nhom });

@@ -8,6 +8,7 @@ const config = require('./src/config');
 const fmt = require('./src/lib/format');
 const security = require('./src/middleware/security');
 const errors = require('./src/middleware/errors');
+require('./src/middleware/asyncErrors'); // lỗi trong route async → trang lỗi, không làm tắt máy chủ
 const content = require('./src/services/content');
 const weather = require('./src/services/weather');
 const jobs = require('./src/services/jobs');

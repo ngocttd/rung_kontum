@@ -337,7 +337,7 @@ r.get('/tai-lieu', async (req, res) => {
   const counts = Object.fromEntries(Object.keys(repo.DOC_CATEGORIES).map((k) => [k, docs.filter((d) => d.category === k).length]));
   if (!req.query.loai) docs = docs.sort((a, b) => (a.origin === 'map') - (b.origin === 'map'));
   if (req.query.loai) docs = docs.filter((d) => d.category === req.query.loai);
-  if (req.query.q) { const q = req.query.q.toLowerCase(); docs = docs.filter((d) => `${d.title} ${d.issuer || ''} ${d.number || ''}`.toLowerCase().includes(q)); }
+  if (typeof req.query.q === 'string' && req.query.q) { const q = req.query.q.toLowerCase(); docs = docs.filter((d) => `${d.title} ${d.issuer || ''} ${d.number || ''}`.toLowerCase().includes(q)); }
   if (req.query.co_quan) docs = docs.filter((d) => d.issuer === req.query.co_quan);
   const all = allDocs();
   const selected = all.find((d) => d.id === req.query.id) || docs[0] || null;

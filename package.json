@@ -18,6 +18,7 @@
     "test:mobile": "node scripts/test_mobile_api.cjs",
     "test:push": "node scripts/test_push.cjs",
     "test:accounts": "node --test --test-force-exit scripts/test_accounts.cjs",
+    "test:errors": "node --test --test-force-exit scripts/test_route_errors.cjs",
     "test:notifications": "node --test scripts/test_fcm_unit.cjs scripts/test_notification_api.cjs"
   },
   "engines": {
