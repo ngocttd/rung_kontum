@@ -50,14 +50,13 @@ async function audit(datasetId, user, action, details) {
 // ---------- queries ----------
 async function list({ format, status, q, year, category } = {}) {
   const where = []; const v = [];
-  const add = (sql, val) => { v.push(val); where.push(sql.replace('?', `$${v.length}`)); };
+  const add = (sql, val) => { v.push(val); where.push(sql.replaceAll('?', `$${v.length}`)); };
   if (format === 'raster') where.push("d.format <> 'pdf'");
   else if (format) add('d.format = ?', format);
   if (status) add('d.status = ?', status);
   if (category) add('d.category = ?', category);
   if (year) add('d.map_year = ?', Number(year));
-  if (q) add('(d.title ILIKE ? OR d.description ILIKE $' + (v.length + 1) + ')', `%${q}%`);
-  if (q) v.push(`%${q}%`);
+  if (q) add('(d.title ILIKE ? OR d.description ILIKE ?)', `%${q}%`);
   const r = await db.query(`SELECT d.*, (SELECT size_bytes FROM maps.map_files f WHERE f.dataset_id = d.id AND f.file_role = 'original' ORDER BY version_no DESC LIMIT 1) AS size_bytes,
       (SELECT status FROM maps.map_processing_jobs j WHERE j.dataset_id = d.id ORDER BY created_at DESC LIMIT 1) AS job_status
     FROM maps.map_datasets d ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY d.updated_at DESC`, v);

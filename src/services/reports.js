@@ -39,7 +39,7 @@ async function savePhotos(files) {
   return out;
 }
 
-async function create(input, files, user) {
+async function create(input, files, user, mobileFields = {}) {
   const lat = Number(input.lat); const lon = Number(input.lon);
   const commune = Number.isFinite(lat) && Number.isFinite(lon) ? repo.communeAt(lon, lat) : null;
   const photos = await savePhotos(files);
@@ -52,6 +52,7 @@ async function create(input, files, user) {
     reporter: { name: String(input.name || '').slice(0, 120), phone: String(input.phone || '').slice(0, 30), email: String(input.email || '').slice(0, 120) },
     photos, status: 'received', public: false, public_photos: false, assigned_to: null, response: null, created_by: user ? user.id : null, source: user ? 'web-account' : 'web',
     timeline: [{ at: store.now(), status: 'received', note: 'Hệ thống tiếp nhận phản ánh', by: 'system' }],
+    ...mobileFields,
   });
   return row;
 }

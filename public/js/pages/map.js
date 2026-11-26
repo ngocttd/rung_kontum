@@ -30,7 +30,6 @@
   document.getElementById('hs-commune').addEventListener('change', (e) => drawHotspot7(e.target.value));
 
   // ---------- fire danger card (forest area by class) ----------
-  const NAMES = { 5: 'Rất cao', 4: 'Cao', 3: 'Trung bình', 2: 'Thấp', 1: 'Rất thấp' };
   const dChart = KT.donut('ch-danger', [1, 2, 3, 4, 5].map((k) => KT.LEVEL[k]), [0, 0, 0, 0, 0], [1, 2, 3, 4, 5].map((k) => KT.RISK[k]), ['Tổng diện tích', '…']);
   function dayClasses() {
     if (!dangerData) return {};
@@ -45,7 +44,7 @@
     dChart.data.datasets[0].data = [1, 2, 3, 4, 5].map((k) => area[k]);
     dChart.$center = ['Tổng diện tích', `${KT.num(tot)} ha`];
     dChart.update();
-    document.getElementById('danger-list').innerHTML = [5, 4, 3, 2, 1].map((k) => `<li><span class="dot" style="background:${KT.RISK[k]}"></span><strong>${NAMES[k]}</strong><span class="v">Diện tích: ${KT.num(area[k])} ha</span><span class="v" style="min-width:42px">${tot ? KT.num((area[k] / tot) * 100, 1) : '0,0'}%</span></li>`).join('');
+    document.getElementById('danger-list').innerHTML = [5, 4, 3, 2, 1].map((k) => `<li><span class="dot" style="background:${KT.RISK[k]}"></span><strong>${KT.LEVEL[k]}</strong><span class="v">Diện tích: ${KT.num(area[k])} ha</span><span class="v" style="min-width:42px">${tot ? KT.num((area[k] / tot) * 100, 1) : '0,0'}%</span></li>`).join('');
     if (v && v.choropleth === 'danger' && v.map.getLayer('communes-fill')) {
       const expr = ['match', ['get', 'code']];
       Object.entries(cls).forEach(([code, c]) => { expr.push(code, c ? KT.RISK[c] : '#cccccc'); });

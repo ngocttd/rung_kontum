@@ -14,10 +14,14 @@ function communeFeatures() { return readJson(P('web', 'communes.geojson')); }
 function province() { return readJson(P('web', 'province.geojson')); }
 
 let lookupCache = null;
-function communeAt(lon, lat) {
+function communeLookup() {
   const fc = communeFeatures();
   if (!lookupCache || lookupCache.fc !== fc) lookupCache = { fc, fn: indexFeatures(fc, 'code') };
-  const f = lookupCache.fn(lon, lat);
+  return lookupCache.fn;
+}
+
+function communeAt(lon, lat) {
+  const f = communeLookup()(lon, lat);
   return f ? f.properties : null;
 }
 
@@ -29,10 +33,12 @@ function statYears() {
   const ys = idx && idx.years && idx.years.length ? idx.years : [{ year: 2025, file: 'forest-statistics-2025-kon-tum-communes.json' }];
   return ys.slice().sort((a, b) => a.year - b.year);
 }
-function statYear(year) { const ys = statYears(); return (ys.find((y) => String(y.year) === String(year)) || ys[ys.length - 1]).year; }
-function officialStats(year) {
-  const y = statYears().find((x) => x.year === statYear(year));
-  return readJson(P('processed', y.file)) || [];
+function statEntry(year, years) {
+  return years.find((entry) => String(entry.year) === String(year)) || years[years.length - 1];
+}
+function statYear(year) { return statEntry(year, statYears()).year; }
+function officialStats(year, years = statYears()) {
+  return readJson(P('processed', statEntry(year, years).file)) || [];
 }
 function landcover() { return readJson(P('web', 'commune-landcover-terrain.json')); }
 // trang/API công khai: kỳ so sánh lấy theo bản đã công bố (không lộ bản nháp chờ duyệt) + kỳ tuỳ chọn đã công bố
@@ -78,7 +84,8 @@ function communeByCode(code) { return communes().find((c) => c.code === code) ||
 function sum(arr, f) { return arr.reduce((a, x) => a + (Number(f(x)) || 0), 0); }
 
 function forestSummary(year) {
-  const s = officialStats(year);
+  const years = statYears();
+  const s = officialStats(year, years);
   const natural = sum(s, (x) => x.natural_area_ha);
   const forest = sum(s, (x) => x.established_forest_ha);
   return {
@@ -96,7 +103,7 @@ function forestSummary(year) {
     as_of: s[0] ? s[0].as_of : null,
     decision: s[0] ? s[0].decision : null,
     source_url: s[0] ? s[0].source_url : null,
-    year: statYear(year), years: statYears().map((y) => y.year),
+    year: statEntry(year, years).year, years: years.map((y) => y.year),
     scope: 'Tổng 40 xã/phường hiện hành có phần lớn diện tích thuộc vùng Kon Tum cũ (toàn xã, chưa cắt theo ranh tỉnh cũ)',
   };
 }
@@ -226,17 +233,30 @@ function firmsMeta() {
   return { collected_at: live && live.collected_at ? live.collected_at : cs ? cs.collected_at : null, window_days: 7, source: 'NASA FIRMS (LANCE NRT): MODIS, VIIRS S-NPP/NOAA-20/NOAA-21' };
 }
 
+// readJson and communeLookup keep their identities until the corresponding file changes.
+let historyCache;
+function aggregateFirmsHistory(history, lookup) {
+  if (historyCache && historyCache.history === history && historyCache.lookup === lookup) return historyCache;
+  let last = '';
+  const monthly = {}; const byCommune = {};
+  for (const pt of history.points) {
+    const m = pt.date.slice(0, 7);
+    if (pt.date > last) last = pt.date;
+    monthly[m] = (monthly[m] || 0) + 1;
+    const feature = lookup(pt.lon, pt.lat);
+    if (feature) {
+      const code = feature.properties.code;
+      byCommune[code] = (byCommune[code] || 0) + 1;
+    }
+  }
+  historyCache = { history, lookup, monthly, byCommune, last };
+  return historyCache;
+}
+
 function firmsHistory() {
   const h = readJson(P('collected', 'history', 'firms-gee-modis-2024-now.json'));
   if (!h) return null;
-  const monthly = {}; const byCommune = {};
-  for (const pt of h.points) {
-    const m = pt.date.slice(0, 7);
-    monthly[m] = (monthly[m] || 0) + 1;
-    const c = communeAt(pt.lon, pt.lat);
-    if (c) byCommune[c.code] = (byCommune[c.code] || 0) + 1;
-  }
-  const last = h.points.reduce((a, p) => (p.date > a ? p.date : a), '');
+  const { monthly, byCommune, last } = aggregateFirmsHistory(h, communeLookup());
   // NRT snapshot (VIIRS/MODIS, last 7 days) is a different product: kept as its own series, never summed into MODIS history.
   const nrtMonthly = {}; const nrtByCommune = {};
   for (const hs of hotspots()) {
@@ -268,11 +288,14 @@ function changeCandidates({ staff = false } = {}) {
   const runs = require('../services/changeRuns');
   const base = staff ? (readJson(P('web', 'change-candidates.geojson')) || { features: [] }) : runs.auto.publicCandidates();
   const extra = runs.list().filter((r) => r.status === 'succeeded' && (staff || r.published)).flatMap((r) => runs.candidates(r).features.map((f) => ({ ...f, properties: { ...f.properties, run_id: r.id, run_code: r.code, run_published: r.published } })));
-  const fc = { features: [...(base.features || []), ...extra] };
+  const decisions = new Map();
+  for (const decision of store.all('decisions')) {
+    if (decision.kind === 'candidate' && !decisions.has(decision.ref_id)) decisions.set(decision.ref_id, decision);
+  }
   return {
     type: 'FeatureCollection',
-    features: fc.features.map((f) => {
-      const d = store.getDecision('candidate', f.properties.id);
+    features: [...(base.features || []), ...extra].map((f) => {
+      const d = decisions.get(f.properties.id);
       const status = d ? d.status : 'unverified';
       return { ...f, properties: { ...f.properties, status, statusLabel: CANDIDATE_STATUS[status] } };
     }),
@@ -315,8 +338,11 @@ function dailyForecast(code) {
   return { code: c.commune_code, collected_at: om.collected_at_utc, source: om.source, attribution: om.attribution, days, hours };
 }
 
+let climateCache;
 function climateMonthly() {
-  const rows = readCsv(P('processed', 'daily-climate-2024-2025.csv')) || [];
+  const rows = readCsv(P('processed', 'daily-climate-2024-2025.csv'));
+  if (!rows) return [];
+  if (climateCache && rows === climateCache.rows) return climateCache.months;
   const m = {};
   for (const r of rows) {
     const k = r.date.slice(0, 7);
@@ -324,7 +350,9 @@ function climateMonthly() {
     const x = m[k]; x.n += 1; x.t += Number(r.era5_temperature_c); x.rainE += Number(r.era5_rain_mm); x.rainC += Number(r.chirps_rain_mm || 0); x.days.add(r.date);
   }
   const communesN = new Set(rows.map((r) => r.commune_code)).size || 1;
-  return Object.entries(m).sort().map(([k, x]) => ({ month: k, temp_mean: x.t / x.n, rain_chirps_mm: x.rainC / communesN, rain_era5_mm: x.rainE / communesN }));
+  const months = Object.entries(m).sort().map(([k, x]) => ({ month: k, temp_mean: x.t / x.n, rain_chirps_mm: x.rainC / communesN, rain_era5_mm: x.rainE / communesN }));
+  climateCache = { rows, months };
+  return months;
 }
 
 // ---------- Sentinel monthly series (100 m, đặc trưng cấp xã) ----------
@@ -346,11 +374,12 @@ function ndviSeries(code) {
 }
 
 // ---------- overlays, content ----------
+function preparedOverlays() { return readJson(P('web', 'overlays.json')) || []; }
 // classified layers also have XYZ tiles (scripts/build_tiles.py) so they stay sharp when zoomed in
 function overlays() {
   const runs = require('../services/changeRuns');
   const st = runs.auto.state();
-  const list = (readJson(P('web', 'overlays.json')) || []).filter((o) => o.id !== 'change-latest');
+  const list = preparedOverlays().filter((o) => o.id !== 'change-latest');
   if (st.overlay) list.splice(1, 0, st.overlay); // lớp biến động NDVI: chỉ bản đã công bố
   for (const r of runs.published()) {
     list.push({ id: `chg-${r.id}`, url: `/bien-dong/lop/${r.id}.webp`, title: `Biến động NDVI ${r.summary.window} (${r.code})`, group: 'change-run',
@@ -406,5 +435,5 @@ module.exports = {
   hotspots, publicHotspot, backfillHotspotSnapshots, RETENTION, firmsMeta, firmsHistory, burnedHistory, HOTSPOT_STATUS, SENSORS,
   forestChange, landcoverHistory, fieldSamples, changeCandidates, CANDIDATE_STATUS, fireDanger,
   weatherSnapshot, dailyForecast, climateMonthly, openMeteo, ndviSeries,
-  overlays, photos, readiness, documents, documentFile, DOC_CATEGORIES, customLayers, dataFreshness, fileExists,
+  overlays, preparedOverlays, photos, readiness, documents, documentFile, DOC_CATEGORIES, customLayers, dataFreshness, fileExists,
 };

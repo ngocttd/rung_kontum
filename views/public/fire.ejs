@@ -118,7 +118,7 @@
 
   <!-- điểm nóng -->
   <section data-panel-group="fire" data-panel="diem-nong" <%= tab === 'diem-nong' ? '' : 'hidden' %> class="card span-2">
-    <div class="card-h"><h2><%- ic('fire') %> Danh sách điểm nóng 7 ngày gần nhất</h2><span class="more muted" style="font-weight:400">Cập nhật nguồn: <%= fmt.dateTime(firms.collected_at) %></span></div>
+    <div class="card-h"><h2><%- ic('fire') %> Điểm nóng và điểm cháy đang hiển thị trên bản đồ</h2><span class="more muted" style="font-weight:400">Cập nhật nguồn: <%= fmt.dateTime(firms.collected_at) %></span></div>
     <div class="card-b table-wrap">
       <div class="note info" id="hs-live-note" hidden style="margin-bottom:8px">Có điểm nóng mới hoặc đã thay đổi danh sách – <a href="">tải lại trang</a> để xem đầy đủ. Bản đồ đã cập nhật.</div>
       <% if (!hotspots.length) { %><div class="empty-state">Không có điểm nóng.</div><% } else { %>

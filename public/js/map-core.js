@@ -13,7 +13,16 @@
   const MARKERS = ['hotspot-unverified', 'fire-investigating', 'fire-confirmed', 'fire-rejected', 'fire-resolved', 'forest-violation', 'land-encroachment',
     'timber-transport', 'wildlife', 'report-other', 'report-photo', 'gps', 'survey'];
   const cache = {};
-  KT.fetchCached = (url) => (cache[url] = cache[url] || KT.getJSON(url));
+  KT.fetchCached = (url) => {
+    if (!cache[url]) {
+      const request = KT.getJSON(url).catch((error) => {
+        if (cache[url] === request) delete cache[url];
+        throw error;
+      });
+      cache[url] = request;
+    }
+    return cache[url];
+  };
   KT.fetchFresh = async (url) => {
     const r = await fetch(url, { cache: 'no-cache', headers: { Accept: 'application/json' } });
     if (!r.ok) throw new Error(`${url}: ${r.status}`);
@@ -121,19 +130,53 @@
       })));
     }
 
-    async function buildAll() {
+    let styleVersion = 0;
+    const pendingBuilds = new Map();
+
+    // Put a newly enabled vector back in its original drawing order.
+    function positionLayer(id) {
+      const d = view.defs[id];
+      let before;
+      if (d.kind === 'overlay') before = map.getLayer('communes-line') && 'communes-line';
+      else {
+        const later = view.order.slice(view.order.indexOf(id) + 1);
+        before = later.flatMap((key) => view.defs[key].layers).find((layer) => map.getLayer(layer));
+      }
+      if (before) d.layers.forEach((layer) => { if (map.getLayer(layer)) map.moveLayer(layer, before); });
+    }
+
+    function buildLayer(id) {
+      const d = view.defs[id];
+      if (!view.ready || !d.visible) return;
+      if (pendingBuilds.has(id)) return pendingBuilds.get(id);
+      const version = styleVersion;
+      const work = d.build(map, d).then(() => {
+        if (!view.ready) return;
+        applyState(id);
+        if (d.visible) positionLayer(id);
+      }).catch((e) => { if (version === styleVersion) console.warn('layer', id, e); })
+        .finally(() => { if (pendingBuilds.get(id) === work) pendingBuilds.delete(id); });
+      pendingBuilds.set(id, work);
+      return work;
+    }
+
+    async function buildAll(version) {
       await loadMarkers();
       if (!map.hasImage('wind-arrow')) await new Promise((res) => map.loadImage('/assets/symbols/wind-direction.png', (e, img) => { if (!e && !map.hasImage('wind-arrow')) map.addImage('wind-arrow', img, { pixelRatio: 4 }); res(); }));
+      if (version !== styleVersion) return;
+      view.ready = true;
       for (const id of view.order) {
-        const d = view.defs[id];
-        try { await d.build(map, d); applyState(id); } catch (e) { console.warn('layer', id, e); }
+        if (version !== styleVersion) return;
+        if (view.defs[id].visible) await buildLayer(id);
+        else applyState(id);
       }
+      if (version !== styleVersion) return;
       if (view.terrain) setTerrain(true);
       if (map.getLayer('communes-line')) Object.values(view.defs).forEach((d) => { if (d.kind === 'overlay' && d.visible) d.layers.forEach((l) => map.getLayer(l) && map.moveLayer(l, 'communes-line')); });
       if (view.onBuilt) view.onBuilt();
     }
 
-    map.on('style.load', () => { view.ready = true; buildAll(); });
+    map.on('style.load', () => { buildAll(styleVersion); });
     // Containers may change size while fonts/layout settle: refit once loaded unless a page set its own view.
     map.once('load', () => { map.resize(); if (!view.skipFit && !opts.bounds) map.fitBounds(BOUNDS, { padding: opts.padding ?? 20, duration: 0 }); });
     // Keep the whole AOI in view when the container is resized by layout, until the user moves the map.
@@ -143,12 +186,18 @@
       new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => { map.resize(); if (!view.userMoved && !view.skipFit && !opts.bounds) map.fitBounds(BOUNDS, { padding: opts.padding ?? 20, duration: 0 }); }, 120); }).observe(el);
     }
 
-    view.define = (id, def) => { view.defs[id] = { visible: true, ...def }; view.order.push(id); if (view.ready) def.build(map, view.defs[id]).then(() => applyState(id)); return view; };
+    view.define = (id, def) => {
+      view.defs[id] = { visible: true, ...def };
+      view.order.push(id);
+      if (view.ready) buildLayer(id);
+      return view;
+    };
     view.setVisible = (id, v) => {
       const d = view.defs[id]; if (!d) return;
       d.visible = v;
-      if (v && view.ready && d.kind === 'overlay' && !map.getLayer(d.layers[0])) {
-        d.build(map, d).then(() => { applyState(id); if (map.getLayer('communes-line')) d.layers.forEach((l) => map.getLayer(l) && map.moveLayer(l, 'communes-line')); }).catch((e) => console.warn('layer', id, e));
+      if (!view.ready) return;
+      if (v && !map.getLayer(d.layers[0])) {
+        buildLayer(id);
         return;
       }
       applyState(id);
@@ -156,7 +205,14 @@
       if (v && d.kind === 'overlay' && map.getLayer('communes-line')) d.layers.forEach((l) => map.getLayer(l) && map.moveLayer(l, 'communes-line'));
     };
     view.setOpacity = (id, v) => { if (!view.defs[id]) return; view.defs[id].opacity = v; applyState(id); };
-    view.setBasemap = (name) => { if (!BASEMAPS[name] || name === view.basemap) return; view.basemap = name; map.setStyle(BASEMAPS[name]); };
+    view.setBasemap = (name) => {
+      if (!BASEMAPS[name] || name === view.basemap) return;
+      view.basemap = name;
+      view.ready = false;
+      styleVersion += 1;
+      pendingBuilds.clear();
+      map.setStyle(BASEMAPS[name]);
+    };
     function setTerrain(on) {
       if (on) {
         if (!map.getSource('mapbox-dem')) map.addSource('mapbox-dem', { type: 'raster-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1', tileSize: 512, maxzoom: 14 });
@@ -282,7 +338,7 @@
       return {
         kind: 'vector', layers: [`${id}-arrow`, `${id}-label`], visible: false,
         async build(map) {
-          const data = await KT.fetchCached(`/api/public/weather/wind?nguon=${source}`).catch(() => ({ type: 'FeatureCollection', features: [] }));
+          const data = await KT.fetchCached(`/api/public/weather/wind?nguon=${source}`);
           if (!map.getSource(id)) map.addSource(id, { type: 'geojson', data });
           if (!map.getLayer(`${id}-arrow`)) map.addLayer({ id: `${id}-arrow`, type: 'symbol', source: id, layout: { 'icon-image': 'wind-arrow', 'icon-size': ['interpolate', ['linear'], ['get', 'speed_ms'], 0, 0.7, 8, 1.3], 'icon-rotate': ['+', ['get', 'dir_from'], 180], 'icon-allow-overlap': true, 'icon-rotation-alignment': 'map' } });
           if (!map.getLayer(`${id}-label`)) map.addLayer({ id: `${id}-label`, type: 'symbol', source: id, minzoom: 8.5, layout: { 'text-field': ['concat', ['to-string', ['get', 'speed_ms']], ' m/s'], 'text-size': 10.5, 'text-offset': [0, 1.6], 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'], 'text-allow-overlap': false }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#174a7c', 'text-halo-width': 1.6 } });

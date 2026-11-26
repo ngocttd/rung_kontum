@@ -7,6 +7,7 @@ const compression = require('compression');
 const config = require('./src/config');
 const fmt = require('./src/lib/format');
 const security = require('./src/middleware/security');
+const errors = require('./src/middleware/errors');
 const content = require('./src/services/content');
 const weather = require('./src/services/weather');
 const jobs = require('./src/services/jobs');
@@ -81,12 +82,7 @@ app.use('/quan-tri', require('./src/routes/admin'));
 app.use('/', require('./src/routes/public'));
 
 app.use((req, res) => res.status(404).render('public/error', { title: 'Không tìm thấy trang', code: 404, message: 'Trang bạn tìm không tồn tại hoặc đã được di chuyển.', nav: '' }));
-app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
-  if (res.headersSent) { console.warn('[http] lỗi sau khi đã gửi phản hồi:', req.method, req.originalUrl, err.code || err.message); return undefined; }
-  console.error(err);
-  if (req.path.startsWith('/api/')) return res.status(500).json({ error: 'Lỗi máy chủ' });
-  return res.status(500).render('public/error', { title: 'Lỗi hệ thống', code: 500, message: 'Đã xảy ra lỗi khi xử lý yêu cầu.', nav: '' });
-});
+app.use(errors);
 
 const store = require('./src/data/store');
 

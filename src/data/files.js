@@ -6,11 +6,15 @@ const cache = new Map();
 
 function cached(file, parse) {
   let stat;
-  try { stat = fs.statSync(file); } catch { return null; }
+  try { stat = fs.statSync(file, { throwIfNoEntry: false }); } catch { return null; }
+  if (!stat) {
+    cache.delete(file);
+    return null;
+  }
   const hit = cache.get(file);
-  if (hit && hit.mtime === stat.mtimeMs) return hit.value;
+  if (hit && hit.mtime === stat.mtimeMs && hit.ctime === stat.ctimeMs && hit.size === stat.size) return hit.value;
   const value = parse(fs.readFileSync(file, 'utf8').replace(/^﻿/, ''));
-  cache.set(file, { mtime: stat.mtimeMs, value });
+  cache.set(file, { mtime: stat.mtimeMs, ctime: stat.ctimeMs, size: stat.size, value });
   return value;
 }
 

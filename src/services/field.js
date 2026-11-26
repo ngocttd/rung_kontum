@@ -96,26 +96,35 @@ const num = (v) => (v === '' || v === null || v === undefined || !Number.isFinit
 async function claimAttachments(keys, ownerKind, ownerId, auth) {
   const list = [...new Set((keys || []).map(String))].slice(0, 10);
   if (!list.length) return [];
-  if (!db.enabled) return list.filter((k) => memAttach.has(k));
-  const r = await db.query('SELECT object_key, mime, uploaded_by, owner_id FROM mobile.field_attachments WHERE object_key = ANY($1)', [list]);
-  for (const a of r.rows) {
+  const attachments = db.enabled
+    ? (await db.query('SELECT object_key, mime, uploaded_by, owner_id FROM mobile.field_attachments WHERE object_key = ANY($1)', [list])).rows
+    : list.map((key) => memAttach.get(key)).filter(Boolean);
+  for (const a of attachments) {
     need(!a.owner_id || a.owner_id === String(ownerId), 409, 'ATTACHMENT_USED', 'Tệp đính kèm đã thuộc hồ sơ khác.');
     need(!a.uploaded_by || (auth && a.uploaded_by === auth.sub), 403, 'FORBIDDEN', 'Tệp đính kèm không thuộc tài khoản này.');
   }
-  await db.query('UPDATE mobile.field_attachments SET owner_id = $2, owner_kind = $3 WHERE object_key = ANY($1)', [r.rows.map((a) => a.object_key), String(ownerId), ownerKind]);
-  return r.rows.map((a) => ({ key: a.object_key, mime: a.mime }));
+  if (db.enabled) {
+    await db.query('UPDATE mobile.field_attachments SET owner_id = $2, owner_kind = $3 WHERE object_key = ANY($1)', [attachments.map((a) => a.object_key), String(ownerId), ownerKind]);
+  } else {
+    for (const a of attachments) {
+      a.owner_id = String(ownerId);
+      a.owner_kind = ownerKind;
+    }
+  }
+  return attachments.map((a) => ({ key: a.object_key, mime: a.mime }));
 }
 
 async function attachmentFor(key, auth) {
-  const file = path.join(UPLOAD_DIR, path.basename(key));
+  const name = path.basename(key);
+  const file = path.join(UPLOAD_DIR, name);
   if (!fs.existsSync(file)) return null;
   const staff = auth && ['admin', 'leader', 'specialist'].includes(auth.role);
   if (staff) return file;
-  if (db.enabled) {
-    const a = (await db.query('SELECT uploaded_by, owner_kind, owner_id FROM mobile.field_attachments WHERE object_key = $1', [path.basename(key)])).rows[0];
-    if (a && auth && a.uploaded_by === auth.sub) return file;
-  }
-  const rep = store.find('reports', (x) => (x.photos || []).includes(path.basename(key)));
+  const a = db.enabled
+    ? (await db.query('SELECT uploaded_by, owner_kind, owner_id FROM mobile.field_attachments WHERE object_key = $1', [name])).rows[0]
+    : memAttach.get(name);
+  if (a && auth && a.uploaded_by === auth.sub) return file;
+  const rep = store.find('reports', (x) => (x.photos || []).includes(name));
   return rep && rep.public && rep.public_photos ? file : null;
 }
 
@@ -130,25 +139,38 @@ async function createReport(auth, body, clientUuid) {
     if (dup) return { report: dup, duplicate: true };
   }
   const u = auth ? userRec(auth) : null;
-  const row = await reports.create({
-    type: body.type, description: desc, lat, lon, location_text: body.location_text, observed_at: body.observed_at,
-    name: body.name || (u && u.name) || '', phone: body.phone || (u && u.phone) || '', email: body.email || (u && u.email) || '',
-  }, []);
-  const att = await claimAttachments(body.attachments, 'report', row.id, auth);
-  const patch = {
-    client_uuid: clientUuid || null, source: 'mobile', created_by: auth ? auth.sub : null,
+  const id = crypto.randomUUID();
+  const att = await claimAttachments(body.attachments, 'report', id, auth);
+  const mobileFields = {
+    id, client_uuid: clientUuid || null, source: 'mobile', created_by: auth ? auth.sub : null,
     gps_accuracy: num(body.gps_accuracy), location_source: ['gps', 'manual', 'map'].includes(body.location_source) ? body.location_source : 'gps',
     photos: att.filter((a) => a.mime.startsWith('image/')).map((a) => a.key), videos: att.filter((a) => a.mime.startsWith('video/')).map((a) => a.key),
   };
-  let saved = store.update('reports', row.id, patch);
+  let saved;
+  try {
+    saved = await reports.create({
+      type: body.type, description: desc, lat, lon, location_text: body.location_text, observed_at: body.observed_at,
+      name: body.name || (u && u.name) || '', phone: body.phone || (u && u.phone) || '', email: body.email || (u && u.email) || '',
+    }, [], u, mobileFields);
+  } catch (err) {
+    if (att.length && db.enabled) {
+      await db.query("UPDATE mobile.field_attachments SET owner_id = NULL WHERE owner_kind = 'report' AND owner_id = $1", [id]).catch((e) => console.warn('[field] không gỡ được tệp khỏi phản ánh chưa lưu:', e.message));
+    } else {
+      for (const { key } of att) {
+        const a = memAttach.get(key);
+        if (a && a.owner_id === id) a.owner_id = null;
+      }
+    }
+    throw err;
+  }
   const who = u ? { username: u.username, role: u.role } : null;
-  store.audit(who, 'report.create', row.code, { source: 'mobile' });
+  store.audit(who, 'report.create', saved.code, { source: 'mobile' });
   // cán bộ có quyền xác minh báo cháy tại hiện trường (GPS) = xác nhận cháy: tạo điểm cháy "Xác nhận cháy"
   // trong luồng cảnh báo → thông báo công khai tới người dân trong xã (notifier mục b)
   if (saved.type === 'chay-rung' && who && can(who, 'alerts.verify') && saved.location_source === 'gps') {
     try {
       require('./firepoints').fromReport(who, saved, { confirm: true, note: `Cán bộ ${who.username} báo cháy tại hiện trường qua MobileGIS (${saved.code})` });
-      saved = store.get('reports', row.id);
+      saved = store.get('reports', id);
     } catch (e) { console.warn('[field] không tạo được điểm cháy từ', saved.code, e.message); }
   }
   return { report: saved, duplicate: false };
@@ -225,8 +247,12 @@ async function listAssignments(auth, { status, mine } = {}) {
   requireDb();
   const vals = []; const where = [];
   if (auth.role === 'specialist') {
-    vals.push(auth.sub, auth.scope);
-    where.push(mine === 'true' ? 'a.assignee_id = $1' : '(a.assignee_id = $1 OR (a.assignee_id IS NULL AND ($2::text IS NULL OR a.scope_id = $2)))');
+    vals.push(auth.sub);
+    if (mine === 'true') where.push('a.assignee_id = $1');
+    else {
+      vals.push(auth.scope);
+      where.push('(a.assignee_id = $1 OR (a.assignee_id IS NULL AND ($2::text IS NULL OR a.scope_id = $2)))');
+    }
   } else need(auth.role === 'leader', 403, 'FORBIDDEN', 'Không có quyền xem nhiệm vụ hiện trường.');
   if (status) { vals.push(String(status).split(',')); where.push(`a.status = ANY($${vals.length})`); }
   const r = await db.query(`${ASG_SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY (a.status IN ('approved','cancelled')), a.due_at NULLS LAST, a.created_at DESC LIMIT 300`, vals);

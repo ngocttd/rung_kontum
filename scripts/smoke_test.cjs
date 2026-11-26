@@ -38,7 +38,8 @@ const csrfOf = (html) => (html.match(/name="_csrf" value="([a-f0-9]+)"/) || [])[
     // ---------- public ----------
     const anon = client(base);
     const pages = ['/', '/ban-do', '/tai-nguyen-rung', '/tai-nguyen-rung?tab=muc-dich', '/bien-dong-rung', '/canh-bao-chay', '/canh-bao-chay?tab=lich-su',
-      '/tin-tuc', '/phan-anh', '/tai-lieu', '/gioi-thieu', '/thoi-tiet', '/thong-ke', '/thong-ke?chu_de=chay', '/huong-dan'];
+      '/tin-tuc', '/phan-anh', '/tai-lieu', '/gioi-thieu', '/thoi-tiet', '/thong-ke', '/thong-ke?chu_de=chay', '/huong-dan',
+      '/chinh-sach-quyen-rieng-tu', '/yeu-cau-xoa-tai-khoan'];
     for (const p of pages) { const r = await anon(p); ok(r.status === 200 && !/Lỗi hệ thống/.test(r.text), `GET ${p} → ${r.status}`); }
     for (const p of ['/api/public/map/layers', '/api/public/boundaries/communes', '/api/public/fire/danger', '/api/public/fire/hotspots', '/api/public/forest/change', '/api/public/forest/candidates', '/api/public/alerts', '/api/public/search?q=ngoc']) {
       const r = await anon(p); let j = null; try { j = JSON.parse(r.text); } catch { /* not json */ }
@@ -83,6 +84,36 @@ const csrfOf = (html) => (html.match(/name="_csrf" value="([a-f0-9]+)"/) || [])[
     const page = await admin('/quan-tri/canh-bao');
     const token = csrfOf(page.text);
     const post = (c, url, body, t = token) => c(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ _csrf: t, ...body }) });
+
+    const deletionPath = '/yeu-cau-xoa-tai-khoan';
+    const privacyPage = await anon('/chinh-sach-quyen-rieng-tu');
+    const deletionGuest = await anon(deletionPath);
+    ok(privacyPage.text.includes(`href="${deletionPath}"`) && deletionGuest.text.includes('Đăng nhập tài khoản người dân'), 'Hai trang mở công khai và dẫn tới luồng yêu cầu xóa');
+    const guestCsrf = csrfOf((await anon('/dang-nhap')).text);
+    ok((await post(anon, deletionPath, { confirm: 'yes', password: 'irrelevant' }, guestCsrf)).status === 401, 'Khách chưa đăng nhập không thể gửi yêu cầu xóa');
+
+    const owner = mk('qa-deletion-citizen', 'citizen');
+    await store.drain();
+    const citizen = client(base);
+    const signIn = await citizen(`/dang-nhap?next=${encodeURIComponent(deletionPath)}`);
+    const signedIn = await post(citizen, '/dang-nhap', { username: owner.username, password: 'Test-password-1', next: deletionPath }, csrfOf(signIn.text));
+    ok(signedIn.status === 302 && signedIn.location === deletionPath, 'Đăng nhập trả về trang yêu cầu xóa');
+    const requestPage = await citizen(deletionPath);
+    const deletionCsrf = csrfOf(requestPage.text);
+    const confirmDeletion = { confirm: 'yes', password: 'Test-password-1' };
+    ok((await post(citizen, deletionPath, confirmDeletion, 'wrong-csrf')).status === 403, 'Yêu cầu xóa phải có token CSRF hợp lệ');
+    ok((await post(citizen, deletionPath, { password: confirmDeletion.password }, deletionCsrf)).status === 400, 'Yêu cầu xóa cần xác nhận rõ ràng');
+    ok((await post(citizen, deletionPath, { ...confirmDeletion, password: 'incorrect' }, deletionCsrf)).status === 401, 'Yêu cầu xóa cần mật khẩu hiện tại');
+    const submitted = await post(citizen, deletionPath, { ...confirmDeletion, id: store.all('users').find((u) => u.role === 'admin').id }, deletionCsrf);
+    const requestedAt = store.get('users', owner.id).account_deletion_requested_at;
+    const pending = await citizen(deletionPath);
+    ok(submitted.status === 303 && submitted.location === deletionPath && requestedAt && pending.text.includes('Yêu cầu đang chờ xử lý'), 'Hệ thống lưu yêu cầu và hiển thị trạng thái chờ xử lý');
+    ok(store.get('users', owner.id).active && !store.all('users').find((u) => u.role === 'admin').account_deletion_requested_at, 'Yêu cầu chỉ gắn với tài khoản đăng nhập, tài khoản vẫn hoạt động trong lúc chờ xử lý');
+    const duplicate = await post(citizen, deletionPath, confirmDeletion, deletionCsrf);
+    ok(duplicate.status === 303 && store.get('users', owner.id).account_deletion_requested_at === requestedAt
+      && store.filter('audit', (entry) => entry.action === 'user.deletion.request' && entry.target === owner.id).length === 1, 'Gửi lại không tạo yêu cầu xóa trùng');
+    ok((await admin('/quan-tri/nguoi-dung')).text.includes('Chờ xóa tài khoản') && !(await anon(deletionPath)).text.includes(owner.username), 'Quản trị xem được yêu cầu, khách không thấy thông tin tài khoản');
+
     const hs = JSON.parse((await anon('/api/public/fire/hotspots')).text).features;
     if (hs.length) {
       r = await post(admin, '/quan-tri/canh-bao/diem-nong', { ref: hs[0].properties.id, status: 'confirmed' });

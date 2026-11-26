@@ -94,21 +94,32 @@ pub.get('/fire/hotspots/archive', async (req, res, next) => {
   const db = require('../db/pool');
   if (!db.enabled) return res.status(503).json({ error: 'Chưa kết nối cơ sở dữ liệu' });
   try {
+    const { from, to, limit: rawLimit } = req.query;
+    const validDay = (value) => {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000-')) return false;
+      const date = new Date(`${value}T00:00:00Z`);
+      return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+    };
+    if ([from, to].some((value) => value !== undefined && !validDay(value))) return res.status(400).json({ error: 'Ngày phải hợp lệ và theo định dạng YYYY-MM-DD.' });
+    const csv = req.query.format === 'csv';
+    const limitValue = rawLimit === undefined ? (csv ? 20000 : 2000) : Number(rawLimit);
+    if ((rawLimit !== undefined && (typeof rawLimit !== 'string' || !/^\d+$/.test(rawLimit))) || !Number.isSafeInteger(limitValue) || limitValue < 1) {
+      return res.status(400).json({ error: 'Giới hạn kết quả phải là số nguyên dương.' });
+    }
+    const limit = Math.min(csv ? 20000 : 5000, limitValue);
     const where = []; const vals = [];
     const add = (sql, v) => { vals.push(v); where.push(sql.replace(/\?/g, `$${vals.length}`)); };
-    const day = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null);
-    if (day(req.query.from)) add("t >= (?::date - interval '7 hours')", day(req.query.from));
-    if (day(req.query.to)) add("t < (?::date + interval '17 hours')", day(req.query.to));
+    if (from) add("t >= (?::date - interval '7 hours')", from);
+    if (to) add("t < (?::date + interval '17 hours')", to);
     if (req.query.xa) add('commune_code = ?', String(req.query.xa));
     if (HS_LABEL[req.query.trang_thai]) add('status = ?', req.query.trang_thai);
     if (req.query.nguon === 'firms') where.push("sensor <> 'MANUAL'");
     if (req.query.nguon === 'tay') where.push("sensor = 'MANUAL'");
     if (req.query.bbox) {
       const b = String(req.query.bbox).split(',').map(Number);
-      if (b.length === 4 && b.every(Number.isFinite)) { vals.push(...b); const n = vals.length; where.push(`geom && ST_MakeEnvelope($${n - 3}, $${n - 2}, $${n - 1}, $${n}, 4326)`); }
+      if (b.length === 4 && b.every(Number.isFinite)) { vals.push(...b); const n = vals.length; where.push(`s.geom && ST_MakeEnvelope($${n - 3}, $${n - 2}, $${n - 1}, $${n}, 4326)`); }
     }
-    const csv = req.query.format === 'csv';
-    const limit = Math.min(csv ? 20000 : 5000, Number(req.query.limit) || (csv ? 20000 : 2000));
+    vals.push(limit);
     const r = await db.query(`WITH u AS (
         SELECT h.id, h.sensor, h.acq_utc AS t, h.confidence, h.frp, h.commune_code, h.in_forest, h.landcover, NULL::numeric AS area_ha, NULL::text AS source_kind, h.geom
           FROM fire.hotspots h
@@ -121,7 +132,7 @@ pub.get('/fire/hotspots/archive', async (req, res, next) => {
       SELECT s.id, s.sensor, s.t AS utc, s.confidence, s.frp, s.commune_code, a.full_name AS commune, s.in_forest, s.landcover, s.area_ha, s.source_kind,
         s.status, s.decided_at, ST_X(s.geom) AS lon, ST_Y(s.geom) AS lat
       FROM s LEFT JOIN spatial.admin_units a ON a.code = s.commune_code AND a.clipped AND a.level = 'commune'
-      ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY s.t DESC LIMIT ${limit}`, vals);
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY s.t DESC LIMIT $${vals.length}`, vals);
     const rows = r.rows.map((x) => ({ ...x, utc: new Date(x.utc).toISOString(), statusLabel: HS_LABEL[x.status] || x.status, frp: x.frp === null ? null : Number(x.frp), area_ha: x.area_ha === null ? null : Number(x.area_ha) }));
     if (csv) {
       const q = (v) => (v === null || v === undefined ? '' : /[",\n;]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
