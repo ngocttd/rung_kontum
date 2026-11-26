@@ -17,6 +17,7 @@ const firepoints = require('../services/firepoints');
 const jobs = require('../services/jobs');
 const weatherSvc = require('../services/weather');
 const firmsSvc = require('../services/firms');
+const mobileAuth = require('../services/mobile-auth');
 const { ROLES, STAFF_ROLES, can, requireLogin, requirePerm, checkCsrf, rateLimit } = require('../middleware/security');
 
 const r = express.Router();
@@ -42,7 +43,7 @@ r.post('/dang-nhap', rateLimit('login', 10, 15 * 60e3), async (req, res) => {
     return res.status(401).render('admin/login', { title: 'Đăng nhập quản trị', next: req.body.next || '/quan-tri', error: 'Tên đăng nhập hoặc mật khẩu không đúng.', noUsers: false });
   }
   return req.session.regenerate(() => {
-    req.session.user = { id: u.id, username: u.username, name: u.name, role: u.role, scope: u.scope || null };
+    req.session.user = { id: u.id, username: u.username, name: u.name, role: u.role, scope: u.scope || null, v: u.session_version || 0 };
     store.update('users', u.id, { last_login: store.now() });
     store.audit(req.session.user, 'auth.login', u.username);
     const nextUrl = String(req.body.next || '/quan-tri');
@@ -594,9 +595,16 @@ r.post('/tai-lieu/:id/xoa', requirePerm('docs.manage'), (req, res) => {
 r.get('/nguoi-dung', requirePerm('users.manage'), (req, res) => {
   const newPassword = req.session.newPassword || null; // shown once
   delete req.session.newPassword;
+  if (newPassword) res.set('Cache-Control', 'no-store'); // nút Quay lại không hiện lại từ bộ nhớ đệm
   res.render('admin/users', { title: 'Quản lý người dùng', section: 'users', users: store.all('users'), communes: repo.communes(), newPassword });
 });
-r.post('/nguoi-dung', requirePerm('users.manage'), async (req, res) => {
+// Ghi phiên xong rồi mới chuyển hướng: trình duyệt đi theo 302 ngay khi nhận header, trong lúc express-session
+// còn đang ghi tệp phiên → trang đích đọc phiên cũ và không thấy mật khẩu tạm.
+const showPassword = (req, res, next, username, pass) => {
+  req.session.newPassword = { username, pass };
+  req.session.save((e) => (e ? next(e) : res.redirect('/quan-tri/nguoi-dung')));
+};
+r.post('/nguoi-dung', requirePerm('users.manage'), async (req, res, next) => {
   const b = req.body;
   const username = String(b.username || '').trim().toLowerCase();
   if (!/^[a-z0-9._-]{3,40}$/.test(username) || !ROLES[b.role]) { flash(req, 'error', 'Tên đăng nhập 3–40 ký tự (a-z, 0-9, . _ -) và vai trò hợp lệ.'); return res.redirect('/quan-tri/nguoi-dung'); }
@@ -604,20 +612,27 @@ r.post('/nguoi-dung', requirePerm('users.manage'), async (req, res) => {
   const pass = crypto.randomBytes(9).toString('base64url');
   store.insert('users', { username, name: String(b.name || '').slice(0, 120), email: String(b.email || '').slice(0, 120), role: b.role, scope: b.scope || null, active: true, password_hash: await bcrypt.hash(pass, 11) });
   store.audit(me(req), 'user.create', username, { role: b.role });
-  req.session.newPassword = { username, pass };
-  return res.redirect('/quan-tri/nguoi-dung');
+  return showPassword(req, res, next, username, pass);
 });
-r.post('/nguoi-dung/:id', requirePerm('users.manage'), async (req, res) => {
+r.post('/nguoi-dung/:id', requirePerm('users.manage'), async (req, res, next) => {
   const u = store.get('users', req.params.id);
   if (!u) return res.redirect('/quan-tri/nguoi-dung');
   const b = req.body;
   if (b.action === 'toggle') {
     if (u.id === me(req).id) { flash(req, 'error', 'Không thể tự khóa tài khoản của mình.'); return res.redirect('/quan-tri/nguoi-dung'); }
-    store.update('users', u.id, { active: !u.active }); store.audit(me(req), u.active ? 'user.lock' : 'user.unlock', u.username);
+    const locking = Boolean(u.active); // đọc trước khi update: store sửa ngay trên đối tượng u
+    store.update('users', u.id, { active: !locking, session_version: (u.session_version || 0) + 1 });
+    store.audit(me(req), locking ? 'user.lock' : 'user.unlock', u.username);
+    // thu hồi phiên trên ứng dụng (token, Socket.IO, push); cả khi mở khoá, để phiên cũ không sống lại
+    require('../services/realtime').disconnectUser(u.id);
+    try { await mobileAuth.revokeUser(u.id); } catch (e) {
+      console.warn('[users] thu hồi phiên di động lỗi:', e.message);
+      flash(req, 'error', `Đã ${locking ? 'khóa' : 'mở khóa'} ${u.username} nhưng chưa thu hồi được phiên trên ứng dụng di động. Hãy kiểm tra database rồi khóa/mở khóa lại.`);
+    }
   } else if (b.action === 'reset') {
     const pass = crypto.randomBytes(9).toString('base64url');
     store.update('users', u.id, { password_hash: await bcrypt.hash(pass, 11) }); store.audit(me(req), 'user.reset_password', u.username);
-    req.session.newPassword = { username: u.username, pass };
+    return showPassword(req, res, next, u.username, pass);
   } else if (b.action === 'edit') {
     const email = String(b.email || '').trim().toLowerCase();
     if (email && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(email)) { flash(req, 'error', 'Email không hợp lệ.'); return res.redirect('/quan-tri/nguoi-dung'); }

@@ -46,6 +46,8 @@ app.use(session({
   // COOKIE_SECURE=false chỉ khi tạm chạy HTTP (chưa có tên miền/HTTPS) – nếu không trình duyệt không gửi cookie đăng nhập
   cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : config.env === 'production', maxAge: 8 * 3600e3 },
 }));
+// trước mọi nơi đọc req.session.user / req.session.citizen: tài khoản bị khoá mất quyền ngay
+app.use(security.revalidateSession);
 
 app.use((req, res, next) => {
   res.locals.fmt = fmt;

@@ -215,7 +215,7 @@ r.post('/dang-ky', rateLimit('register', 5, 3600e3), async (req, res, next) => {
     const out = await mobileAuth.createCitizen({ name: b.name, phone: b.phone, email: b.email, password: b.password }, 'web');
     if (out.error) return fail(out.error);
     return req.session.regenerate(() => {
-      req.session.citizen = { id: out.user.id, username: out.user.username, name: out.user.name };
+      req.session.citizen = { id: out.user.id, username: out.user.username, name: out.user.name, v: out.user.session_version || 0 };
       req.session.flash = { type: 'ok', text: 'Đăng ký thành công. Bạn có thể dùng tài khoản này trên ứng dụng MobileGIS.' };
       res.redirect(nextUrl);
     });
@@ -235,7 +235,7 @@ r.post('/dang-nhap', rateLimit('citizen-login', 10, 15 * 60e3), async (req, res,
       return res.render('public/signin', { title: 'Đăng nhập', nav: '', error: 'Đây là tài khoản cán bộ – vui lòng đăng nhập tại trang Quản trị.', username: u.username, next: nextUrl, staff: true });
     }
     return req.session.regenerate(() => {
-      req.session.citizen = { id: u.id, username: u.username, name: u.name };
+      req.session.citizen = { id: u.id, username: u.username, name: u.name, v: u.session_version || 0 };
       store.update('users', u.id, { last_login: store.now() });
       store.audit({ username: u.username, role: 'citizen' }, 'web.auth.login', u.username);
       res.redirect(nextUrl);
