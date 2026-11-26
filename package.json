@@ -2,6 +2,7 @@
   "name": "webgis-rung-kontum",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@11.9.0",
   "description": "WebGIS giám sát tài nguyên rừng, dự báo và cảnh báo mất rừng, cháy rừng vùng Kon Tum",
   "main": "server.js",
   "scripts": {
