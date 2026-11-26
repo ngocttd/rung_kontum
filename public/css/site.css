@@ -191,7 +191,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .map-tools { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 3; }
 .map-tools button, .tool-btn { width: 38px; height: 38px; display: grid; place-items: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); cursor: pointer; color: var(--navy); }
 .map-tools button:hover, .tool-btn.on { color: var(--forest); border-color: var(--forest); }
-.map-search { position: absolute; top: 12px; left: 62px; right: 100px; z-index: 3; max-width: 470px; }
+.map-search { position: absolute; top: 12px; left: 62px; right: 100px; z-index: 4; max-width: 470px; }
 .map-search input { width: 100%; padding: 10px 12px 10px 36px; border-radius: 8px; border: 1px solid var(--line); box-shadow: var(--shadow); }
 .map-search .ic { position: absolute; left: 12px; top: 13px; color: var(--muted); }
 .map-search .search-results { left: 0; right: auto; width: 100%; }
