@@ -68,7 +68,8 @@ async function flush() {
         lastError = { at: new Date().toISOString(), message: e.message, op: `${op.type} ${op.name}` };
         // invalid data (SQLSTATE 22xxx/23xxx: duplicate key, constraint) never succeeds on retry: set it aside so the
         // queue keeps flowing, and reload the collection so the cache matches what the database really holds
-        if (/^(2[23]|P0001)/.test(String(e.code || ''))) {
+        // (PostGIS báo hình học hỏng bằng mã XX000: cũng không bao giờ ghi được – không để kẹt hàng đợi)
+        if (/^(2[23]|P0001)/.test(String(e.code || '')) || (e.code === 'XX000' && /geojson|geometry|parse error|invalid/i.test(e.message))) {
           queue.shift();
           rejected.push({ ...lastError, code: e.code, id: op.rec ? op.rec.id : op.id });
           if (rejected.length > 50) rejected.shift();

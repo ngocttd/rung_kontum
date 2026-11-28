@@ -1,0 +1,78 @@
+<%- include('_top') %>
+<% const stt = { queued: ['b-gray', 'Chờ tải'], running: ['b-orange', 'Đang tải'], succeeded: ['b-green', 'Hoàn thành'], failed: ['b-red', 'Lỗi'] }; const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10); const d30 = new Date(Date.now() + 7 * 3600e3 - 60 * 864e5).toISOString().slice(0, 10); %>
+<div class="adm-tabs"><a href="/quan-tri/anh-ve-tinh">Chuỗi ảnh hằng tháng</a><a class="on" href="/quan-tri/anh-ve-tinh/tai-sentinel">Tìm và tải ảnh Sentinel-2</a><a href="/so-sanh-anh" target="_blank"><%- ic('layout-split') %> So sánh ảnh</a></div>
+<div class="grid" style="grid-template-columns:minmax(340px,1fr) minmax(0,1.5fr);align-items:start">
+  <section class="card">
+    <div class="card-h"><h2><%- ic('search') %> Điều kiện tìm ảnh</h2></div>
+    <form class="card-b" id="s2-form" method="post" action="/quan-tri/anh-ve-tinh/tai-sentinel">
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="mode" value="median"><input type="hidden" name="date" value="">
+      <label class="field"><span>Vùng tải *</span><select class="input" name="aoi">
+        <optgroup label="Theo xã/phường"><% communes.forEach(c => { %><option value="commune:<%= c.code %>"><%= c.fullName %></option><% }) %></optgroup>
+        <% if (zones.length) { %><optgroup label="Vùng khoanh"><% zones.forEach(z => { %><option value="zone:<%= z.id %>"><%= z.code %> – <%= z.title %> (<%= fmt.num(z.area_ha, 1) %> ha)</option><% }) %></optgroup><% } %>
+        <optgroup label="Cả vùng"><option value="province">Toàn vùng Kon Tum (cũ) – chỉ ở 20 m trở lên</option></optgroup></select></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <label class="field"><span>Từ ngày *</span><input class="input" type="date" name="from" required value="<%= d30 %>" min="2017-03-28" max="<%= today %>"></label>
+        <label class="field"><span>Đến ngày *</span><input class="input" type="date" name="to" required value="<%= today %>" min="2017-03-28" max="<%= today %>"></label>
+      </div>
+      <label class="field"><span>Độ phủ mây tối đa của cảnh: <b id="cloud-v">40</b>%</span><input type="range" name="cloud" min="5" max="100" step="5" value="40" style="width:100%" oninput="document.getElementById('cloud-v').textContent=this.value"></label>
+      <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:8px">
+        <label class="field"><span>Độ phân giải *</span><select class="input" name="resolution"><% RES.forEach(r => { %><option value="<%= r %>" <%= r === 10 ? 'selected' : '' %>><%= r %> m</option><% }) %></select></label>
+        <label class="field"><span>Sản phẩm</span><select class="input" name="product"><% Object.entries(PRODUCTS).forEach(([k, v]) => { %><option value="<%= k %>"><%= v %></option><% }) %></select></label>
+      </div>
+      <label class="field"><span>Hệ toạ độ tệp GeoTIFF</span><select class="input" name="he" id="s2-he"><option value="utm48">WGS84 / UTM múi 48N</option><option value="vn2000">VN-2000 (chọn kinh tuyến trục, múi)</option><option value="wgs84">WGS84 – kinh độ, vĩ độ</option></select></label>
+      <div id="s2-vn" hidden style="display:grid;grid-template-columns:1.4fr 1fr;gap:8px">
+        <label class="field"><span>Kinh tuyến trục</span><select class="input" name="ktt"><% GEO.MERIDIANS.forEach(([v, l, z]) => { %><option value="<%= v %>" data-mui="<%= z %>"><%= l %></option><% }) %></select></label>
+        <label class="field"><span>Múi chiếu</span><select class="input" name="mui"><option value="3">3°</option><option value="6">6°</option></select></label>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <button type="button" class="btn btn-outline" id="s2-search"><%- ic('search') %> Tìm ảnh</button>
+        <button class="btn btn-primary"><%- ic('download') %> Tải tổ hợp không mây cả kỳ</button>
+      </div>
+      <p class="src" style="margin:10px 0 0">“Tổ hợp không mây” lấy trung vị các cảnh trong kỳ sau khi lọc mây/bóng mây (SCL). “Tìm ảnh” liệt kê từng ngày chụp để tải riêng một ngày. Độ phân giải gốc: 10 m (B2, B3, B4, B8), 20 m (B11, B12). Mỗi lần tải tối đa 60 triệu điểm ảnh – cả vùng dùng từ 20 m; ảnh 10 m tải theo xã hoặc vùng khoanh.</p>
+    </form>
+  </section>
+  <div class="grid" style="align-content:start">
+    <section class="card" id="s2-result" hidden>
+      <div class="card-h"><h2><%- ic('calendar3') %> Ngày chụp tìm được</h2><span class="more muted" style="font-weight:400" id="s2-count"></span></div>
+      <div class="card-b table-wrap"><table class="tbl compact" data-tools="off"><thead><tr><th>Ngày chụp</th><th class="num">Số cảnh</th><th class="num">Mây trung bình</th><th class="num">Mây thấp nhất</th><th></th></tr></thead><tbody id="s2-rows"></tbody></table></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2><%- ic('cloud-arrow-down-fill') %> Ảnh đã yêu cầu</h2><span class="more muted" style="font-weight:400">tệp được giữ <%= KEEP_DAYS %> ngày</span></div>
+      <div class="card-b table-wrap"><% if (!jobs.length) { %><div class="empty-state">Chưa có yêu cầu tải ảnh nào.</div><% } else { %>
+        <table class="tbl" data-page-size="10"><thead><tr><th></th><th>Vùng · kỳ</th><th>Thông số</th><th>Người tải</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+        <% jobs.forEach(j => { const c = j.cfg; const rr = j.result; %><tr>
+          <td><% if (j.status === 'succeeded') { %><a href="/quan-tri/anh-ve-tinh/tai-sentinel/<%= j.id %>/xem" target="_blank"><img src="/quan-tri/anh-ve-tinh/tai-sentinel/<%= j.id %>/xem" alt="" style="width:70px;height:56px;object-fit:cover;border-radius:4px;background:#1d2b27"></a><% } %></td>
+          <td><b><%= j.label %></b><div class="src"><%= c.mode === 'scene' ? 'Ngày ' + fmt.ymd(c.date) : fmt.ymd(c.from) + ' → ' + fmt.ymd(c.to) + ' · mây ≤ ' + c.cloud + '%' %></div></td>
+          <td><%= c.resolution %> m · <%= c.product === 'rgb' ? 'màu tự nhiên' : c.product === 'false' ? 'giả màu' : c.product === 'bands' ? '6 kênh' : 'NDVI' %><% if (rr) { %><div class="src"><%= rr.width %>×<%= rr.height %> · <%= fmt.bytes(rr.bytes) %> · <%= rr.scenes %> cảnh · <%= rr.crs_label %></div><% } %></td>
+          <td><%= j.created_by %><div class="src"><%= fmt.dateTime(j.created_at) %></div></td>
+          <td><span class="badge <%= stt[j.status][0] %>"><%= stt[j.status][1] %></span><% if (j.progress) { %><div class="src"><%= j.progress %></div><% } %><% if (j.error) { %><div class="src" style="color:#c0392b;max-width:240px"><%= j.error %></div><% } %></td>
+          <td style="white-space:nowrap"><% if (j.status === 'succeeded') { %><a class="btn btn-primary btn-sm" href="/quan-tri/anh-ve-tinh/tai-sentinel/<%= j.id %>/tep"><%- ic('download') %> GeoTIFF</a> <% } %>
+            <% if (j.status !== 'running') { %><form method="post" action="/quan-tri/anh-ve-tinh/tai-sentinel/<%= j.id %>/xoa" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" title="Xoá"><%- ic('x-circle-fill') %></button></form><% } %></td>
+        </tr><% }) %></tbody></table><% } %>
+      </div>
+    </section>
+  </div>
+</div>
+<%- include('_bottom') %>
+<script>
+(function () {
+  const f = document.getElementById('s2-form'); const he = document.getElementById('s2-he'); const vn = document.getElementById('s2-vn');
+  const upd = () => { vn.hidden = he.value !== 'vn2000'; vn.style.display = vn.hidden ? 'none' : 'grid'; }; he.addEventListener('change', upd); upd();
+  const d = (s) => s.split('-').reverse().join('/');
+  document.getElementById('s2-search').addEventListener('click', async (ev) => {
+    const b = ev.currentTarget; b.disabled = true; b.textContent = 'Đang tìm…';
+    try {
+      const r = await fetch('/quan-tri/anh-ve-tinh/tai-sentinel/tim', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(new FormData(f)) });
+      const j = await r.json();
+      if (!r.ok) { alert(j.error || 'Không tìm được'); return; }
+      document.getElementById('s2-result').hidden = false;
+      document.getElementById('s2-count').textContent = `${j.aoi} · ${j.scenes} cảnh · ${j.days.length} ngày`;
+      document.getElementById('s2-rows').innerHTML = j.days.length ? j.days.map((x) => `<tr><td><b>${d(x.date)}</b></td><td class="num">${x.scenes}</td><td class="num" style="color:${x.cloud <= 10 ? '#0c7a51' : x.cloud <= 40 ? '#c25f00' : '#c0261f'}">${String(x.cloud).replace('.', ',')}%</td><td class="num">${String(x.cloud_min).replace('.', ',')}%</td><td><button type="button" class="btn btn-outline btn-sm" data-day="${x.date}">Tải ngày này</button></td></tr>`).join('') : '<tr><td colspan="5">Không có cảnh nào – nới độ phủ mây hoặc khoảng ngày.</td></tr>';
+    } finally { b.disabled = false; b.innerHTML = 'Tìm ảnh'; }
+  });
+  document.getElementById('s2-rows').addEventListener('click', (e) => { const b = e.target.closest('[data-day]'); if (!b) return; f.mode.value = 'scene'; f.date.value = b.dataset.day; f.submit(); });
+  if (<%- JSON.stringify(jobs.some(j => ['queued', 'running'].includes(j.status))) %>) setTimeout(() => location.reload(), 6000);
+})();
+</script>
+<script>document.querySelectorAll('select[name=ktt]').forEach((k) => k.addEventListener('change', () => { const m = k.form && k.form.querySelector('[name=mui]'); const z = (k.selectedOptions[0] || {}).dataset.mui; if (m && z) { m.value = z; m.dispatchEvent(new Event('change', { bubbles: true })); } }));</script>
+</body></html>

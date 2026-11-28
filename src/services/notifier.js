@@ -22,7 +22,7 @@ function matches(n, d) {
   if (n.target_user) return Boolean(d.user_id) && d.user_id === n.target_user;
   if (n.target_roles && n.target_roles.length) {
     if (!d.role || !n.target_roles.includes(d.role)) return false;
-    return !n.target_communes || !n.target_communes.length || !d.scope || n.target_communes.includes(d.scope);
+    return !n.target_communes || !n.target_communes.length || !d.scope || String(d.scope).split(',').some((c) => n.target_communes.includes(c));
   }
   if (n.is_public) {
     const subs = d.communes || [];
@@ -35,7 +35,7 @@ const DEVICE_MATCH_SQL = `
   SELECT d.id, d.push_provider FROM mobile.mobile_devices d LEFT JOIN identity.users u ON u.id = d.user_id
   WHERE d.push_enabled AND d.push_provider IS NOT NULL AND d.push_endpoint IS NOT NULL AND (
     ($1::uuid IS NOT NULL AND d.user_id = $1::uuid)
-    OR ($1::uuid IS NULL AND $2::text[] IS NOT NULL AND u.role = ANY($2) AND ($3::text[] IS NULL OR u.scope IS NULL OR u.scope = ANY($3)))
+    OR ($1::uuid IS NULL AND $2::text[] IS NOT NULL AND u.role = ANY($2) AND ($3::text[] IS NULL OR u.scope IS NULL OR u.scope = '' OR string_to_array(u.scope, ',') && $3::text[]))
     OR ($1::uuid IS NULL AND $2::text[] IS NULL AND $4 AND (cardinality(d.subscribed_communes) = 0 OR $3::text[] IS NULL OR d.subscribed_communes && $3::text[]))
   )`;
 

@@ -176,7 +176,7 @@
           // tiled classified layers keep full resolution (15 m) when zoomed in; others are one image
           const t = o.tiles;
           if (!map.getSource(`ov-${o.id}`)) map.addSource(`ov-${o.id}`, t ? { type: 'raster', tiles: [t.url], tileSize: 256, minzoom: t.minzoom, maxzoom: t.maxzoom, bounds: t.bounds } : { type: 'image', url: o.url, coordinates: o.coordinates });
-          const crisp = t || /worldcover|risk|lc-|hansen/.test(o.id);
+          const crisp = (t && !o.photo) || /worldcover|risk|lc-|hansen/.test(o.id); // ảnh chụp (o.photo) nội suy mượt, lớp phân loại giữ ô vuông
           if (!map.getLayer(`ov-${o.id}`)) map.addLayer({ id: `ov-${o.id}`, type: 'raster', source: `ov-${o.id}`, paint: { 'raster-fade-duration': 0, 'raster-resampling': crisp ? 'nearest' : 'linear' } }, firstSymbolId(map));
         },
       };
@@ -297,12 +297,16 @@
       return {
         kind: 'vector', layers: [`cl-${l.id}-f`, `cl-${l.id}-l`, `cl-${l.id}-p`], visible: false,
         async build(map) {
-          const data = await KT.fetchCached(l.url);
-          const color = (l.style && l.style.color) || '#00bcd4';
-          if (!map.getSource(`cl-${l.id}`)) map.addSource(`cl-${l.id}`, { type: 'geojson', data });
-          if (!map.getLayer(`cl-${l.id}-f`)) map.addLayer({ id: `cl-${l.id}-f`, type: 'fill', source: `cl-${l.id}`, filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': color, 'fill-opacity': 0.3 } });
-          if (!map.getLayer(`cl-${l.id}-l`)) map.addLayer({ id: `cl-${l.id}-l`, type: 'line', source: `cl-${l.id}`, filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': color, 'line-width': 1.8 } });
-          if (!map.getLayer(`cl-${l.id}-p`)) map.addLayer({ id: `cl-${l.id}-p`, type: 'circle', source: `cl-${l.id}`, filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-color': color, 'circle-radius': 5, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
+          const st = l.style || {};
+          const base = st.color || '#00bcd4';
+          // tô màu theo một trường thuộc tính (vd loại rừng, chủ rừng) nếu quản trị đã chọn; giá trị khác dùng màu chung
+          const color = st.field && st.values && st.values.length ? ['match', ['to-string', ['get', st.field]], ...st.values.flatMap((x) => [String(x.value), x.color]), '#9aa5a0'] : base;
+          // lớp nhiều đối tượng (bản đồ kiểm kê, hiện trạng rừng…) dùng ô vector sinh từ PostGIS; lớp nhỏ tải một tệp GeoJSON
+          const sl = l.tiles ? { 'source-layer': 'f' } : {};
+          if (!map.getSource(`cl-${l.id}`)) map.addSource(`cl-${l.id}`, l.tiles ? { type: 'vector', tiles: [location.origin + l.tiles], minzoom: 0, maxzoom: 14, ...(l.bbox ? { bounds: l.bbox } : {}) } : { type: 'geojson', data: await KT.fetchCached(l.url) });
+          if (!map.getLayer(`cl-${l.id}-f`)) map.addLayer({ id: `cl-${l.id}-f`, type: 'fill', source: `cl-${l.id}`, ...sl, filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': color, 'fill-opacity': st.field ? 0.55 : 0.3 } });
+          if (!map.getLayer(`cl-${l.id}-l`)) map.addLayer({ id: `cl-${l.id}-l`, type: 'line', source: `cl-${l.id}`, ...sl, filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': st.field ? '#22312b' : base, 'line-width': st.field ? 0.6 : 1.8 } });
+          if (!map.getLayer(`cl-${l.id}-p`)) map.addLayer({ id: `cl-${l.id}-p`, type: 'circle', source: `cl-${l.id}`, ...sl, filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-color': color, 'circle-radius': 5, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
         },
       };
     },
@@ -340,7 +344,7 @@
     <tr><td>Lớp phủ 2023 tại điểm</td><td>${KT.esc(p.lc2023 || '—')}</td></tr><tr><td>Toạ độ UTM 48N</td><td>${p.x_utm}, ${p.y_utm}</td></tr></table>
     <p class="src" style="margin:6px 0 0">Mau_KON_TUM_2025 – dữ liệu thực tế dự án</p></div>`;
   KT.candidateHtml = (p) => `<div class="pop"><h4>${KT.ic('exclamation-triangle-fill')} Biến động nghi vấn ${KT.esc(p.id)}</h4><table>
-    <tr><td>Diện tích</td><td>${KT.num(p.area_ha)} ha</td></tr><tr><td>ΔNDVI / ΔNBR</td><td>${p.mean_dndvi} / ${p.mean_dnbr}</td></tr>
+    <tr><td>Diện tích</td><td>${KT.num(p.area_ha)} ha</td></tr>${p.kind === 'treeloss' ? `<tr><td>Năm mất tán cây</td><td>${KT.esc(p.loss_years)} (Hansen)</td></tr>` : `<tr><td>ΔNDVI / ΔNBR</td><td>${p.mean_dndvi} / ${p.mean_dnbr}</td></tr>`}
     <tr><td>Kỳ so sánh</td><td>${KT.esc(p.window)}</td></tr><tr><td>Địa bàn</td><td>${KT.esc(p.commune_name || '—')}</td></tr>
     <tr><td>Trạng thái</td><td><b>${KT.esc(p.statusLabel)}</b></td></tr></table>
     ${String(p.seasonal_leaf_fall_possible) === 'true' ? '<p class="src">Cửa sổ mùa khô: có thể do rụng lá theo mùa.</p>' : ''}</div>`;
@@ -431,6 +435,11 @@
     const grad = `linear-gradient(90deg, ${c.stops.map((s) => s[1]).join(',')})`;
     const f = (v) => (c.pct ? `${KT.num(v * 100, 0)}%` : KT.num(v));
     return `<h4>${c.title}</h4><div class="ramp" style="background:${grad}"></div><div class="ramp-l"><span>${f(c.stops[0][0])}</span><span>${f(c.stops[c.stops.length - 1][0])}+</span></div>`;
+  };
+  // bảng thuộc tính của một đối tượng lớp vector bổ sung (mọi trường do đơn vị nhập)
+  KT.attrHtml = (title, props) => {
+    const rows = Object.entries(props || {}).filter(([k, v]) => v !== null && v !== '' && !k.startsWith('_')).slice(0, 40);
+    return `<div class="pop"><h4>${KT.esc(title)}</h4><div style="max-height:260px;overflow:auto"><table>${rows.map(([k, v]) => `<tr><td>${KT.esc(k)}</td><td>${KT.esc(typeof v === 'number' ? (Number.isInteger(v) ? String(v) : KT.num(v, 3)) : String(v))}</td></tr>`).join('') || '<tr><td>Không có thuộc tính</td></tr>'}</table></div></div>`;
   };
   KT.overlayLegendHtml = (o) => {
     if (!o.legend) return `<h4>${KT.esc(o.title)}</h4>`;

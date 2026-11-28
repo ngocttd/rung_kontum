@@ -69,4 +69,12 @@ idx['years'] = [y for y in idx['years'] if y['year'] != year] + [dict(year=year,
     file=f'forest-statistics-{year}-kon-tum-communes.json', sha256=hashlib.sha256(Path(a.xlsx).read_bytes()).hexdigest(), imported_at=datetime.datetime.utcnow().isoformat() + 'Z', matched=len(rows))]
 idx['years'].sort(key=lambda y: y['year'])
 idx_p.write_text(json.dumps(idx, ensure_ascii=False, indent=1), encoding='utf-8')
+# các biểu thuộc tính khác của quyết định (chủ quản lý/chủ rừng, mục đích sử dụng, diễn biến theo nguyên nhân, loài cây)
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from extract_decision_tables import extract
+    t = extract(a.xlsx, year, a.decision, a.date)
+    report['tables'] = [x['key'] for x in (t or {}).get('tables', [])]
+except Exception as e:  # noqa
+    report['tables_error'] = str(e)
 print(json.dumps(report, ensure_ascii=False))

@@ -1,0 +1,174 @@
+<%- include('_top', { needsMap: true }) %>
+<% const canEdit = can('data.manage') || can('tasks.assign'); %>
+<div class="note info" style="margin:0 0 12px">Khoanh vùng nghi vấn ngay trên ảnh vệ tinh (ví dụ thấy mất rừng khi giải đoán ảnh): bấm <b>Vẽ vùng</b>, nhấp lần lượt các đỉnh trên bản đồ, nhấp đúp (hoặc “Hoàn tất”) để khép vùng → nhập tên → <b>Lưu</b>. Vùng đã lưu xuất được ra GeoJSON / KML / Shapefile / Excel theo hệ toạ độ chọn và <b>giao kiểm tra hiện trường</b> cho cán bộ trên MobileGIS.</div>
+<div class="grid" style="grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr);align-items:start">
+  <section class="card">
+    <div class="card-h" style="flex-wrap:wrap;gap:8px"><h2><%- ic('bounding-box') %> Bản đồ khoanh vùng</h2>
+      <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+        <% if (canEdit) { %><button type="button" class="btn btn-primary btn-sm" id="z-draw"><%- ic('pencil-fill') %> Vẽ vùng</button>
+        <button type="button" class="btn btn-outline btn-sm" id="z-undo" hidden>Xoá đỉnh cuối</button>
+        <button type="button" class="btn btn-outline btn-sm" id="z-finish" hidden><%- ic('check-lg') %> Hoàn tất</button>
+        <button type="button" class="btn btn-outline btn-sm" id="z-cancel" hidden>Huỷ</button><% } %>
+      </div></div>
+    <div class="card-b" style="padding:8px 12px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line)">
+      <label class="check" style="margin:0"><input type="radio" name="zbm" value="satellite" checked> Ảnh nền vệ tinh</label>
+      <label class="check" style="margin:0"><input type="radio" name="zbm" value="streets"> Đường phố</label>
+      <% overlays.forEach(o => { %><label class="check" style="margin:0" title="<%= o.title %>"><input type="checkbox" data-zov="<%= o.id %>"> <%= o.short %></label><% }) %>
+      <label class="check" style="margin:0"><input type="checkbox" id="z-cands"> Vùng nghi vấn tự động</label>
+      <span class="src" id="z-hint" style="margin-left:auto"></span>
+    </div>
+    <div class="map-shell" style="height:600px;border-radius:0 0 10px 10px"><div id="map" class="map"></div></div>
+  </section>
+  <div class="grid" style="align-content:start">
+    <% if (canEdit) { %>
+    <section class="card" id="z-form-card" hidden>
+      <div class="card-h"><h2><%- ic('check-lg') %> Lưu vùng vừa khoanh</h2></div>
+      <form class="card-b" id="z-form">
+        <p class="src" style="margin:0 0 8px" id="z-info"></p>
+        <label class="field"><span>Tên vùng *</span><input class="input" name="title" required maxlength="200" placeholder="Ví dụ: Nghi mất rừng tiểu khu 123, xã …"></label>
+        <label class="field"><span>Loại</span><select class="input" name="kind"><% Object.entries(KINDS).forEach(([k, v]) => { %><option value="<%= k %>"><%= v %></option><% }) %></select></label>
+        <label class="field"><span>Ảnh/nguồn dùng để khoanh</span><input class="input" name="source_image" maxlength="200" placeholder="Ví dụ: Sentinel-2 tháng 10/2026"></label>
+        <label class="field"><span>Ghi chú</span><textarea class="input" name="note" rows="2" maxlength="1000"></textarea></label>
+        <button class="btn btn-primary"><%- ic('check-lg') %> Lưu vùng</button>
+      </form>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2><%- ic('upload') %> Nhập vùng từ tệp</h2></div>
+      <form class="card-b" method="post" action="/quan-tri/khoanh-vung/nhap" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label class="field"><span>Tệp vùng (KML/KMZ, Shapefile .zip, GeoJSON) ≤ 25 MB</span><input class="input" type="file" name="file" accept=".kml,.kmz,.zip,.geojson,.json" required></label>
+        <%- include('../partials/crs-select', { mode: 'import' }) %>
+        <label class="field"><span>Loại</span><select class="input" name="kind"><% Object.entries(KINDS).forEach(([k, v]) => { %><option value="<%= k %>"><%= v %></option><% }) %></select></label>
+        <button class="btn btn-outline btn-sm"><%- ic('upload') %> Nhập</button>
+      </form>
+    </section>
+    <% } %>
+    <section class="card">
+      <div class="card-h"><h2><%- ic('download') %> Xuất tất cả vùng khoanh (<%= zones.length %>)</h2></div>
+      <form class="card-b" method="get" action="/quan-tri/xuat/khoanh-vung">
+        <%- include('../partials/crs-select', { mode: 'export' }) %>
+        <button class="btn btn-outline btn-sm"><%- ic('download') %> Tải về</button>
+      </form>
+    </section>
+  </div>
+</div>
+<section class="card" style="margin-top:16px">
+  <div class="card-h"><h2><%- ic('layers-fill') %> Danh sách vùng khoanh</h2></div>
+  <div class="card-b table-wrap"><% if (!zones.length) { %><div class="empty-state">Chưa có vùng khoanh nào.</div><% } else { %>
+    <table class="tbl" data-page-size="10"><thead><tr><th>Mã</th><th>Tên vùng</th><th>Loại</th><th>Xã/phường</th><th class="num">Diện tích (ha)</th><th>Người khoanh</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+    <% zones.forEach(z => { %><tr data-zone="<%= z.id %>">
+      <td><a href="#" data-zoom="<%= z.id %>"><b><%= z.code %></b></a></td>
+      <td><%= z.title %><% if (z.note) { %><div class="src"><%= z.note %></div><% } %><% if (z.source_image) { %><div class="src">Nguồn: <%= z.source_image %></div><% } %></td>
+      <td><%= KINDS[z.kind] %></td><td><%= z.commune_name || '—' %></td><td class="num"><%= fmt.num(z.area_ha, 2) %></td>
+      <td><%= z.created_by %><div class="src"><%= fmt.dateTime(z.created_at) %></div></td>
+      <td><span class="badge <%= STATUS[z.status][0] %>"><%= STATUS[z.status][1] %></span><% if (z.assignment_code) { %><div class="src"><a href="/quan-tri/hien-truong">Nhiệm vụ <%= z.assignment_code %></a></div><% } %></td>
+      <td><details><summary class="btn btn-outline btn-sm" style="display:inline-block;cursor:pointer">Thao tác</summary>
+        <div style="margin-top:8px;display:grid;gap:8px;min-width:260px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap"><% ['kml', 'shp', 'geojson', 'xlsx'].forEach(f => { %><a class="btn btn-outline btn-sm" href="/quan-tri/xuat/khoanh-vung/<%= z.id %>?dinh_dang=<%= f %>"><%- ic('download') %> <%= f.toUpperCase() %></a><% }) %></div>
+          <a class="btn btn-outline btn-sm" href="/quan-tri/chu-rung/bao?kind=zone&ref=<%= z.id %>"><%- ic('megaphone-fill') %> Báo chủ rừng kiểm tra</a>
+          <% if (can('tasks.assign') && ['new', 'assigned'].includes(z.status)) { %>
+          <form method="post" action="/quan-tri/khoanh-vung/<%= z.id %>/giao" style="display:grid;gap:6px;border-top:1px solid var(--line);padding-top:8px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <b style="font-size:13px">Giao kiểm tra hiện trường (MobileGIS)</b>
+            <select class="input" name="assignee_id"><option value="">Cán bộ phụ trách xã tự nhận</option><% specialists.forEach(u => { %><option value="<%= u.id %>"><%= u.name || u.username %><%= u.scope ? ' – ' + (communeName[u.scope] || u.scope) : '' %></option><% }) %></select>
+            <input class="input" type="date" name="due_at" title="Hạn hoàn thành">
+            <input class="input" name="instructions" placeholder="Hướng dẫn thêm (tuỳ chọn)" maxlength="500">
+            <button class="btn btn-primary btn-sm"><%- ic('send-fill') %> Giao nhiệm vụ</button></form><% } %>
+          <% if (canEdit) { %>
+          <form method="post" action="/quan-tri/khoanh-vung/<%= z.id %>" style="display:flex;gap:6px;border-top:1px solid var(--line);padding-top:8px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <select class="input" name="status"><% Object.entries(STATUS).forEach(([k, v]) => { %><option value="<%= k %>" <%= z.status === k ? 'selected' : '' %>><%= v[1] %></option><% }) %></select><button class="btn btn-outline btn-sm">Cập nhật</button></form>
+          <form method="post" action="/quan-tri/khoanh-vung/<%= z.id %>/xoa" onsubmit="return confirm('Xoá vùng khoanh <%= z.code %>?')"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" style="color:#c0392b">Xoá vùng</button></form><% } %>
+        </div></details></td>
+    </tr><% }) %></tbody></table><% } %>
+  </div>
+</section>
+<%- include('_bottom') %>
+<%- include('../partials/mapjs') %>
+<script>
+(function () {
+  const OVS = <%- JSON.stringify(overlays) %>; const CSRF = <%- JSON.stringify(csrf) %>;
+  const v = KT.createMap('map', { basemap: 'satellite', padding: 20 });
+  if (!v) return;
+  const map = v.map; const hint = document.getElementById('z-hint');
+  let fc = { type: 'FeatureCollection', features: [] }; let pts = []; let drawing = false; let done = null;
+  const empty = { type: 'FeatureCollection', features: [] };
+  const drawData = () => {
+    const f = [];
+    if (done) f.push({ type: 'Feature', geometry: done, properties: { k: 'poly' } });
+    else if (pts.length >= 3) f.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[...pts, pts[0]]] }, properties: { k: 'poly' } });
+    if (!done && pts.length >= 2) f.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: pts }, properties: { k: 'line' } });
+    if (!done) pts.forEach((p) => f.push({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: { k: 'pt' } }));
+    return { type: 'FeatureCollection', features: f };
+  };
+  OVS.forEach((o) => v.define(`ov-${o.id}`, KT.layers.overlay(o)));
+  v.define('communes', KT.layers.communes(v)).define('province', KT.layers.province());
+  v.define('zones', { kind: 'vector', layers: ['zones-fill', 'zones-line', 'zones-label'], async build(m) {
+    if (!m.getSource('zones')) m.addSource('zones', { type: 'geojson', data: fc });
+    if (!m.getLayer('zones-fill')) m.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: { 'fill-color': ['match', ['get', 'status'], 'new', '#ff9f1a', 'assigned', '#2f80ed', 'verified', '#9b51e0', 'closed', '#27ae60', '#8a8f98'], 'fill-opacity': 0.22 } });
+    if (!m.getLayer('zones-line')) m.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: { 'line-color': ['match', ['get', 'status'], 'new', '#ff9f1a', 'assigned', '#2f80ed', 'verified', '#9b51e0', 'closed', '#27ae60', '#8a8f98'], 'line-width': 2.2 } });
+    if (!m.getLayer('zones-label')) m.addLayer({ id: 'zones-label', type: 'symbol', source: 'zones', layout: { 'text-field': ['get', 'code'], 'text-size': 11 }, paint: { 'text-color': '#fff', 'text-halo-color': '#1b2b26', 'text-halo-width': 1.4 } });
+  } });
+  v.define('cands', { kind: 'vector', visible: false, layers: ['zc-line'], async build(m, d) {
+    if (d && !d.visible) return;
+    if (!m.getSource('zc')) m.addSource('zc', { type: 'geojson', data: '/quan-tri/phan-tich/tu-dong/vung.geojson' });
+    if (!m.getLayer('zc-line')) m.addLayer({ id: 'zc-line', type: 'line', source: 'zc', paint: { 'line-color': '#ff1f6b', 'line-width': 1.4 } });
+  } });
+  v.define('draw', { kind: 'vector', layers: ['draw-fill', 'draw-line', 'draw-pt'], async build(m) {
+    if (!m.getSource('draw')) m.addSource('draw', { type: 'geojson', data: drawData() });
+    if (!m.getLayer('draw-fill')) m.addLayer({ id: 'draw-fill', type: 'fill', source: 'draw', filter: ['==', ['get', 'k'], 'poly'], paint: { 'fill-color': '#ffe600', 'fill-opacity': 0.25 } });
+    if (!m.getLayer('draw-line')) m.addLayer({ id: 'draw-line', type: 'line', source: 'draw', filter: ['!=', ['get', 'k'], 'pt'], paint: { 'line-color': '#ffe600', 'line-width': 2.5, 'line-dasharray': [2, 1] } });
+    if (!m.getLayer('draw-pt')) m.addLayer({ id: 'draw-pt', type: 'circle', source: 'draw', filter: ['==', ['get', 'k'], 'pt'], paint: { 'circle-radius': 5, 'circle-color': '#fff', 'circle-stroke-color': '#e67e00', 'circle-stroke-width': 2 } });
+  } });
+  const redraw = () => { const s = map.getSource('draw'); if (s) s.setData(drawData()); };
+  KT.getJSON('/quan-tri/khoanh-vung/data.geojson').then((d) => { fc = d; const s = map.getSource('zones'); if (s) s.setData(fc); });
+
+  // lớp nền / lớp ảnh
+  document.querySelectorAll('input[name=zbm]').forEach((r) => r.addEventListener('change', () => v.setBasemap(r.value)));
+  document.querySelectorAll('[data-zov]').forEach((c) => c.addEventListener('change', () => v.setVisible(`ov-${c.dataset.zov}`, c.checked)));
+  document.getElementById('z-cands').addEventListener('change', (e) => v.setVisible('cands', e.target.checked));
+
+  // diện tích gần đúng trên mặt cầu
+  const area = (ring) => { let a = 0; for (let i = 0; i < ring.length - 1; i++) a += ((ring[i + 1][0] - ring[i][0]) * Math.PI / 180) * (2 + Math.sin(ring[i][1] * Math.PI / 180) + Math.sin(ring[i + 1][1] * Math.PI / 180)); return Math.abs(a * 6378137 * 6378137 / 2) / 1e4; };
+  const B = (id) => document.getElementById(id);
+  const ui = () => {
+    if (!B('z-draw')) return;
+    B('z-draw').hidden = drawing; ['z-undo', 'z-finish', 'z-cancel'].forEach((i) => { B(i).hidden = !drawing; });
+    B('z-form-card').hidden = !done;
+    map.getCanvas().style.cursor = drawing ? 'crosshair' : '';
+    hint.textContent = drawing ? `Đang vẽ: ${pts.length} đỉnh${pts.length >= 3 ? ` · ≈ ${KT.num(area([...pts, pts[0]]), 2)} ha` : ''} – nhấp đúp để khép vùng` : '';
+    if (done) B('z-info').textContent = `Vùng ${done.coordinates[0].length - 1} đỉnh · diện tích ≈ ${KT.num(area(done.coordinates[0]), 2)} ha`;
+  };
+  const finish = () => { if (pts.length < 3) { alert('Cần ít nhất 3 đỉnh.'); return; } done = { type: 'Polygon', coordinates: [[...pts, pts[0]]] }; drawing = false; map.doubleClickZoom.enable(); redraw(); ui(); B('z-form').title.focus(); };
+  if (B('z-draw')) {
+    B('z-draw').addEventListener('click', () => { drawing = true; pts = []; done = null; map.doubleClickZoom.disable(); redraw(); ui(); });
+    B('z-undo').addEventListener('click', () => { pts.pop(); redraw(); ui(); });
+    B('z-finish').addEventListener('click', finish);
+    B('z-cancel').addEventListener('click', () => { drawing = false; pts = []; done = null; map.doubleClickZoom.enable(); redraw(); ui(); });
+    let lastClick = 0;
+    map.on('click', (e) => {
+      if (!drawing) return;
+      const now = Date.now(); if (now - lastClick < 300) return; lastClick = now; // lần nhấp thứ hai của nhấp đúp do sự kiện dblclick xử lý
+      pts.push([Number(e.lngLat.lng.toFixed(7)), Number(e.lngLat.lat.toFixed(7))]); redraw(); ui();
+    });
+    map.on('dblclick', (e) => { if (!drawing) return; e.preventDefault(); finish(); });
+    B('z-form').addEventListener('submit', async (ev) => {
+      ev.preventDefault(); if (!done) return;
+      const f = ev.target; const body = { title: f.title.value, kind: f.kind.value, note: f.note.value, source_image: f.source_image.value, geometry: done };
+      const r = await fetch('/quan-tri/khoanh-vung', { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': CSRF }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({ error: 'Lỗi máy chủ' }));
+      if (!r.ok) { alert(j.error || 'Không lưu được'); return; }
+      location.reload();
+    });
+  }
+  map.on('click', 'zones-fill', (e) => {
+    if (drawing) return; const p = e.features[0].properties;
+    new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<div class="pop"><h4>${KT.esc(p.code)} · ${KT.esc(p.name)}</h4><table><tr><td>Loại</td><td>${KT.esc(p.loai)}</td></tr><tr><td>Diện tích</td><td>${KT.num(p.dien_tich_ha, 2)} ha</td></tr><tr><td>Xã</td><td>${KT.esc(p.xa || '—')}</td></tr><tr><td>Trạng thái</td><td>${KT.esc(p.trang_thai)}</td></tr></table></div>`).addTo(map);
+  });
+  document.querySelectorAll('[data-zoom]').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault(); const f = fc.features.find((x) => x.properties.id === a.dataset.zoom); if (!f) return;
+    const bb = new mapboxgl.LngLatBounds(); (f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates).forEach((p) => p[0].forEach((c) => bb.extend(c)));
+    v.userMoved = true; map.fitBounds(bb, { padding: 120, maxZoom: 15 }); window.scrollTo({ top: 0, behavior: 'smooth' });
+  }));
+  ui();
+})();
+</script>
+</body></html>

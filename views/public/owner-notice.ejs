@@ -1,0 +1,52 @@
+<%- include('../partials/head', { needsMap: true }) %>
+<%- include('../partials/header') %>
+<main class="container page" style="padding-top:18px;max-width:1080px">
+  <h1 style="font-size:22px;margin:0 0 4px"><%- ic('megaphone-fill') %> Thông báo gửi chủ rừng <%= n.code %></h1>
+  <p class="muted" style="margin:0 0 12px">Gửi: <b><%= n.owner_name %></b> · ngày <%= fmt.dateTime(n.created_at) %> · <span class="badge <%= ST[n.status][0] %>"><%= ST[n.status][1] %></span></p>
+  <% if (done) { %><div class="note info" style="margin:0 0 12px"><%= done === 'phan-hoi' ? 'Đã ghi nhận phản hồi của đơn vị. Cảm ơn sự phối hợp.' : 'Đã ghi nhận xác nhận. Đề nghị kiểm tra hiện trường và phản hồi kết quả ở cuối trang.' %></div><% } %>
+  <% if (err) { %><div class="note" style="margin:0 0 12px;border-color:#e0a8a0;background:#fdf0ee"><%= err %></div><% } %>
+  <div class="grid" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);align-items:start">
+    <section class="card"><div class="card-h"><h2><%- ic('map-fill') %> Vị trí phát hiện</h2></div>
+      <div class="map-shell" style="height:420px;border-radius:0 0 10px 10px"><div id="map" class="map"></div></div></section>
+    <div class="grid" style="align-content:start">
+      <section class="card card-b">
+        <h2 style="font-size:17px;margin:0 0 8px"><%= n.title %></h2>
+        <p style="margin:0 0 8px;white-space:pre-line"><%= n.message %></p>
+        <table class="kv"><tr><td>Toạ độ (WGS84)</td><td><%= Number(n.lat).toFixed(5) %>, <%= Number(n.lon).toFixed(5) %> · <a href="https://www.google.com/maps/dir/?api=1&destination=<%= n.lat %>,<%= n.lon %>" target="_blank" rel="noopener">chỉ đường</a></td></tr>
+          <% if (n.commune_name) { %><tr><td>Xã/phường</td><td><%= n.commune_name %></td></tr><% } %><% if (n.area_ha) { %><tr><td>Diện tích</td><td><%= fmt.num(n.area_ha, 1) %> ha</td></tr><% } %>
+          <% if (n.due) { %><tr><td>Hạn phản hồi</td><td><%= fmt.ymd(n.due) %></td></tr><% } %></table>
+        <p class="src" style="margin:8px 0 0">Thông tin từ ảnh vệ tinh/điểm nóng là <b>nghi vấn</b>, cần kiểm tra hiện trường. Cháy đang lan: gọi ngay <b>114</b> hoặc kiểm lâm địa bàn.</p>
+      </section>
+      <% if (n.response) { %><section class="card card-b"><h2 style="font-size:16px;margin:0 0 6px">Phản hồi đã gửi</h2><b><%= n.response.result_label %></b><p style="margin:6px 0;white-space:pre-line"><%= n.response.text %></p><div class="src"><%= n.response.person || '' %> · <%= fmt.dateTime(n.response.at) %></div></section><% } %>
+      <% if (n.status !== 'closed') { %>
+      <section class="card card-b">
+        <% if (['sent', 'seen'].includes(n.status)) { %><form method="post" style="margin-bottom:12px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="ack">
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="input" name="person" placeholder="Họ tên người nhận thông tin" style="flex:1;min-width:180px" maxlength="120"><button class="btn btn-outline"><%- ic('check-lg') %> Xác nhận đã nhận thông báo</button></div></form><% } %>
+        <form method="post"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="respond">
+          <h2 style="font-size:16px;margin:0 0 8px"><%= n.response ? 'Gửi phản hồi bổ sung' : 'Phản hồi kết quả kiểm tra hiện trường' %></h2>
+          <label class="field"><span>Kết quả kiểm tra *</span><select class="input" name="result" required><option value="">— chọn —</option><option value="none">Không phát hiện vi phạm / không cháy</option><option value="confirmed">Có mất rừng / cháy rừng</option><option value="legal">Khai thác, tác động hợp pháp (có hồ sơ)</option><option value="other">Khác</option></select></label>
+          <label class="field"><span>Nội dung *</span><textarea class="input" name="response" rows="4" required maxlength="2000" placeholder="Thời gian kiểm tra, hiện trạng, diện tích, nguyên nhân, biện pháp đã thực hiện…"></textarea></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label class="field"><span>Người phản hồi</span><input class="input" name="person" maxlength="120"></label><label class="field"><span>Điện thoại</span><input class="input" name="phone" maxlength="20"></label></div>
+          <button class="btn btn-primary"><%- ic('send-fill') %> Gửi phản hồi</button>
+        </form>
+      </section><% } %>
+    </div>
+  </div>
+</main>
+<%- include('../partials/footer') %>
+<%- include('../partials/mapjs') %>
+<script>
+(function () {
+  const lon = <%- JSON.stringify(Number(n.lon)) %>; const lat = <%- JSON.stringify(Number(n.lat)) %>; const geom = <%- JSON.stringify(n.geometry || null) %>;
+  const v = KT.createMap('map', { basemap: 'satellite' }); if (!v) return;
+  v.skipFit = true; v.userMoved = true;
+  v.define('province', KT.layers.province());
+  v.define('target', { kind: 'vector', layers: ['tg-fill', 'tg-line'], async build(m) {
+    if (geom && !m.getSource('tg')) { m.addSource('tg', { type: 'geojson', data: { type: 'Feature', geometry: geom, properties: {} } });
+      m.addLayer({ id: 'tg-fill', type: 'fill', source: 'tg', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#ff1f6b', 'fill-opacity': 0.2 } });
+      m.addLayer({ id: 'tg-line', type: 'line', source: 'tg', paint: { 'line-color': '#ff1f6b', 'line-width': 2.4 } }); }
+  } });
+  v.map.once('load', () => { new mapboxgl.Marker({ color: '#e0322d' }).setLngLat([lon, lat]).addTo(v.map); v.map.jumpTo({ center: [lon, lat], zoom: 13.5 }); });
+})();
+</script>
+</body></html>

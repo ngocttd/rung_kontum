@@ -1,0 +1,75 @@
+<%- include('_top') %>
+<% const tpl = (k) => templates.filter(t => t.report_key === k && t.active !== false);
+   const FL = {
+     nam: () => `<label class="field" style="margin:0"><span>Năm số liệu</span><select class="input" name="nam">${years.map(y => `<option>${y}</option>`).join('')}</select></label>`,
+     xa: () => `<label class="field" style="margin:0"><span>Xã/phường</span><select class="input" name="xa"><option value="">Tất cả${scopeLabel !== 'Toàn vùng' ? ' (địa bàn phụ trách)' : ''}</option>${communes.map(c => `<option value="${c.code}">${c.fullName}</option>`).join('')}</select></label>`,
+     tu: () => `<label class="field" style="margin:0"><span>Từ ngày</span><input class="input" type="date" name="tu"></label>`,
+     den: () => `<label class="field" style="margin:0"><span>Đến ngày</span><input class="input" type="date" name="den"></label>`,
+     trang_thai_bd: () => `<label class="field" style="margin:0"><span>Trạng thái xác minh</span><select class="input" name="trang_thai_bd"><option value="">Tất cả</option><option value="unverified">Chưa xác minh</option><option value="verifying">Đang xác minh</option><option value="confirmed">Xác nhận mất rừng</option><option value="rejected">Không phải mất rừng</option><option value="seasonal">Rụng lá theo mùa</option></select></label>`,
+     nguon_bd: () => `<label class="field" style="margin:0"><span>Nguồn phát hiện</span><select class="input" name="nguon_bd"><option value="">Tất cả</option><option value="auto">Phân tích ảnh (Sentinel-2, Hansen)</option><option value="zone">Khoanh vùng trên web</option></select></label>`,
+     nguon_pa: () => `<label class="field" style="margin:0"><span>Nguồn phản ánh</span><select class="input" name="nguon_pa"><option value="">Cán bộ và người dân</option><option value="staff">Chỉ của cán bộ</option><option value="citizen">Chỉ của người dân</option></select></label>`,
+     trang_thai_pa: () => `<label class="field" style="margin:0"><span>Trạng thái xử lý</span><select class="input" name="trang_thai_pa"><option value="">Tất cả</option>${Object.entries(RSTATUS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select></label>`,
+     loai_pa: () => `<label class="field" style="margin:0"><span>Loại phản ánh</span><select class="input" name="loai_pa"><option value="">Tất cả</option>${Object.entries(RTYPES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select></label>`,
+     loai_gn: () => `<label class="field" style="margin:0"><span>Loại ghi nhận</span><select class="input" name="loai_gn"><option value="">Xác minh và khảo sát</option><option value="verify">Chỉ xác minh</option><option value="survey">Chỉ khảo sát hiện trạng</option></select></label>`,
+   }; %>
+<div class="adm-tabs"><a class="<%= tab !== 'mau' ? 'on' : '' %>" href="?tab=xuat">Xuất báo cáo</a><a class="<%= tab === 'mau' ? 'on' : '' %>" href="?tab=mau">Mẫu báo cáo (<%= templates.length %>)</a></div>
+<% if (tab !== 'mau') { %>
+<div class="note info" style="margin:0 0 12px">Chọn điều kiện rồi tải báo cáo dạng Excel (mẫu của hệ thống hoặc <b>mẫu của đơn vị</b> đã tải lên ở thẻ “Mẫu báo cáo”) hoặc mở <b>bản in/PDF</b>. Phạm vi dữ liệu theo địa bàn được phân quyền: <b><%= scopeLabel %></b>.</div>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr))">
+  <% Object.entries(DS).forEach(([k, d]) => { %>
+  <section class="card">
+    <div class="card-h"><h2><%- ic(d.icon) %> <%= d.title %></h2></div>
+    <form class="card-b" method="get" action="/quan-tri/bao-cao/<%= k %>/xuat">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:10px"><%- d.filters.map(f => FL[f]()).join('') %></div>
+      <label class="field"><span>Mẫu xuất</span><select class="input" name="mau"><option value="">Mẫu mặc định của hệ thống (<%= d.fields.length %> cột)</option><% tpl(k).forEach(t => { %><option value="<%= t.id %>">Mẫu đơn vị: <%= t.title %></option><% }) %></select></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm"><%- ic('download') %> Tải Excel</button>
+        <button class="btn btn-outline btn-sm" name="dang" value="in" formtarget="_blank"><%- ic('file-earmark-pdf-fill') %> Bản in / PDF</button>
+      </div>
+      <p class="src" style="margin:8px 0 0">Gồm: <%= d.fields.slice(1, 9).map(f => f.label.replace(/ \(.*\)$/, '')).join(', ') %>…</p>
+    </form>
+  </section>
+  <% }) %>
+</div>
+<% } else { %>
+<div class="grid" style="grid-template-columns:minmax(320px,1fr) minmax(0,1.6fr);align-items:start">
+  <section class="card">
+    <div class="card-h"><h2><%- ic('upload') %> Tải mẫu báo cáo mới</h2></div>
+    <% if (can('data.manage')) { %>
+    <form class="card-b" method="post" action="/quan-tri/bao-cao/mau" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label class="field"><span>Loại báo cáo *</span><select class="input" name="key"><% Object.entries(DS).forEach(([k, d]) => { %><option value="<%= k %>"><%= d.title %></option><% }) %></select></label>
+      <label class="field"><span>Tên mẫu *</span><input class="input" name="title" required maxlength="150" placeholder="Ví dụ: Biểu 01 – báo cáo quý theo Thông tư …"></label>
+      <label class="field"><span>Tệp mẫu Excel (.xlsx) *</span><input class="input" type="file" name="file" accept=".xlsx" required></label>
+      <button class="btn btn-primary"><%- ic('upload') %> Tải lên và nhận dạng</button>
+    </form>
+    <% } else { %><div class="card-b"><div class="note">Chỉ tài khoản có quyền quản lý dữ liệu mới tải mẫu lên.</div></div><% } %>
+    <div class="card-b" style="border-top:1px solid var(--line)">
+      <b>Cách hệ thống nhận dạng mẫu</b>
+      <ol style="margin:6px 0 0;padding-left:18px;line-height:1.6;font-size:13.5px">
+        <li>Tìm <b>dòng tiêu đề cột</b> trong mẫu (kể cả tiêu đề nhiều tầng, ô gộp) và so tên cột với các trường dữ liệu của loại báo cáo (không phân biệt dấu, hoa thường).</li>
+        <li>Nhận ra dòng đánh số cột (1), (2)…, dòng “Tổng/Cộng” và các ô giữ chỗ dạng <code>{{ten}}</code>.</li>
+        <li>Hiện bảng <b>cột của mẫu ↔ trường dữ liệu</b> để kiểm tra, sửa và lưu.</li>
+        <li>Khi xuất: dữ liệu điền vào từ dòng dữ liệu đầu tiên, giữ nguyên định dạng, tiêu đề, chữ ký của mẫu.</li>
+      </ol>
+      <p class="src" style="margin:8px 0 0">Ô giữ chỗ dùng được: <code>{{ky}}</code> kỳ báo cáo, <code>{{nam}}</code>, <code>{{ngay_xuat}}</code>, <code>{{ngay}}</code>/<code>{{thang}}</code>/<code>{{nam_xuat}}</code>, <code>{{pham_vi}}</code>, <code>{{can_cu}}</code>, <code>{{so_dong}}</code>. Khi có biểu mẫu mới chỉ cần tải mẫu mới lên – không phải sửa phần mềm.</p>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-h"><h2><%- ic('file-earmark-text-fill') %> Mẫu đã tải lên</h2></div>
+    <div class="card-b table-wrap"><% if (!templates.length) { %><div class="empty-state">Chưa có mẫu nào – báo cáo đang xuất theo mẫu mặc định của hệ thống.</div><% } else { %>
+      <table class="tbl" data-page-size="10"><thead><tr><th>Tên mẫu</th><th>Loại báo cáo</th><th>Nhận dạng</th><th>Người tải</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+      <% templates.forEach(t => { const m = t.mapping || {}; %><tr>
+        <td><a href="/quan-tri/bao-cao/mau/<%= t.id %>"><b><%= t.title %></b></a><div class="src"><%= t.original_name %></div></td>
+        <td><%= (DS[t.report_key] || {}).short %></td>
+        <td>Sheet “<%= m.sheet %>” · tiêu đề dòng <%= m.header_row %> · <b><%= Object.keys(m.cols || {}).length %></b> cột</td>
+        <td><%= t.uploaded_by %><div class="src"><%= fmt.dateTime(t.created_at) %></div></td>
+        <td><span class="badge <%= t.active !== false ? 'b-green' : 'b-gray' %>"><%= t.active !== false ? 'Đang dùng' : 'Tạm ngưng' %></span></td>
+        <td style="white-space:nowrap"><a class="btn btn-outline btn-sm" href="/quan-tri/bao-cao/mau/<%= t.id %>">Gán cột</a> <a class="btn btn-outline btn-sm" href="/quan-tri/bao-cao/<%= t.report_key %>/xuat?mau=<%= t.id %>" title="Xuất thử theo mẫu"><%- ic('download') %> Thử</a></td>
+      </tr><% }) %></tbody></table><% } %>
+    </div>
+  </section>
+</div>
+<% } %>
+<%- include('_bottom') %>
+</body></html>

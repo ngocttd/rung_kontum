@@ -1,0 +1,20 @@
+<%# Chọn định dạng và hệ toạ độ khi nhập / xuất dữ liệu. mode: 'import' | 'export'; formats: danh sách định dạng (mặc định mọi định dạng vector) %>
+<% const _M = (typeof GEO !== 'undefined' && GEO ? GEO.MERIDIANS : [['107.5', '107°30′ – Kon Tum (cũ)'], ['108', '108°00′ – Quảng Ngãi']]); const _F = (typeof formats !== 'undefined' && formats) || ['shp', 'kml', 'geojson', 'xlsx', 'csv']; const _FL = { shp: 'Shapefile (.zip)', kml: 'KML (Google Earth)', geojson: 'GeoJSON', xlsx: 'Excel (.xlsx)', csv: 'CSV' }; %>
+<div class="crs-pick" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:10px">
+  <% if (mode === 'export') { %><label class="field" style="margin:0"><span>Định dạng</span><select class="input" name="dinh_dang"><% _F.forEach(f => { %><option value="<%= f %>"><%= _FL[f] %></option><% }) %></select></label><% } %>
+  <label class="field" style="margin:0"><span>Hệ toạ độ<%= mode === 'import' ? ' của tệp' : ' xuất ra' %></span><select class="input" name="he" data-crs-sys>
+    <% if (mode === 'import') { %><option value="">Tự nhận (theo .prj / độ lớn toạ độ)</option><% } %>
+    <option value="wgs84">WGS84 – kinh độ, vĩ độ</option><option value="vn2000">VN-2000 (chọn kinh tuyến trục, múi)</option><option value="utm48">WGS84 / UTM múi 48N (phía tây 108°Đ)</option><option value="utm49">WGS84 / UTM múi 49N (phía đông 108°Đ)</option></select></label>
+  <label class="field" style="margin:0" data-crs-vn hidden><span>Kinh tuyến trục</span><select class="input" name="ktt" data-crs-ktt><% _M.forEach(([v, l, z]) => { %><option value="<%= v %>" data-mui="<%= z || 3 %>"><%= l %></option><% }) %><option value="other">Khác…</option></select></label>
+  <label class="field" style="margin:0;width:110px" data-crs-other hidden><span>KTT (độ thập phân)</span><input class="input" name="ktt_khac" placeholder="vd 107.5" inputmode="decimal"></label>
+  <label class="field" style="margin:0" data-crs-vn hidden><span>Múi chiếu</span><select class="input" name="mui"><option value="3">3° (k₀ = 0,9999)</option><option value="6">6° (k₀ = 0,9996)</option></select></label>
+</div>
+<% if (mode === 'export') { %><p class="src" style="margin:-4px 0 10px">KML luôn dùng WGS84 theo chuẩn. VN-2000 chuyển bằng 7 tham số của Bộ TN&amp;MT; tệp Shapefile kèm .prj. Kon Tum vắt qua kinh tuyến 108°: múi 6° có hai kinh tuyến trục (105° và 111°); múi 3° dùng 107°30′ hoặc 108°.</p><% } %>
+<script>
+(function () {
+  const box = document.currentScript.previousElementSibling.classList && document.currentScript.parentElement.querySelectorAll('.crs-pick'); const el = box[box.length - 1];
+  const sys = el.querySelector('[data-crs-sys]'); const ktt = el.querySelector('[data-crs-ktt]');
+  const upd = () => { const vn = sys.value === 'vn2000'; el.querySelectorAll('[data-crs-vn]').forEach((x) => { x.hidden = !vn; }); el.querySelector('[data-crs-other]').hidden = !(vn && ktt.value === 'other'); };
+  sys.addEventListener('change', upd); ktt.addEventListener('change', () => { const z = (ktt.selectedOptions[0] || {}).dataset; if (z && z.mui) el.querySelector('[name=mui]').value = z.mui; upd(); }); upd();
+})();
+</script>

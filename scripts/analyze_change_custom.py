@@ -126,7 +126,7 @@ def main(cfg_path, out_dir):
             id=f"{cfg.get('id_prefix', 'CR')}-{r0:04d}{c0:04d}", window=title, area_ha=float(m.sum()), mean_dndvi=round(float(np.nanmean(dn[m])), 3),
             mean_dnbr=round(float(np.nanmean(db[m])), 3), commune_code=codes[ci - 1] if ci > 0 else None, commune_name=names[codes[ci - 1]] if ci > 0 else None,
             lon=round(lon[0], 5), lat=round(lat[0], 5), seasonal_leaf_fall_possible=dry, verification_status='unverified', low_confidence=len(base_c) < 2 and b['mode'] == 'years',
-            evidence=f"Phân tích theo yêu cầu: Sentinel-2 median tháng 100 m, kỳ {period_label} so với {base_label}; ΔNDVI ≤ {th['dndvi']}, ΔNBR ≤ {th['dnbr']}, lặp lại ≥ {th['persist']} tháng, vùng ≥ {th['min_ha']} ha, trong rừng Hansen còn đến 2024")))
+            evidence=f"Phân tích theo yêu cầu: Sentinel-2 median tháng 100 m, kỳ {period_label} so với {base_label}; ΔNDVI ≤ {th['dndvi']}, ΔNBR ≤ {th['dnbr']}, lặp lại ≥ {th['persist']} tháng, vùng ≥ {th['min_ha']} ha, trong rừng Hansen còn đến năm mới nhất")))
     (out / 'candidates.geojson').write_text(json.dumps(dict(type='FeatureCollection', features=feats), ensure_ascii=False), encoding='utf-8')
     # lớp ΔNDVI (EPSG:3857) trong rừng còn đến 2024
     Wb, Sb, Eb, Nb = 107.33, 13.91, 108.56, 15.43

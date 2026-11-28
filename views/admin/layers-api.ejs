@@ -27,7 +27,7 @@ curl -X POST <%= base %>/api/v1/layers -H "Authorization: Bearer $TOKEN" \
 
 # tạo lớp từ Shapefile nén .zip (hoặc .xlsx/.csv có cột toạ độ), hệ toạ độ VN-2000 Kon Tum
 curl -X POST <%= base %>/api/v1/layers -H "Authorization: Bearer $TOKEN" \
-  -F title="Tuyến tuần tra" -F crs=VN2000-KT -F file=@tuyen_tuan_tra.zip
+  -F title="Tuyến tuần tra" -F crs=VN2000:107.5:3 -F file=@tuyen_tuan_tra.zip   # VN-2000 kinh tuyến trục 107°30′, múi 3°
 
 # công bố lên bản đồ, đổi tên, thay dữ liệu, xoá
 curl -X POST  <%= base %>/api/v1/layers/&lt;id&gt;/publish -H "Authorization: Bearer $TOKEN"

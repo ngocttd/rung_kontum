@@ -56,8 +56,14 @@ async function create(input, files, user) {
   return row;
 }
 
+// Nguồn phản ánh: của CÁN BỘ (tài khoản chuyên môn/lãnh đạo/quản trị gửi từ hiện trường) hay của NGƯỜI DÂN (tài khoản người dân hoặc không đăng nhập)
+function origin(r) {
+  const u = r.created_by ? store.get('users', r.created_by) : null;
+  const staff = Boolean(u && u.role !== 'citizen');
+  return { key: staff ? 'staff' : 'citizen', label: staff ? 'Cán bộ' : (u ? 'Người dân (có tài khoản)' : 'Người dân (không đăng nhập)'), short: staff ? 'Cán bộ' : 'Người dân', channel: r.source === 'mobile' ? 'MobileGIS' : 'Web', user: u ? (u.name || u.username) : null };
+}
 function decorate(r) {
-  return { ...r, typeLabel: TYPES[r.type].label, marker: TYPES[r.type].marker, statusLabel: STATUS[r.status].label, statusTone: STATUS[r.status].tone };
+  return { ...r, origin: origin(r), typeLabel: TYPES[r.type].label, marker: TYPES[r.type].marker, statusLabel: STATUS[r.status].label, statusTone: STATUS[r.status].tone };
 }
 
 // Số phản ánh khác (người gửi khác) trong bán kính SAME_M và ±SAME_DAYS ngày – giúp cán bộ thấy nhiều người cùng báo một sự việc.
@@ -80,7 +86,7 @@ function publicView(r) {
     lat: d.lat !== null ? Math.round(d.lat * 100) / 100 : null, lon: d.lon !== null ? Math.round(d.lon * 100) / 100 : null,
     photos: d.public_photos ? d.photos.map((p) => `/phan-anh/anh/${p}`) : [], response: d.response,
     timeline: d.timeline.map((t) => ({ at: t.at, status: t.status, label: STATUS[t.status] ? STATUS[t.status].label : t.status, note: t.public_note || null })),
-    same_location_count: sameLocation(r).count,
+    same_location_count: sameLocation(r).count, origin: d.origin.key, originLabel: d.origin.key === 'staff' ? 'Cán bộ ghi nhận' : 'Người dân phản ánh',
   };
 }
 
@@ -97,4 +103,4 @@ function counts() {
   return { total: all.length, public: all.filter((r) => r.public).length, open: all.filter((r) => ['received', 'verifying', 'processing'].includes(r.status)).length, byType };
 }
 
-module.exports = { TYPES, STATUS, create, decorate, publicView, listPublic, byCode, counts, sameLocation, PHOTO_DIR };
+module.exports = { TYPES, STATUS, origin, create, decorate, publicView, listPublic, byCode, counts, sameLocation, PHOTO_DIR };

@@ -42,7 +42,7 @@
     listEl.innerHTML = rows.map((c) => `<div class="alert-item" data-id="${c.id}" style="cursor:pointer">
       <img class="ai-ic" src="/assets/symbols/change-suspected.svg" alt="">
       <div class="ai-b"><span class="ai-t">${KT.esc(c.commune_name || 'Ngoài ranh xã')} · ${KT.num(c.area_ha)} ha</span>
-      <span class="ai-d">ΔNDVI ${c.mean_dndvi} · ${KT.esc(c.window.split(' ')[0])}</span>
+      <span class="ai-d">${c.kind === 'treeloss' ? `Mất tán cây ${KT.esc(c.loss_years)}` : `ΔNDVI ${c.mean_dndvi} · ${KT.esc(c.window.split(' ')[0])}`}</span>
       <div class="meta"><span class="badge ${P.statusBadge[c.status]}">${KT.esc(c.statusLabel)}</span>${c.seasonal_leaf_fall_possible ? '<span class="badge b-yellow">mùa khô</span>' : ''}${c.low_confidence ? '<span class="badge b-gray" title="Chỉ có 1 năm ảnh đối chứng cùng kỳ">đối chứng 1 năm</span>' : ''}</div></div></div>`).join('')
       || '<div class="empty-state">Không có vùng phù hợp bộ lọc.</div>';
   }
@@ -56,7 +56,7 @@
     document.getElementById('detail-body').innerHTML = `<h3 style="font-size:15px;margin-bottom:8px">${KT.esc(c.id)}</h3>
       <table class="kv"><tr><td>Địa bàn</td><td>${KT.esc(c.commune_name || '—')}</td></tr><tr><td>Diện tích nghi vấn</td><td>${KT.num(c.area_ha)} ha</td></tr>
       <tr><td>Vị trí tâm</td><td>${c.lat}, ${c.lon}</td></tr><tr><td>Kỳ so sánh</td><td>${KT.esc(c.window)}</td></tr>
-      <tr><td>Thay đổi NDVI</td><td>${c.mean_dndvi}</td></tr><tr><td>Thay đổi NBR</td><td>${c.mean_dnbr}</td></tr>
+      ${c.kind === 'treeloss' ? `<tr><td>Năm mất tán cây</td><td>${KT.esc(c.loss_years)} (Hansen 30 m)</td></tr>` : `<tr><td>Thay đổi NDVI</td><td>${c.mean_dndvi}</td></tr><tr><td>Thay đổi NBR</td><td>${c.mean_dnbr}</td></tr>`}
       <tr><td>Trạng thái</td><td><span class="badge ${P.statusBadge[c.status]}">${KT.esc(c.statusLabel)}</span></td></tr></table>
       <p class="src">${KT.esc(c.evidence)}</p>
       ${c.seasonal_leaf_fall_possible ? '<div class="note">Kỳ mùa khô: cần loại trừ rụng lá theo mùa (rừng khộp) trước khi kết luận.</div>' : ''}

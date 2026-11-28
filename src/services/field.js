@@ -17,6 +17,7 @@ class FieldError extends Error {
 const need = (cond, status, code, message) => { if (!cond) throw new FieldError(status, code, message); };
 const requireDb = () => need(db.enabled, 503, 'DB_REQUIRED', 'Chức năng hiện trường cần cơ sở dữ liệu PostGIS.');
 const userRec = (auth) => store.get('users', auth.sub);
+const { inScope } = require('../lib/scope');
 const actor = (auth) => { const u = userRec(auth); return { id: auth.sub, username: u ? u.username : auth.sub, role: auth.role, scope: auth.scope }; };
 
 // ---------- catalogs shared with the app (bootstrap) ----------
@@ -192,7 +193,7 @@ async function createAssignment(user, { kind, ref_id: ref, title, instructions, 
   need(!assignee || (a && a.role === 'specialist' && a.active), 400, 'VALIDATION', 'Người được giao phải là cán bộ chuyên môn đang hoạt động.');
   const pLon = loc ? loc.lon : num(lon); const pLat = loc ? loc.lat : num(lat);
   const sc = scope || (loc && loc.commune) || (Number.isFinite(pLon) ? (repo.communeAt(pLon, pLat) || {}).code : null) || null;
-  need(!a || !a.scope || !sc || a.scope === sc, 400, 'OUT_OF_SCOPE', 'Cán bộ được giao không phụ trách địa bàn này.');
+  need(!a || inScope(a.scope, sc), 400, 'OUT_OF_SCOPE', 'Cán bộ được giao không phụ trách địa bàn này.');
   if (ref) {
     const open = await db.query("SELECT code FROM mobile.field_assignments WHERE kind = $1 AND ref_id = $2 AND status NOT IN ('approved','cancelled')", [kind, ref]);
     need(!open.rowCount, 409, 'EXISTS', `Đối tượng đã có nhiệm vụ đang mở (${open.rows[0] && open.rows[0].code}).`);
@@ -218,7 +219,7 @@ function canOpen(auth, a) {
   if (['leader'].includes(auth.role)) return true;
   if (auth.role !== 'specialist') return false;
   if (a.assignee_id === auth.sub) return true;
-  return !a.assignee_id && (!auth.scope || auth.scope === a.scope_id);
+  return !a.assignee_id && inScope(auth.scope, a.scope_id);
 }
 
 async function listAssignments(auth, { status, mine } = {}) {
@@ -226,7 +227,7 @@ async function listAssignments(auth, { status, mine } = {}) {
   const vals = []; const where = [];
   if (auth.role === 'specialist') {
     vals.push(auth.sub, auth.scope);
-    where.push(mine === 'true' ? 'a.assignee_id = $1' : '(a.assignee_id = $1 OR (a.assignee_id IS NULL AND ($2::text IS NULL OR a.scope_id = $2)))');
+    where.push(mine === 'true' ? 'a.assignee_id = $1' : '(a.assignee_id = $1 OR (a.assignee_id IS NULL AND ($2::text IS NULL OR a.scope_id IS NULL OR a.scope_id = ANY(string_to_array($2, \',\')))))');
   } else need(auth.role === 'leader', 403, 'FORBIDDEN', 'Không có quyền xem nhiệm vụ hiện trường.');
   if (status) { vals.push(String(status).split(',')); where.push(`a.status = ANY($${vals.length})`); }
   const r = await db.query(`${ASG_SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY (a.status IN ('approved','cancelled')), a.due_at NULLS LAST, a.created_at DESC LIMIT 300`, vals);
@@ -307,7 +308,7 @@ async function createSurvey(auth, b, clientUuid) {
   const u = actor(auth); const id = crypto.randomUUID(); const code = store.nextCode('KS');
   const c = await db.query('SELECT ST_Y(ST_PointOnSurface(ST_GeomFromGeoJSON($1))) lat, ST_X(ST_PointOnSurface(ST_GeomFromGeoJSON($1))) lon', [g.json]);
   const commune = repo.communeAt(c.rows[0].lon, c.rows[0].lat);
-  need(!auth.scope || !commune || commune.code === auth.scope, 403, 'OUT_OF_SCOPE', 'Vị trí khảo sát ngoài địa bàn được giao.');
+  need(!commune || inScope(auth.scope, commune.code), 403, 'OUT_OF_SCOPE', 'Vị trí khảo sát ngoài địa bàn được giao.');
   const notes = [String(b.notes || '').slice(0, 3000), ...chk.notes].filter(Boolean).join('\n');
   await db.query(`INSERT INTO mobile.field_surveys (id, code, client_uuid, assignment_id, surveyor_id, surveyor, commune_code, geom, geom_type, area_ha, length_m,
       forest_type, is_dipterocarp, season, leaf_state, canopy_cover, change_cause, notes, observed_at, gps_accuracy, location_source, history)
@@ -403,7 +404,7 @@ async function createVerification(auth, b, clientUuid) {
     if (r.rowCount) asg = await getAssignment(r.rows[0].id);
   }
   need(!asg || canOpen(auth, asg), 403, 'OUT_OF_SCOPE', 'Nhiệm vụ không thuộc địa bàn hoặc không được giao cho bạn.');
-  need(asg || !auth.scope || !loc.commune || loc.commune === auth.scope, 403, 'OUT_OF_SCOPE', 'Đối tượng nằm ngoài địa bàn được giao.');
+  need(asg || inScope(auth.scope, loc.commune), 403, 'OUT_OF_SCOPE', 'Đối tượng nằm ngoài địa bàn được giao.');
   need(kind !== 'candidate' || b.verdict !== 'loss_confirmed' || !(b.forest_type === 'rung-khop' && b.season === 'dry' && !b.loss_evidence), 400, 'DIPTEROCARP_DRY',
     'Rừng khộp mùa khô: không kết luận mất rừng nếu chưa có bằng chứng gốc chặt/chuyển đổi đất. Chọn “Rụng lá theo mùa” hoặc bổ sung bằng chứng.');
   const lat = num(b.lat); const lon = num(b.lon);
@@ -541,7 +542,7 @@ async function changes(auth, since) {
   const t = since && !Number.isNaN(Date.parse(since)) ? new Date(since) : new Date(0);
   const out = { server_time: new Date().toISOString(), reports: store.filter('reports', (r) => r.created_by === auth.sub && new Date(r.updated_at || r.created_at) > t).map(ownView) };
   if (db.enabled && auth.role === 'specialist') {
-    const a = await db.query(`${ASG_SELECT} WHERE (a.assignee_id = $1 OR (a.assignee_id IS NULL AND ($2::text IS NULL OR a.scope_id = $2))) AND a.updated_at > $3 ORDER BY a.updated_at`, [auth.sub, auth.scope, t]);
+    const a = await db.query(`${ASG_SELECT} WHERE (a.assignee_id = $1 OR (a.assignee_id IS NULL AND ($2::text IS NULL OR a.scope_id IS NULL OR a.scope_id = ANY(string_to_array($2, ','))))) AND a.updated_at > $3 ORDER BY a.updated_at`, [auth.sub, auth.scope, t]);
     out.assignments = a.rows.map(asgView);
     const v = await db.query('SELECT id, code, alert_kind, alert_id, verdict, review_status FROM mobile.incident_verifications v WHERE verifier_id = $1 AND EXISTS (SELECT 1 FROM mobile.verification_reviews r WHERE r.verification_id = v.id AND r.created_at > $2)', [auth.sub, t]);
     out.verification_reviews = v.rows;

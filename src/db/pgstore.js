@@ -21,6 +21,10 @@ const MAP = {
   comments: { table: 'ops.article_comments', cols: ['id', 'article_id', 'name', 'user_id', 'body', 'status', 'reviewed_by', 'created_at', 'updated_at'] },
   layer_settings: { table: 'spatial.layer_settings', cols: ['id', 'hidden', 'title', 'grp', 'sort', 'default_on', 'on_forest', 'updated_by', 'created_at', 'updated_at'] },
   layer_groups: { table: 'spatial.layer_groups', cols: ['key', 'title', 'section', 'tab', 'sort', 'hidden', 'deleted', 'updated_by', 'created_at', 'updated_at'], pk: 'key', noData: true, from: (r) => ({ id: r.key, ...r }) },
+  zones: { table: 'ops.zones', cols: ['id', 'code', 'title', 'kind', 'status', 'note', 'commune_code', 'commune_name', 'area_ha', 'created_by', 'created_at', 'updated_at'] },
+  report_templates: { table: 'ops.report_templates', cols: ['id', 'report_key', 'title', 'original_name', 'stored_name', 'active', 'uploaded_by', 'created_at', 'updated_at'] },
+  forest_owners: { table: 'ops.forest_owners', cols: ['id', 'name', 'kind', 'contact_name', 'phone', 'email', 'communes', 'user_id', 'active', 'created_at', 'updated_at'] },
+  owner_notices: { table: 'ops.owner_notices', cols: ['id', 'code', 'owner_id', 'owner_name', 'kind', 'ref_id', 'title', 'status', 'token', 'commune_code', 'sent_by', 'created_at', 'updated_at'] },
   counters: { table: 'ops.counters', cols: ['key', 'value'], pk: 'key', noData: true, from: (r) => ({ id: r.key, ...r }) },
 };
 
@@ -54,7 +58,7 @@ async function upsert(name, rec) {
   const set = cols.filter((c) => c !== pk && c !== 'created_at').map((c) => `${c} = EXCLUDED.${c}`).join(', ');
   const sql = `INSERT INTO ${m.table} (${cols.join(', ')}) VALUES (${ph.join(', ')}) ON CONFLICT (${pk}) ${m.appendOnly ? 'DO NOTHING' : `DO UPDATE SET ${set}`}`;
   await query(sql, vals);
-  if (m.features) {
+  if (m.features && !rec.big) {
     await query('DELETE FROM spatial.layer_features WHERE layer_id = $1', [rec.id]);
     const feats = rec.geojson && rec.geojson.features ? rec.geojson.features : [];
     for (let i = 0; i < feats.length; i += 500) {
@@ -81,7 +85,7 @@ async function loadCollection(name) {
     const { data, geom, ...rest } = row; // eslint-disable-line no-unused-vars
     let rec = { ...(data || {}), ...rest };
     if (m.from) rec = m.from(rec);
-    if (m.features) {
+    if (m.features && !rec.big) {
       const f = await query('SELECT ST_AsGeoJSON(geom)::json AS g, props FROM spatial.layer_features WHERE layer_id = $1 ORDER BY fid', [rec.id]);
       rec.geojson = f.rowCount ? { type: 'FeatureCollection', features: f.rows.map((x) => ({ type: 'Feature', geometry: x.g, properties: x.props })) } : null;
     }

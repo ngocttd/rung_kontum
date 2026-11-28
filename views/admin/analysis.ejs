@@ -1,7 +1,92 @@
 <%- include('_top') %>
 <% const st = { running: ['b-orange', 'Đang chạy'], succeeded: ['b-green', 'Hoàn thành'], failed: ['b-red', 'Lỗi'] }; const fv = fcg ? fcg.forecast.validation : null; const vd = fd ? fd.validation : null; %>
 <% const per = (h) => h >= 2160 ? 'quý' : h >= 720 ? 'tháng' : h >= 168 ? (h / 168) + ' tuần' : h >= 24 ? (h / 24) + ' ngày' : h + ' giờ'; const rel = (t) => { if (!t) return '—'; const m = Math.round((new Date(t) - Date.now()) / 60e3); return m <= 0 ? 'đến hạn' : m < 60 ? `sau ${m} phút` : m < 2880 ? `sau ${Math.round(m / 60)} giờ` : `sau ${Math.round(m / 1440)} ngày`; }; %>
-<section class="card" style="margin-bottom:16px">
+<% const pend = runs.filter(r => !r.published && r.status === 'succeeded' && r.summary); const hy = fcg && fcg.history ? Object.keys(fcg.history.aoi_annual_loss_ha).map(Number).sort((a, b) => a - b) : []; %>
+<div class="adm-tabs"><a href="#cho-cong-bo">1. Kết quả chờ công bố (<%= pend.length + (autoPending ? 1 : 0) %>)</a><a href="#bien-dong">2. Chạy phân tích theo yêu cầu</a><a href="#lich">3. Lịch chạy tự động</a><a href="#lich-su">4. Lịch sử chạy</a></div>
+<section class="card" id="cho-cong-bo" style="margin-bottom:16px">
+  <div class="card-h"><h2><%- ic('check-circle-fill') %> Kết quả chờ công bố</h2></div>
+  <div class="card-b">
+    <p class="src" style="margin:0 0 8px">Mọi kết quả phân tích (tự động theo lịch hoặc chạy theo yêu cầu) nằm ở đây cho tới khi được công bố ra Bản đồ WebGIS, trang Biến động rừng và MobileGIS. Quyền công bố: <b>Quản trị</b>, <b>Cán bộ chuyên môn</b> và <b>Lãnh đạo</b>. Vùng công bố ra vẫn ở trạng thái “chưa xác minh” cho tới khi cán bộ xác minh.</p>
+    <% if (!can('analysis.publish')) { %><div class="note" style="margin:0 0 10px">Tài khoản của bạn (<%= ROLES[user.role] %>) chạy được phân tích nhưng <b>không có quyền công bố</b> – cần Cán bộ chuyên môn hoặc Lãnh đạo đăng nhập để công bố.</div><% } %>
+    <% if (!pend.length && !autoPending) { %><div class="empty-state">Không có kết quả nào đang chờ công bố.</div><% } else { %>
+    <div class="table-wrap"><table class="tbl" data-tools="off"><thead><tr><th>Kết quả</th><th>Loại</th><th class="num">Số vùng</th><th class="num">Diện tích (ha)</th><th>Chạy lúc</th><th></th></tr></thead><tbody>
+      <% if (autoPending) { %><tr><td><b>Phân tích tự động theo lịch</b><div class="src"><%= (autoDraft.windows || []).length %> kỳ theo mùa</div></td><td>Biến động Sentinel-2</td><td class="num"><%= fmt.num((autoDraft.windows || []).reduce((a, w) => a + w.candidates, 0)) %></td><td class="num"><%= fmt.num((autoDraft.windows || []).reduce((a, w) => a + w.area_ha, 0)) %></td><td><%= fmt.dateTime(autoDraft.generated_at) %></td>
+        <td style="white-space:nowrap"><a class="btn btn-outline btn-sm" href="/quan-tri/canh-bao?tab=bien-dong">Xem</a> <% if (can('analysis.publish')) { %><form method="post" action="/quan-tri/phan-tich/tu-dong/cong-bo" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-primary btn-sm"><%- ic('check-lg') %> Công bố</button></form><% } %></td></tr><% } %>
+      <% pend.forEach(r => { %><tr><td><b><%= r.code %></b> · <%= r.title %><div class="src">chạy bởi <%= r.created_by %></div></td><td><%= r.params.type === 'treeloss' ? 'Mất tán cây (Hansen)' : 'Biến động Sentinel-2' %></td><td class="num"><%= fmt.num(r.summary.candidates) %></td><td class="num"><%= fmt.num(r.summary.area_ha) %></td><td><%= fmt.dateTime(r.created_at) %></td>
+        <td style="white-space:nowrap"><a class="btn btn-outline btn-sm" href="/quan-tri/phan-tich/bien-dong/<%= r.id %>">Xem bản đồ</a> <% if (can('analysis.publish')) { %><form method="post" action="/quan-tri/phan-tich/bien-dong/<%= r.id %>/cong-bo" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="on" value="1"><button class="btn btn-primary btn-sm"><%- ic('check-lg') %> Công bố</button></form><% } %></td></tr><% }) %>
+    </tbody></table></div><% } %>
+  </div>
+</section>
+<section class="card" id="bien-dong" style="margin-bottom:16px">
+  <div class="card-h"><h2><%- ic('graph-up-arrow') %> Chạy phân tích theo yêu cầu</h2></div>
+  <div class="card-b">
+    <p class="src" style="margin-bottom:10px">Thuật toán chung cho cả hai cơ chế: ảnh Sentinel-2 median tháng 100 m (lọc mây) của kỳ phân tích so với kỳ đối chứng; ô nghi vấn khi NDVI giảm vượt ngưỡng, NBR giảm vượt ngưỡng, lặp lại đủ số tháng, nằm trong rừng còn đến <%= D.hansenLast %> (Hansen); gộp vùng đạt diện tích tối thiểu. Kết quả là <b>nghi vấn – chưa xác minh</b>, chỉ hiện ra bản đồ công khai khi được công bố. Ảnh có sẵn: <%= monthsAvail.length ? monthsAvail[0].slice(5) + '/' + monthsAvail[0].slice(0, 4) + ' – ' + monthsAvail[monthsAvail.length - 1].slice(5) + '/' + monthsAvail[monthsAvail.length - 1].slice(0, 4) + ' (' + monthsAvail.length + ' tháng)' : 'chưa có' %>.</p>
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px">
+      <!-- tự động -->
+      <div class="card" style="box-shadow:none;border:1px solid var(--line)">
+        <div class="card-h"><h3 style="font-size:15px;margin:0"><%- ic('calendar3') %> 1. Tự động theo lịch</h3>
+          <span class="badge <%= autoState.mode === 'auto' ? 'b-green' : 'b-blue' %>" style="margin-left:auto"><%= autoState.mode === 'auto' ? 'Tự công bố' : 'Chờ duyệt' %></span></div>
+        <div class="card-b">
+          <p class="src">Tác vụ “Ảnh Sentinel-2 tháng mới → phân tích biến động” (bảng lịch ở trên) tự tải ảnh và phân tích các kỳ theo mùa (01–04, 05–06, 07–09, 10–12) có ≥ 2 tháng ảnh trong 12 tháng gần nhất, so với cùng kỳ 1–2 năm trước.</p>
+          <table class="kv" style="margin:8px 0">
+            <tr><td>Lần phân tích mới nhất</td><td><%= autoDraft.generated_at ? fmt.dateTime(autoDraft.generated_at) : '—' %> <% if (autoPending) { %><span class="badge b-orange">chưa công bố</span><% } else if (autoDraft.generated_at) { %><span class="badge b-green">đã công bố</span><% } %></td></tr>
+            <tr><td>Các kỳ</td><td><%= (autoDraft.windows || []).map(w => w.window.split(' ')[0].replace(/^(\d{4})-(\d{2})\.\.(\d{2})$/, '$2–$3/$1') + ': ' + w.candidates + ' vùng' + (w.low_confidence ? ' (đối chứng 1 năm)' : '')).join(' · ') || '—' %></td></tr>
+            <tr><td>Đang công bố</td><td><%= autoState.approved_at ? fmt.dateTime(autoState.approved_generated_at) + ' · duyệt bởi ' + autoState.approved_by + ' lúc ' + fmt.dateTime(autoState.approved_at) : 'chưa có' %></td></tr>
+          </table>
+          <% if (can('analysis.publish')) { %>
+          <form method="post" action="/quan-tri/phan-tich/tu-dong/che-do" class="inline-form" style="margin-bottom:8px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <select class="input" name="mode"><option value="review" <%= autoState.mode !== 'auto' ? 'selected' : '' %>>Chờ duyệt trước khi công bố</option><option value="auto" <%= autoState.mode === 'auto' ? 'selected' : '' %>>Tự công bố sau mỗi lần chạy</option></select>
+            <button class="btn btn-outline btn-sm">Lưu chế độ</button></form>
+          <% if (autoPending) { %><form method="post" action="/quan-tri/phan-tich/tu-dong/cong-bo"><input type="hidden" name="_csrf" value="<%= csrf %>">
+            <input class="input" name="note" placeholder="Ghi chú công bố (tuỳ chọn)" style="margin-bottom:6px">
+            <div style="display:flex;gap:8px"><a class="btn btn-outline btn-sm" href="/quan-tri/canh-bao?tab=bien-dong">Xem vùng nghi vấn mới</a><button class="btn btn-primary btn-sm"><%- ic('check-lg') %> Công bố kết quả mới</button></div></form><% } %>
+          <% } %>
+        </div>
+      </div>
+      <!-- thủ công -->
+      <form class="card" style="box-shadow:none;border:1px solid var(--line)" method="post" action="/quan-tri/phan-tich/bien-dong">
+        <div class="card-h"><h3 style="font-size:15px;margin:0"><%- ic('funnel-fill') %> 2. Biến động rừng từ ảnh Sentinel-2 – chọn khoảng tháng</h3></div>
+        <div class="card-b">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <% const f = form || {}; %>
+          <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">
+            <label class="field"><span>Kỳ phân tích – từ tháng *</span><input class="input" type="month" name="from" required min="2025-01" max="<%= monthsAvail[monthsAvail.length - 1] || '' %>" value="<%= f.from || '' %>"></label>
+            <label class="field"><span>đến tháng *</span><input class="input" type="month" name="to" required min="2025-01" max="<%= monthsAvail[monthsAvail.length - 1] || '' %>" value="<%= f.to || '' %>"></label>
+          </div>
+          <p class="src" style="margin:-2px 0 8px">Hệ thống tự xác định: <b>kỳ đối chứng</b> là cùng các tháng của 1–2 năm trước có ảnh; <b>ngưỡng phát hiện</b> tự thích nghi theo dữ liệu của kỳ (chặt hơn khi ảnh nhiều nhiễu do mây, mùa khô). Các giá trị đã dùng hiển thị ở trang kết quả.</p>
+          <label class="field"><span>Ghi chú</span><input class="input" name="note" value="<%= f.note || '' %>" placeholder="Mục đích phân tích, khu vực quan tâm…"></label>
+          <% if (can('analysis.publish')) { %><label class="check"><input type="checkbox" name="publish_now"> Công bố ngay khi chạy xong</label><% } else { %><p class="src">Kết quả cần cán bộ chuyên môn/lãnh đạo duyệt trước khi công bố.</p><% } %>
+          <button class="btn btn-primary" style="margin-top:8px" <%= !can('jobs.run') ? 'disabled' : '' %>><%- ic('arrow-repeat') %> Chạy phân tích</button>
+        </div>
+      </form>
+    </div>
+    <!-- mất tán cây Hansen -->
+    <form class="card" style="box-shadow:none;border:1px solid var(--line);margin-top:14px" method="post" action="/quan-tri/phan-tich/bien-dong">
+      <div class="card-h"><h3 style="font-size:15px;margin:0"><%- ic('tree-fill') %> 3. Mất tán cây (Hansen 30 m) – chọn khoảng năm</h3></div>
+      <div class="card-b">
+        <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="type" value="treeloss">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+          <label class="field" style="margin:0"><span>Từ năm *</span><select class="input" name="year_from"><% hy.forEach(y => { %><option <%= y === hy[hy.length - 1] ? 'selected' : '' %>><%= y %></option><% }) %></select></label>
+          <label class="field" style="margin:0"><span>đến năm *</span><select class="input" name="year_to"><% hy.forEach(y => { %><option <%= y === hy[hy.length - 1] ? 'selected' : '' %>><%= y %></option><% }) %></select></label>
+          <label class="field" style="margin:0"><span>Vùng liền khối tối thiểu</span><select class="input" name="min_ha"><option value="1">1 ha</option><option value="3" selected>3 ha</option><option value="5">5 ha</option><option value="10">10 ha</option></select></label>
+          <label class="field" style="margin:0;flex:1;min-width:200px"><span>Ghi chú</span><input class="input" name="note" placeholder="Mục đích phân tích…"></label>
+          <button class="btn btn-primary" <%= !can('jobs.run') || !hy.length ? 'disabled' : '' %>><%- ic('arrow-repeat') %> Chạy phân tích</button>
+        </div>
+        <p class="src" style="margin:8px 0 0">Khoanh các vùng mất tán cây liền khối theo dữ liệu Hansen/UMD (<%= hy[0] %>–<%= hy[hy.length - 1] %>, tự cập nhật khi có phiên bản mới), kèm bảng diện tích theo xã và theo năm. Mất tán cây gồm mọi nguyên nhân (kể cả khai thác rừng trồng) nên kết quả là <b>nghi vấn – cần xác minh</b>; chỉ hiện công khai sau khi công bố.</p>
+      </div>
+    </form>
+    <!-- các kỳ đã chạy -->
+    <h3 style="font-size:15px;margin:16px 0 6px">Các kỳ phân tích theo yêu cầu</h3>
+    <% const rs = { queued: ['b-gray', 'Chờ chạy'], running: ['b-orange', 'Đang chạy'], succeeded: ['b-green', 'Hoàn thành'], failed: ['b-red', 'Lỗi'] }; %>
+    <div class="table-wrap"><% if (!runs.length) { %><div class="empty-state">Chưa có kỳ phân tích nào.</div><% } else { %>
+    <table class="tbl" data-page-size="10"><thead><tr><th>Mã</th><th>Kỳ phân tích</th><th>Người chạy</th><th>Trạng thái</th><th class="num">Vùng nghi vấn</th><th class="num">Diện tích (ha)</th><th>Công bố</th><th></th></tr></thead><tbody>
+      <% runs.forEach(r => { %><tr><td><%= r.code %></td><td><%= r.title %><% if (r.summary && r.summary.months_with_images < r.summary.requested_months) { %><div class="src">ảnh có <%= r.summary.months_with_images %>/<%= r.summary.requested_months %> tháng</div><% } %></td><td><%= r.created_by %><div class="src"><%= fmt.dateTime(r.created_at) %></div></td>
+        <td><span class="badge <%= rs[r.status][0] %>"><%= rs[r.status][1] %></span></td><td class="num"><%= r.summary ? fmt.num(r.summary.candidates) : '—' %></td><td class="num"><%= r.summary ? fmt.num(r.summary.area_ha) : '—' %></td>
+        <td><%= r.published ? 'Đã công bố' : (r.status === 'succeeded' ? 'Chờ công bố' : '—') %><% if (r.status === 'failed') { %><div class="src" style="color:#c0392b;max-width:260px"><%= ((r.log || []).filter(l => /^!|Error|Traceback/.test(l)).pop() || (r.log || []).slice(-1)[0] || '').slice(0, 160) %></div><% } %></td><td><a class="btn btn-outline btn-sm" href="/quan-tri/phan-tich/bien-dong/<%= r.id %>">Xem</a></td></tr><% }) %>
+    </tbody></table><% } %></div>
+  </div>
+</section>
+<section class="card" id="lich" style="margin-bottom:16px">
   <div class="card-h"><h2><%- ic('calendar3') %> Lịch chạy tự động</h2>
     <span class="badge <%= schedulerOn ? 'b-green' : 'b-gray' %>"><%= schedulerOn ? 'Bộ lập lịch đang hoạt động' : 'Bộ lập lịch tắt (ENABLE_DATA_JOBS=false)' %></span></div>
   <div class="card-b">
@@ -11,7 +96,7 @@
         <thead><tr><th style="width:34%">Tác vụ</th><th>Tự động</th><th>Chu kỳ</th><th>Lần chạy gần nhất</th><th>Lần tới</th><th></th></tr></thead><tbody>
         <% Object.entries(defs).forEach(([k, d]) => { const p = plan[k]; const l = p.last; %>
           <tr>
-            <td><b><%= d.title %></b><div class="src"><%= d.steps.map(s => s.script + (s.optional ? '*' : '')).join(' → ') %></div><div class="src"><%= d.note %></div></td>
+            <td><b><%= d.title %></b><div class="src"><%= d.note %></div><details class="src"><summary style="cursor:pointer">Các bước xử lý (<%= d.steps.length %>)</summary><%= d.steps.map(s => s.script + (s.optional ? '*' : '')).join(' → ') %></details></td>
             <td><label class="switch-l"><input type="checkbox" name="en_<%= k %>" <%= p.enabled ? 'checked' : '' %> <%= !can('jobs.run') ? 'disabled' : '' %>> Bật</label></td>
             <td><select name="every_<%= k %>" <%= !can('jobs.run') ? 'disabled' : '' %>><option value="0" <%= !p.every ? 'selected' : '' %>>Chỉ chạy tay</option><% (d.periods || periods.filter(h => h <= 720)).forEach(h => { %><option value="<%= h %>" <%= p.every === h ? 'selected' : '' %>>Mỗi <%= per(h) %></option><% }) %></select><% if (d.calendar) { %><div class="src">ngày <%= d.calendar.day %>, <%= String(d.calendar.hour).padStart(2, '0') %>:00<%= p.every >= 2160 ? ' tháng 1, 4, 7, 10' : ' hằng tháng' %></div><% } %></td>
             <td><% if (l) { %><span class="badge <%= st[l.status][0] %>"><%= st[l.status][1] %></span> <%= fmt.dateTime(l.started_at) %><div class="src"><%= l.trigger === 'schedule' ? 'tự động' : (l.by || '') %><%= l.duration_s ? ' · ' + Math.round(l.duration_s / 60) + ' phút' : '' %><%= l.warnings && l.warnings.length ? ' · thu thập lỗi: ' + l.warnings.join(', ') : '' %></div><% if (p.fails) { %><div class="src" style="color:#c0392b">Lỗi liên tiếp <%= p.fails %> lần<%= p.fails <= 3 ? ' – tự thử lại sau 30 phút' : ' – chờ chu kỳ kế tiếp' %> · <a href="?job=<%= l.id %>#job-log">xem nhật ký lỗi</a></div><% } %><% } else { %>Chưa chạy<% } %></td>
@@ -26,60 +111,6 @@
         <span class="src">Chỉ một tác vụ chạy tại một thời điểm; tác vụ đến hạn được xếp lượt. Bước có dấu * là thu thập dữ liệu từ nguồn ngoài (Open-Meteo, Google Earth Engine): nếu lỗi mạng hoặc hạn mức, tác vụ vẫn tính tiếp với dữ liệu đã có và ghi cảnh báo. Kết quả dự báo vẫn cần cán bộ duyệt trước khi phát hành cảnh báo chính thức.</span>
       </div>
     </form>
-  </div>
-</section>
-<section class="card" id="bien-dong" style="margin-bottom:16px">
-  <div class="card-h"><h2><%- ic('graph-up-arrow') %> Phân tích biến động rừng (Sentinel-2)</h2></div>
-  <div class="card-b">
-    <p class="src" style="margin-bottom:10px">Thuật toán chung cho cả hai cơ chế: ảnh Sentinel-2 median tháng 100 m (lọc mây) của kỳ phân tích so với kỳ đối chứng; ô nghi vấn khi NDVI giảm vượt ngưỡng, NBR giảm vượt ngưỡng, lặp lại đủ số tháng, nằm trong rừng còn đến 2024 (Hansen); gộp vùng đạt diện tích tối thiểu. Kết quả là <b>nghi vấn – chưa xác minh</b>, chỉ hiện ra bản đồ công khai khi được công bố. Ảnh có sẵn: <%= monthsAvail.length ? monthsAvail[0].slice(5) + '/' + monthsAvail[0].slice(0, 4) + ' – ' + monthsAvail[monthsAvail.length - 1].slice(5) + '/' + monthsAvail[monthsAvail.length - 1].slice(0, 4) + ' (' + monthsAvail.length + ' tháng)' : 'chưa có' %>.</p>
-    <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px">
-      <!-- tự động -->
-      <div class="card" style="box-shadow:none;border:1px solid var(--line)">
-        <div class="card-h"><h3 style="font-size:15px;margin:0"><%- ic('calendar3') %> 1. Tự động theo lịch</h3>
-          <span class="badge <%= autoState.mode === 'auto' ? 'b-green' : 'b-blue' %>" style="margin-left:auto"><%= autoState.mode === 'auto' ? 'Tự công bố' : 'Chờ duyệt' %></span></div>
-        <div class="card-b">
-          <p class="src">Tác vụ “Ảnh Sentinel-2 tháng mới → phân tích biến động” (bảng lịch ở trên) tự tải ảnh và phân tích các kỳ theo mùa (01–04, 05–06, 07–09, 10–12) có ≥ 2 tháng ảnh trong 12 tháng gần nhất, so với cùng kỳ 1–2 năm trước.</p>
-          <table class="kv" style="margin:8px 0">
-            <tr><td>Lần phân tích mới nhất</td><td><%= autoDraft.generated_at ? fmt.dateTime(autoDraft.generated_at) : '—' %> <% if (autoPending) { %><span class="badge b-orange">chưa công bố</span><% } else if (autoDraft.generated_at) { %><span class="badge b-green">đã công bố</span><% } %></td></tr>
-            <tr><td>Các kỳ</td><td><%= (autoDraft.windows || []).map(w => w.window.split(' ')[0].replace(/^(\d{4})-(\d{2})\.\.(\d{2})$/, '$2–$3/$1') + ': ' + w.candidates + ' vùng' + (w.low_confidence ? ' (đối chứng 1 năm)' : '')).join(' · ') || '—' %></td></tr>
-            <tr><td>Đang công bố</td><td><%= autoState.approved_at ? fmt.dateTime(autoState.approved_generated_at) + ' · duyệt bởi ' + autoState.approved_by + ' lúc ' + fmt.dateTime(autoState.approved_at) : 'chưa có' %></td></tr>
-          </table>
-          <% if (can('alerts.approve')) { %>
-          <form method="post" action="/quan-tri/phan-tich/tu-dong/che-do" class="inline-form" style="margin-bottom:8px"><input type="hidden" name="_csrf" value="<%= csrf %>">
-            <select class="input" name="mode"><option value="review" <%= autoState.mode !== 'auto' ? 'selected' : '' %>>Chờ duyệt trước khi công bố</option><option value="auto" <%= autoState.mode === 'auto' ? 'selected' : '' %>>Tự công bố sau mỗi lần chạy</option></select>
-            <button class="btn btn-outline btn-sm">Lưu chế độ</button></form>
-          <% if (autoPending) { %><form method="post" action="/quan-tri/phan-tich/tu-dong/cong-bo"><input type="hidden" name="_csrf" value="<%= csrf %>">
-            <input class="input" name="note" placeholder="Ghi chú công bố (tuỳ chọn)" style="margin-bottom:6px">
-            <div style="display:flex;gap:8px"><a class="btn btn-outline btn-sm" href="/quan-tri/canh-bao?tab=bien-dong">Xem vùng nghi vấn mới</a><button class="btn btn-primary btn-sm"><%- ic('check-lg') %> Công bố kết quả mới</button></div></form><% } %>
-          <% } %>
-        </div>
-      </div>
-      <!-- thủ công -->
-      <form class="card" style="box-shadow:none;border:1px solid var(--line)" method="post" action="/quan-tri/phan-tich/bien-dong">
-        <div class="card-h"><h3 style="font-size:15px;margin:0"><%- ic('funnel-fill') %> 2. Chạy thủ công theo thời gian tuỳ chọn</h3></div>
-        <div class="card-b">
-          <input type="hidden" name="_csrf" value="<%= csrf %>">
-          <% const f = form || {}; %>
-          <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">
-            <label class="field"><span>Kỳ phân tích – từ tháng *</span><input class="input" type="month" name="from" required min="2025-01" max="<%= monthsAvail[monthsAvail.length - 1] || '' %>" value="<%= f.from || '' %>"></label>
-            <label class="field"><span>đến tháng *</span><input class="input" type="month" name="to" required min="2025-01" max="<%= monthsAvail[monthsAvail.length - 1] || '' %>" value="<%= f.to || '' %>"></label>
-          </div>
-          <p class="src" style="margin:-2px 0 8px">Hệ thống tự xác định: <b>kỳ đối chứng</b> là cùng các tháng của 1–2 năm trước có ảnh; <b>ngưỡng phát hiện</b> tự thích nghi theo dữ liệu của kỳ (chặt hơn khi ảnh nhiều nhiễu do mây, mùa khô). Các giá trị đã dùng hiển thị ở trang kết quả.</p>
-          <label class="field"><span>Ghi chú</span><input class="input" name="note" value="<%= f.note || '' %>" placeholder="Mục đích phân tích, khu vực quan tâm…"></label>
-          <% if (can('alerts.approve')) { %><label class="check"><input type="checkbox" name="publish_now"> Công bố ngay khi chạy xong</label><% } else { %><p class="src">Kết quả cần cán bộ chuyên môn/lãnh đạo duyệt trước khi công bố.</p><% } %>
-          <button class="btn btn-primary" style="margin-top:8px" <%= !can('jobs.run') ? 'disabled' : '' %>><%- ic('arrow-repeat') %> Chạy phân tích</button>
-        </div>
-      </form>
-    </div>
-    <!-- các kỳ đã chạy -->
-    <h3 style="font-size:15px;margin:16px 0 6px">Các kỳ phân tích theo yêu cầu</h3>
-    <% const rs = { queued: ['b-gray', 'Chờ chạy'], running: ['b-orange', 'Đang chạy'], succeeded: ['b-green', 'Hoàn thành'], failed: ['b-red', 'Lỗi'] }; %>
-    <div class="table-wrap"><% if (!runs.length) { %><div class="empty-state">Chưa có kỳ phân tích nào.</div><% } else { %>
-    <table class="tbl" data-page-size="10"><thead><tr><th>Mã</th><th>Kỳ phân tích</th><th>Người chạy</th><th>Trạng thái</th><th class="num">Vùng nghi vấn</th><th class="num">Diện tích (ha)</th><th>Công bố</th><th></th></tr></thead><tbody>
-      <% runs.forEach(r => { %><tr><td><%= r.code %></td><td><%= r.title %><% if (r.summary && r.summary.months_with_images < r.summary.requested_months) { %><div class="src">ảnh có <%= r.summary.months_with_images %>/<%= r.summary.requested_months %> tháng</div><% } %></td><td><%= r.created_by %><div class="src"><%= fmt.dateTime(r.created_at) %></div></td>
-        <td><span class="badge <%= rs[r.status][0] %>"><%= rs[r.status][1] %></span></td><td class="num"><%= r.summary ? fmt.num(r.summary.candidates) : '—' %></td><td class="num"><%= r.summary ? fmt.num(r.summary.area_ha) : '—' %></td>
-        <td><%= r.published ? 'Đã công bố' : (r.status === 'succeeded' ? 'Chưa' : '—') %></td><td><a class="btn btn-outline btn-sm" href="/quan-tri/phan-tich/bien-dong/<%= r.id %>">Xem</a></td></tr><% }) %>
-    </tbody></table><% } %></div>
   </div>
 </section>
 <div class="grid" style="grid-template-columns:minmax(0,1fr)">
@@ -103,7 +134,7 @@
   if (<%- JSON.stringify(job.status) %> === 'running') setTimeout(tick, 1500); })();
 </script>
 <% } %>
-<section class="card" style="margin-top:16px"><div class="card-h"><h2><%- ic('clock-history') %> Lịch sử chạy</h2></div>
+<section class="card" id="lich-su" style="margin-top:16px"><div class="card-h"><h2><%- ic('clock-history') %> Lịch sử chạy</h2></div>
   <div class="card-b table-wrap"><% if (!jobs.length) { %><div class="empty-state">Chưa có lần chạy nào.</div><% } else { %><table class="tbl" data-page-size="10"><thead><tr><th>Tác vụ</th><th>Người chạy</th><th>Bắt đầu</th><th>Kết thúc</th><th>Trạng thái</th><th></th></tr></thead><tbody>
     <% const pg = { items: jobs, offset: 0 }; pg.items.forEach(j => { %><tr><td><%= j.title %></td><td><%= j.by %></td><td><%= fmt.dateTime(j.started_at) %></td><td><%= j.finished_at ? fmt.dateTime(j.finished_at) : '—' %></td><td><span class="badge <%= st[j.status][0] %>"><%= st[j.status][1] %></span></td><td><a href="?job=<%= j.id %>">Nhật ký</a></td></tr><% }) %></tbody></table><% } %></div></section>
 <%- include('_bottom') %>

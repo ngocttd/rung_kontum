@@ -174,6 +174,13 @@
   map.on('click', (e) => {
     if (v.measuring || coordMode) return;
     const feats = map.queryRenderedFeatures(e.point, { layers: ['hotspots', 'samples', 'cand-fill', 'cand-pt', 'reports', 'communes-fill'].filter((l) => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none') });
+    // lớp vector bổ sung (bản đồ kiểm kê, hiện trạng rừng, ranh giới… do đơn vị nhập): hiện bảng thuộc tính
+    const cf = map.queryRenderedFeatures(e.point).find((x) => x.layer.id.startsWith('cl-'));
+    if (cf && !feats.some((x) => x.layer.id !== 'communes-fill')) {
+      const lid = cf.layer.id.replace(/^cl-/, '').replace(/-[flp]$/, ''); const meta = (P.custom || []).find((c) => c.id === lid);
+      new mapboxgl.Popup({ maxWidth: '340px' }).setLngLat(e.lngLat).setHTML(KT.attrHtml(meta ? meta.title : 'Đối tượng', cf.properties)).addTo(map);
+      return;
+    }
     const f = feats[0];
     if (!f) return;
     if (f.layer.id === 'hotspots') { hotspotPanel(f.properties); showTab('hotspot'); }
@@ -215,7 +222,7 @@
       stopMeasure = KT.measure(v, b.dataset.tool, (val, n) => {
         status.textContent = b.dataset.tool === 'area' ? `Diện tích: ${KT.num(val / 1e4, 2)} ha (${KT.num(val / 1e6, 3)} km²) · ${n} điểm` : `Khoảng cách: ${val > 1000 ? `${KT.num(val / 1000, 2)} km` : `${KT.num(val)} m`} · ${n} điểm`;
       });
-    } else status.textContent = coordMode ? 'Di chuyển chuột để xem tọa độ; nhấp để sao chép' : 'Nhấp vào bản đồ để xem thông tin';
+    } else status.textContent = coordMode ? 'Di chuyển chuột để xem tọa độ; nhấp để sao chép và xem tọa độ VN-2000' : 'Nhấp vào bản đồ để xem thông tin';
   });
   map.on('click', async (e) => {
     if (!toolMode) return;
@@ -238,7 +245,27 @@
     } catch (err) { status.textContent = err.message; routeFrom = null; }
   });
   map.on('mousemove', (e) => { if (coordMode) status.textContent = `Vĩ độ ${e.lngLat.lat.toFixed(5)}, Kinh độ ${e.lngLat.lng.toFixed(5)} (WGS84)`; });
-  map.on('click', (e) => { if (coordMode) { const t = `${e.lngLat.lat.toFixed(5)}, ${e.lngLat.lng.toFixed(5)}`; if (navigator.clipboard) navigator.clipboard.writeText(t); status.textContent = `Đã sao chép: ${t}`; } });
+  // công cụ Tọa độ: nhấp → WGS84 + VN-2000 (kinh tuyến trục, múi chiếu chọn được; nhớ lựa chọn trên máy)
+  // Kon Tum vắt qua kinh tuyến 108°: múi 6° có hai kinh tuyến trục (105° và 111°); múi 3° dùng 107°30′ hoặc 108°
+  const KTT = [['107.5', '107°30′ múi 3° (Kon Tum cũ)', '3'], ['108', '108°00′ múi 3° (Quảng Ngãi)', '3'], ['105', '105°00′ múi 6° số 48', '6'], ['111', '111°00′ múi 6° số 49', '6']];
+  let ktt = '107.5'; let mui = '3'; try { ktt = localStorage.getItem('kt.ktt') || ktt; mui = localStorage.getItem('kt.mui') || mui; } catch { /* không có localStorage */ }
+  map.on('click', async (e) => {
+    if (!coordMode) return;
+    const lat = e.lngLat.lat; const lon = e.lngLat.lng; const t = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+    if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {});
+    status.textContent = `Đã sao chép: ${t}`;
+    const pop = new mapboxgl.Popup({ maxWidth: '320px' }).setLngLat(e.lngLat).setHTML('<div class="pop"><h4>Tọa độ điểm</h4><p class="src">Đang chuyển đổi…</p></div>').addTo(map);
+    const draw = async () => {
+      let vn = '—';
+      try { const j = await KT.getJSON(`/api/public/tools/toa-do?x=${lon}&y=${lat}&ktt=${ktt}&mui=${mui}`); vn = `X (Đông) = <b>${KT.num(j.points[0][0], 3)}</b> m<br>Y (Bắc) = <b>${KT.num(j.points[0][1], 3)}</b> m`; } catch { vn = 'Không chuyển được'; }
+      pop.setHTML(`<div class="pop"><h4>Tọa độ điểm</h4><table><tr><td>WGS84</td><td>Vĩ độ <b>${lat.toFixed(6)}</b><br>Kinh độ <b>${lon.toFixed(6)}</b></td></tr><tr><td>VN-2000</td><td>${vn}</td></tr></table>
+        <div style="display:flex;gap:6px;margin-top:6px"><select id="pp-ktt" class="input" style="padding:3px 6px;font-size:12px">${KTT.map(([v, l]) => `<option value="${v}" ${v === ktt ? 'selected' : ''}>KTT ${l}</option>`).join('')}</select><select id="pp-mui" class="input" style="padding:3px 6px;font-size:12px;width:auto"><option value="3" ${mui === '3' ? 'selected' : ''}>múi 3°</option><option value="6" ${mui === '6' ? 'selected' : ''}>múi 6°</option></select></div></div>`);
+      const el = pop.getElement();
+      el.querySelector('#pp-ktt').onchange = (ev) => { ktt = ev.target.value; mui = (KTT.find((k) => k[0] === ktt) || [])[2] || mui; try { localStorage.setItem('kt.ktt', ktt); localStorage.setItem('kt.mui', mui); } catch { /* bỏ qua */ } draw(); };
+      el.querySelector('#pp-mui').onchange = (ev) => { mui = ev.target.value; try { localStorage.setItem('kt.mui', mui); } catch { /* bỏ qua */ } draw(); };
+    };
+    draw();
+  });
 
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]'); if (!b) return;

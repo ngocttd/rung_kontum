@@ -1,0 +1,54 @@
+<%- include('_top') %>
+<% const e = edit || {}; const eSc = e.communes ? String(e.communes).split(',') : []; const pend = notices.filter(n => ['sent', 'seen', 'acknowledged'].includes(n.status)).length; %>
+<div class="adm-tabs"><a class="<%= tab === 'thong-bao' ? 'on' : '' %>" href="?tab=thong-bao">Thông báo đã gửi chủ rừng (<%= notices.length %><%= pend ? ' · ' + pend + ' chờ phản hồi' : '' %>)</a><a class="<%= tab === 'danh-ba' ? 'on' : '' %>" href="?tab=danh-ba">Danh bạ chủ rừng (<%= owners.length %>)</a><a class="<%= tab === 'lop' ? 'on' : '' %>" href="?tab=lop">Lớp bản đồ chủ rừng</a></div>
+<% if (tab === 'thong-bao') { %>
+<div class="note info" style="margin:0 0 12px">Khi phát hiện nghi vấn <b>mất rừng, cháy rừng</b>, bấm <b>“Báo chủ rừng”</b> ở trang Cảnh báo (điểm nóng, biến động) hoặc ở Khoanh vùng. Hệ thống xác định chủ rừng theo vị trí, tạo thông báo có <b>liên kết riêng</b> để chủ rừng xem bản đồ, xác nhận và phản hồi kết quả kiểm tra. Hệ thống không tự gửi SMS/email – sao chép nội dung để gửi qua điện thoại, Zalo, email rồi bấm “Đã báo trực tiếp”.</div>
+<section class="card"><div class="card-h"><h2><%- ic('megaphone-fill') %> Thông báo đã gửi chủ rừng</h2><a class="more" href="/quan-tri/canh-bao">Tạo thông báo mới từ trang Cảnh báo <%- ic('chevron-right') %></a></div>
+  <div class="card-b table-wrap"><% if (!notices.length) { %><div class="empty-state">Chưa có thông báo nào gửi chủ rừng.</div><% } else { %>
+  <table class="tbl" data-page-size="15"><thead><tr><th>Mã</th><th>Chủ rừng</th><th>Nội dung</th><th>Địa bàn</th><th>Người gửi</th><th>Trạng thái</th><th>Phản hồi của chủ rừng</th><th></th></tr></thead><tbody>
+  <% notices.forEach(n => { %><tr>
+    <td><b><%= n.code %></b><div class="src"><%= fmt.dateTime(n.created_at) %></div></td>
+    <td><%= n.owner_name %><% if (n.contact && (n.contact.phone || n.contact.name)) { %><div class="src"><%= n.contact.name || '' %> <%= n.contact.phone || '' %></div><% } %><% if (!n.owner_id) { %><div class="src">chưa có trong danh bạ</div><% } %></td>
+    <td><%= n.title %><div class="src"><%= OBJ[n.kind] %><%= n.area_ha ? ' · ' + fmt.num(n.area_ha, 1) + ' ha' : '' %><%= n.due ? ' · hạn phản hồi ' + fmt.ymd(n.due) : '' %></div></td>
+    <td><%= n.commune_name || names[n.commune_code] || '—' %></td><td><%= n.sent_by %><% if (n.called_at) { %><div class="src">đã báo qua <%= n.channel %> · <%= fmt.dateTime(n.called_at) %></div><% } %></td>
+    <td><span class="badge <%= ST[n.status][0] %>"><%= ST[n.status][1] %></span></td>
+    <td><% if (n.response) { %><b><%= n.response.result_label %></b><div class="src"><%= n.response.text %></div><div class="src"><%= n.response.person || '' %> · <%= fmt.dateTime(n.response.at) %></div><% } else if (n.ack_at) { %><span class="src">Đã xác nhận lúc <%= fmt.dateTime(n.ack_at) %><%= n.ack_by ? ' – ' + n.ack_by : '' %></span><% } else { %>—<% } %></td>
+    <td style="white-space:nowrap"><a class="btn btn-outline btn-sm" href="/quan-tri/chu-rung/bao?kind=<%= n.kind %>&ref=<%= encodeURIComponent(n.ref_id) %>">Mở</a>
+      <% if (n.status !== 'closed') { %><form method="post" action="/quan-tri/chu-rung/thong-bao/<%= n.id %>" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="close"><button class="btn btn-outline btn-sm" title="Đóng thông báo">Đóng</button></form><% } %></td>
+  </tr><% }) %></tbody></table><% } %></div></section>
+<% } else if (tab === 'danh-ba') { %>
+<div class="grid" style="grid-template-columns:minmax(320px,1fr) minmax(0,1.7fr);align-items:start">
+  <section class="card"><div class="card-h"><h2><%- ic('person-circle') %> <%= e.id ? 'Sửa chủ rừng' : 'Thêm chủ rừng' %></h2></div>
+    <% if (can('data.manage')) { %><form class="card-b" method="post" action="/quan-tri/chu-rung/luu"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="id" value="<%= e.id || '' %>">
+      <label class="field"><span>Tên chủ rừng *</span><input class="input" name="name" required maxlength="200" value="<%= e.name || '' %>" placeholder="Ví dụ: Ban quản lý rừng phòng hộ Đăk Glei"></label>
+      <label class="field"><span>Loại chủ rừng</span><select class="input" name="kind"><% Object.entries(K).forEach(([k, v]) => { %><option value="<%= k %>" <%= e.kind === k ? 'selected' : '' %>><%= v %></option><% }) %></select></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label class="field"><span>Người liên hệ</span><input class="input" name="contact_name" value="<%= e.contact_name || '' %>"></label><label class="field"><span>Điện thoại</span><input class="input" name="phone" value="<%= e.phone || '' %>"></label></div>
+      <label class="field"><span>Email</span><input class="input" name="email" value="<%= e.email || '' %>"></label>
+      <label class="field"><span>Tên khác trong bản đồ (cách nhau dấu phẩy)</span><input class="input" name="aliases" value="<%= e.aliases || '' %>" placeholder="Tên viết tắt, mã chủ rừng dùng trong lớp bản đồ"></label>
+      <label class="field"><span>Tài khoản nhận thông báo MobileGIS (tên đăng nhập, tuỳ chọn)</span><input class="input" name="username" value="<%= e.user_id ? users[e.user_id] || '' : '' %>"></label>
+      <div class="field"><span>Xã/phường có rừng do chủ rừng quản lý</span><div style="max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px"><% communes.forEach(c => { %><label class="check" style="display:flex;margin:2px 0"><input type="checkbox" name="communes" value="<%= c.code %>" <%= eSc.includes(String(c.code)) ? 'checked' : '' %>> <%= c.fullName %></label><% }) %></div></div>
+      <label class="field"><span>Ghi chú</span><input class="input" name="note" value="<%= e.note || '' %>"></label>
+      <div style="display:flex;gap:8px"><button class="btn btn-primary"><%- ic('check-lg') %> Lưu</button><% if (e.id) { %><a class="btn btn-outline" href="?tab=danh-ba">Huỷ</a><% } %></div>
+    </form><% } else { %><div class="card-b"><div class="note">Chỉ tài khoản có quyền quản lý dữ liệu mới sửa danh bạ.</div></div><% } %>
+  </section>
+  <section class="card"><div class="card-h"><h2><%- ic('people-fill') %> Danh bạ chủ rừng</h2></div>
+    <div class="card-b table-wrap"><% if (!owners.length) { %><div class="empty-state">Chưa có chủ rừng nào. Thêm chủ rừng ở khung bên trái (tên, người liên hệ, điện thoại, các xã có rừng quản lý).</div><% } else { %>
+    <table class="tbl" data-page-size="15"><thead><tr><th>Chủ rừng</th><th>Loại</th><th>Liên hệ</th><th>Xã quản lý</th><th></th></tr></thead><tbody>
+    <% owners.forEach(o => { const sc = o.communes ? String(o.communes).split(',') : []; %><tr><td><b><%= o.name %></b><% if (o.aliases) { %><div class="src">tên khác: <%= o.aliases %></div><% } %><% if (o.user_id) { %><div class="src">tài khoản: <%= users[o.user_id] %></div><% } %></td><td><%= K[o.kind] %></td>
+      <td><%= o.contact_name || '—' %><div class="src"><%= o.phone || '' %> <%= o.email || '' %></div></td><td class="src"><%= sc.length ? sc.slice(0, 4).map(c => names[c] || c).join(', ') + (sc.length > 4 ? ' … (' + sc.length + ' xã)' : '') : 'theo lớp bản đồ' %></td>
+      <td style="white-space:nowrap"><% if (can('data.manage')) { %><a class="btn btn-outline btn-sm" href="?tab=danh-ba&sua=<%= o.id %>">Sửa</a> <form method="post" action="/quan-tri/chu-rung/<%= o.id %>/xoa" style="display:inline" onsubmit="return confirm('Xoá chủ rừng này khỏi danh bạ?')"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm"><%- ic('trash-fill') %></button></form><% } %></td></tr><% }) %>
+    </tbody></table><% } %></div></section>
+</div>
+<% } else { %>
+<section class="card"><div class="card-h"><h2><%- ic('layers-fill') %> Lớp bản đồ dùng để tra chủ rừng theo vị trí</h2></div>
+  <div class="card-b"><div class="note info" style="margin:0 0 10px">Nếu đã nhập <b>bản đồ kiểm kê / hiện trạng rừng</b> (Shapefile, MapInfo…) có trường tên chủ rừng, chọn trường đó ở đây. Khi báo chủ rừng, hệ thống tra lô rừng chứa vị trí phát hiện và lấy tên chủ rừng từ trường này (khớp với danh bạ theo tên hoặc “tên khác”). Chưa có lớp này thì hệ thống dùng “xã quản lý” khai trong danh bạ.</div>
+    <% if (!layers.length) { %><div class="empty-state">Chưa có lớp vector nào có thuộc tính. Nhập bản đồ ở <a href="/quan-tri/du-lieu#them">Dữ liệu không gian › Nhập lớp</a>.</div><% } else { %>
+    <div class="table-wrap"><table class="tbl" data-tools="off"><thead><tr><th>Lớp</th><th>Số đối tượng</th><th>Trường chứa tên chủ rừng</th></tr></thead><tbody>
+    <% layers.forEach(l => { %><tr><td><b><%= l.title %></b><div class="src"><%= l.status === 'published' ? 'đã công bố' : 'chờ duyệt' %></div></td><td><%= fmt.num(l.feature_count || l.validation.count) %></td>
+      <td><form method="post" action="/quan-tri/chu-rung/lop" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="layer" value="<%= l.id %>">
+        <select class="input" name="field" <%= !can('data.manage') ? 'disabled' : '' %>><option value="">— không dùng lớp này —</option><% l.validation.fields.filter(f => f.type === 'text').forEach(f => { %><option value="<%= f.name %>" <%= l.style.owner_field === f.name ? 'selected' : '' %>><%= f.name %><%= f.top && f.top[0] ? ' (vd: ' + String(f.top[0].value).slice(0, 30) + ')' : '' %></option><% }) %></select>
+        <% if (can('data.manage')) { %><button class="btn btn-outline btn-sm">Lưu</button><% } %></form></td></tr><% }) %>
+    </tbody></table></div><% } %></div></section>
+<% } %>
+<%- include('_bottom') %>
+</body></html>

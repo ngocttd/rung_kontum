@@ -1,0 +1,127 @@
+<%- include('_top', { needsMap: true }) %>
+<% const fields = ((l.validation || {}).fields || []); const A = { add: ['b-green', 'Thêm mới'], update: ['b-blue', 'Sửa thuộc tính'], geometry: ['b-purple', 'Sửa ranh'], delete: ['b-red', 'Xoá'] }; const bb = (l.validation || {}).bbox; %>
+<div class="adm-tabs"><a href="/quan-tri/du-lieu#vector"><%- ic('chevron-left') %> Lớp vector bổ sung</a><a href="/quan-tri/xuat/lop/<%= l.id %>?dinh_dang=shp"><%- ic('download') %> Tải lớp (Shapefile)</a><a href="/quan-tri/du-lieu/vector/<%= l.id %>/nhat-ky.xlsx"><%- ic('download') %> Tải nhật ký biến động</a><a href="/quan-tri/du-lieu/vector/<%= l.id %>/so-sanh"><%- ic('layout-split') %> So sánh với kỳ trước (rà soát khác biệt)</a><a href="#doi-chieu"><%- ic('bar-chart-fill') %> Đối chiếu số liệu công bố</a></div>
+<div class="note info" style="margin:0 0 12px">Cập nhật khi rừng biến động: <b>nhấp một đối tượng</b> (lô rừng) trên bản đồ để sửa thuộc tính (chủ rừng, loại rừng, diện tích…), <b>sửa ranh</b> hoặc <b>xoá</b>; bấm <b>Thêm đối tượng</b> để vẽ lô mới. Mỗi thay đổi phải ghi <b>lý do</b> và được lưu vào nhật ký biến động (người, thời điểm, giá trị trước – sau); đối tượng đã xoá khôi phục được từ nhật ký.<% if (!dbOn) { %> <b>Cần cơ sở dữ liệu PostGIS để dùng chức năng này.</b><% } %></div>
+<div class="grid" style="grid-template-columns:minmax(0,1.6fr) minmax(330px,1fr);align-items:start">
+  <section class="card">
+    <div class="card-h" style="flex-wrap:wrap;gap:8px"><h2><%- ic('bounding-box') %> <%= l.title %></h2><span class="more muted" style="font-weight:400"><%= fmt.num(l.feature_count || l.validation.count) %> đối tượng</span>
+      <% if (canEdit) { %><div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn btn-primary btn-sm" id="f-add"><%- ic('plus-lg') %> Thêm đối tượng</button><button type="button" class="btn btn-outline btn-sm" id="f-undo" hidden>Xoá đỉnh cuối</button><button type="button" class="btn btn-outline btn-sm" id="f-finish" hidden><%- ic('check-lg') %> Hoàn tất vẽ</button><button type="button" class="btn btn-outline btn-sm" id="f-cancel" hidden>Huỷ vẽ</button></div><% } %></div>
+    <div class="map-shell" style="height:600px;border-radius:0 0 10px 10px"><div id="map" class="map"></div></div>
+    <p class="src" style="padding:6px 12px;margin:0" id="f-hint">Nhấp vào một đối tượng để xem và sửa.</p>
+  </section>
+  <div class="grid" style="align-content:start">
+    <section class="card"><div class="card-h"><h2><%- ic('pencil-fill') %> <span id="f-title">Thuộc tính đối tượng</span></h2></div>
+      <form class="card-b" id="f-form" hidden>
+        <p class="src" id="f-info" style="margin:0 0 8px"></p>
+        <div id="f-fields" style="display:grid;gap:6px;max-height:330px;overflow:auto;padding-right:4px"></div>
+        <% if (canEdit) { %>
+        <div style="display:flex;gap:6px;margin:8px 0"><input class="input" id="f-newkey" placeholder="Thêm trường mới (tên)" style="flex:1"><button type="button" class="btn btn-outline btn-sm" id="f-addkey">Thêm trường</button></div>
+        <label class="field"><span>Lý do biến động *</span><input class="input" id="f-reason" maxlength="500" placeholder="Ví dụ: khai thác rừng trồng theo hồ sơ; trồng mới 2026; đổi chủ rừng…"></label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-primary btn-sm"><%- ic('check-lg') %> Lưu</button><button type="button" class="btn btn-outline btn-sm" id="f-regeom">Vẽ lại ranh</button><button type="button" class="btn btn-outline btn-sm" id="f-del" style="color:#c0392b"><%- ic('trash-fill') %> Xoá đối tượng</button></div>
+        <% } else { %><p class="src">Tài khoản của bạn chỉ xem; quyền quản lý dữ liệu mới sửa được.</p><% } %>
+      </form>
+      <div class="card-b" id="f-empty"><div class="empty-state">Chưa chọn đối tượng.</div></div>
+    </section>
+  </div>
+</div>
+<section class="card" style="margin-top:16px" id="doi-chieu"><div class="card-h"><h2><%- ic('bar-chart-fill') %> Kỳ dữ liệu và đối chiếu với số liệu công bố hằng năm</h2></div>
+  <div class="card-b">
+    <div class="note info" style="margin:0 0 10px">Số liệu hiện trạng rừng <b>công bố hằng năm</b> (theo quyết định của UBND tỉnh, nạp ở Quản trị › Tài nguyên rừng) là số liệu pháp lý theo xã và <b>không tự đổi</b> khi sửa lô ở đây. Lớp lô rừng là bản đồ chi tiết; mỗi năm có kết quả theo dõi diễn biến/kiểm kê mới thì <b>nhập bản đồ năm mới thành một lớp cùng “bộ dữ liệu”</b> (giữ lớp năm cũ để so sánh), hoặc cập nhật từng lô kèm lý do. Bảng dưới cộng diện tích lô theo xã để <b>đối chiếu</b> với số công bố cùng năm.</div>
+    <% if (canEdit) { %><form method="post" action="/quan-tri/du-lieu/vector/<%= l.id %>/ky-du-lieu" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px"><input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label class="field" style="margin:0;width:150px"><span>Năm dữ liệu của lớp</span><input class="input" type="number" name="data_year" min="1990" max="2100" value="<%= l.data_year || '' %>"></label>
+      <label class="field" style="margin:0;flex:1;min-width:220px"><span>Bộ dữ liệu (nối các năm)</span><input class="input" name="series" maxlength="120" value="<%= l.series || '' %>" placeholder="vd Hiện trạng rừng theo lô"></label>
+      <button class="btn btn-outline btn-sm">Lưu</button></form><% } %>
+    <% if (sameSeries.length) { %><p class="src" style="margin:0 0 10px">Các năm khác của bộ dữ liệu “<%= l.series %>”: <% sameSeries.forEach(x => { %><a href="/quan-tri/du-lieu/vector/<%= x.id %>/doi-tuong"><%= x.data_year || '?' %> – <%= x.title %></a> · <% }) %></p><% } %>
+    <form method="get" action="#doi-chieu" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><input type="hidden" name="doi_chieu" value="1">
+      <label class="field" style="margin:0"><span>So với số liệu công bố năm</span><select class="input" name="nam"><% years.forEach(y => { %><option <%= String(q.nam || l.data_year || years[0]) === String(y) ? 'selected' : '' %>><%= y %></option><% }) %></select></label>
+      <label class="field" style="margin:0"><span>Trường phân loại (loại đất loại rừng)</span><select class="input" name="truong"><option value="">— không tách —</option><% fields.filter(f => f.type === 'text' || (f.distinct && f.distinct <= 60)).forEach(f => { %><option value="<%= f.name %>" <%= q.truong === f.name ? 'selected' : '' %>><%= f.name %></option><% }) %></select></label>
+      <label class="field" style="margin:0"><span>Trường diện tích (bỏ trống = tính từ ranh)</span><select class="input" name="dt"><option value="">Tính từ ranh lô</option><% fields.filter(f => f.type === 'number').forEach(f => { %><option value="<%= f.name %>" <%= q.dt === f.name ? 'selected' : '' %>><%= f.name %></option><% }) %></select></label>
+      <button class="btn btn-primary btn-sm"><%- ic('arrow-repeat') %> Đối chiếu</button>
+      <% if (rec && rec.classes.length) { %><div style="flex-basis:100%"><span class="src">Chọn các giá trị được tính là <b>có rừng</b> rồi bấm Đối chiếu lại:</span><div style="display:flex;gap:4px 12px;flex-wrap:wrap;margin-top:4px"><% const cr = [].concat(q.co_rung || []); rec.classes.forEach(c => { %><label class="check" style="margin:0"><input type="checkbox" name="co_rung" value="<%= c.value %>" <%= cr.includes(c.value) ? 'checked' : '' %>> <%= c.value %> <span class="src">(<%= fmt.num(c.ha) %> ha)</span></label><% }) %></div></div><% } %>
+    </form>
+    <% if (recErr) { %><div class="note" style="margin-top:10px"><%= recErr %></div><% } %>
+    <% if (rec) { %><div class="table-wrap" style="margin-top:12px"><table class="tbl compact" data-page-size="15"><thead><tr><th>Xã/phường</th><th class="num">Số lô</th><th class="num">Tổng diện tích lô (ha)</th><th class="num">Có rừng theo lô (ha)</th><th class="num">Có rừng công bố <%= rec.year %> (ha)</th><th class="num">Chênh lệch (ha)</th><th class="num">Chênh (%)</th></tr></thead><tbody>
+      <% rec.rows.forEach(x => { %><tr><td><%= x.name %></td><td class="num"><%= fmt.num(x.plots) %></td><td class="num"><%= fmt.num(x.area) %></td><td class="num"><%= x.forest === null ? '—' : fmt.num(x.forest) %></td><td class="num"><%= x.official_forest === null ? '—' : fmt.num(x.official_forest) %></td>
+        <td class="num" style="<%= x.diff !== null && Math.abs(x.diff_pct) > 5 ? 'color:var(--red);font-weight:700' : '' %>"><%= x.diff === null ? '—' : (x.diff > 0 ? '+' : '') + fmt.num(x.diff) %></td><td class="num"><%= x.diff_pct === null ? '—' : (x.diff_pct > 0 ? '+' : '') + fmt.num(x.diff_pct, 1) + '%' %></td></tr><% }) %>
+      </tbody><tfoot><tr><td>Tổng (<%= rec.rows.length %> xã có lô)</td><td class="num"><%= fmt.num(rec.total_plots - rec.outside) %></td><td class="num"><%= fmt.num(rec.totals.area) %></td><td class="num"><%= rec.totals.forest === null ? '—' : fmt.num(rec.totals.forest) %></td><td class="num"><%= fmt.num(rec.totals.official_forest) %></td><td class="num"><%= rec.totals.forest === null ? '—' : fmt.num(rec.totals.forest - rec.totals.official_forest) %></td><td></td></tr></tfoot></table></div>
+      <p class="src" style="margin:6px 0 0">Lô được tính vào xã chứa điểm trong của lô<%= rec.outside ? '; ' + rec.outside + ' lô nằm ngoài 40 xã của vùng' : '' %>. Số công bố = rừng đã thành rừng + rừng trồng chưa thành rừng. Chênh lệch trên 5% được tô đỏ – cần rà soát lô hoặc chờ số công bố năm mới. Việc đối chiếu chỉ để kiểm tra, không thay đổi số liệu công bố.</p><% } %>
+  </div></section>
+<section class="card" style="margin-top:16px"><div class="card-h"><h2><%- ic('clock-history') %> Nhật ký biến động (<%= log.length %> gần nhất)</h2></div>
+  <div class="card-b table-wrap"><% if (!log.length) { %><div class="empty-state">Chưa có thay đổi nào trên lớp này.</div><% } else { %>
+  <table class="tbl compact" data-page-size="10"><thead><tr><th>Thời điểm</th><th>Mã (fid)</th><th>Thao tác</th><th>Người thực hiện</th><th>Lý do</th><th>Thay đổi</th><th></th></tr></thead><tbody>
+  <% log.forEach(x => { const b = x.before || {}; const a = x.after || {}; const diff = x.action === 'update' || x.action === 'geometry' ? Object.keys({ ...b, ...a }).filter(k => String(b[k] ?? '') !== String(a[k] ?? '')).map(k => k + ': ' + (b[k] ?? '∅') + ' → ' + (a[k] ?? '∅')) : []; %>
+    <tr><td><%= fmt.dateTime(x.created_at) %></td><td><a href="#" data-goto="<%= x.fid %>"><%= x.fid %></a></td><td><span class="badge <%= A[x.action][0] %>"><%= A[x.action][1] %></span></td><td><%= x.username %></td><td><%= x.reason || '' %></td>
+      <td class="src"><%= diff.length ? diff.slice(0, 6).join('; ') : x.action === 'add' ? Object.entries(a).slice(0, 5).map(([k, v]) => k + '=' + v).join('; ') : x.action === 'delete' ? Object.entries(b).slice(0, 5).map(([k, v]) => k + '=' + v).join('; ') : x.action === 'geometry' ? 'ranh giới' : '' %></td>
+      <td><% if (canEdit && x.action === 'delete' && x.has_geom) { %><button type="button" class="btn btn-outline btn-sm" data-restore="<%= x.id %>">Khôi phục</button><% } %></td></tr><% }) %>
+  </tbody></table><% } %></div></section>
+<%- include('_bottom') %>
+<%- include('../partials/mapjs') %>
+<script>
+(function () {
+  const ID = <%- JSON.stringify(l.id) %>; const CSRF = <%- JSON.stringify(csrf) %>; const FIELDS = <%- JSON.stringify(fields.map(f => f.name)) %>; const BIG = <%- JSON.stringify(Boolean(l.big)) %>; const BB = <%- JSON.stringify(bb || null) %>; const CAN = <%- JSON.stringify(canEdit) %>;
+  const base = `/quan-tri/du-lieu/vector/${ID}/doi-tuong`; const V = Date.now();
+  const v = KT.createMap('map', { basemap: 'satellite', padding: 20 }); if (!v) return;
+  const map = v.map; if (BB) { v.skipFit = true; map.once('load', () => map.fitBounds([[BB[0], BB[1]], [BB[2], BB[3]]], { padding: 40, duration: 0, maxZoom: 15 })); }
+  const $ = (i) => document.getElementById(i);
+  let cur = null; let drawing = null; let pts = []; let pending = null; // drawing: 'new' | 'regeom'
+  v.define('lyr', { kind: 'vector', layers: ['lyr-f', 'lyr-l', 'lyr-p'], async build(m) {
+    const sl = BIG ? { 'source-layer': 'f' } : {};
+    if (!m.getSource('lyr')) m.addSource('lyr', BIG ? { type: 'vector', tiles: [`${location.origin}/api/public/layers/custom/${ID}/tiles/{z}/{x}/{y}.mvt?v=${V}`], maxzoom: 14 } : { type: 'geojson', data: `${base}/du-lieu.geojson` });
+    if (!m.getLayer('lyr-f')) m.addLayer({ id: 'lyr-f', type: 'fill', source: 'lyr', ...sl, filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#00d5ff', 'fill-opacity': 0.22 } });
+    if (!m.getLayer('lyr-l')) m.addLayer({ id: 'lyr-l', type: 'line', source: 'lyr', ...sl, filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#00d5ff', 'line-width': 1.2 } });
+    if (!m.getLayer('lyr-p')) m.addLayer({ id: 'lyr-p', type: 'circle', source: 'lyr', ...sl, filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-color': '#00d5ff', 'circle-radius': 5, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
+  } });
+  const drawFc = () => { const f = [];
+    if (cur && cur.geometry && !drawing) f.push({ type: 'Feature', geometry: cur.geometry, properties: { k: 'sel' } });
+    if (pending) f.push({ type: 'Feature', geometry: pending, properties: { k: 'sel' } });
+    if (drawing) { if (pts.length >= 3) f.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[...pts, pts[0]]] }, properties: { k: 'sel' } }); pts.forEach((p) => f.push({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: { k: 'pt' } })); }
+    return { type: 'FeatureCollection', features: f }; };
+  v.define('sel', { kind: 'vector', layers: ['sel-f', 'sel-l', 'sel-p'], async build(m) {
+    if (!m.getSource('sel')) m.addSource('sel', { type: 'geojson', data: drawFc() });
+    if (!m.getLayer('sel-f')) m.addLayer({ id: 'sel-f', type: 'fill', source: 'sel', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#ffe600', 'fill-opacity': 0.3 } });
+    if (!m.getLayer('sel-l')) m.addLayer({ id: 'sel-l', type: 'line', source: 'sel', filter: ['!=', ['get', 'k'], 'pt'], paint: { 'line-color': '#ffe600', 'line-width': 3 } });
+    if (!m.getLayer('sel-p')) m.addLayer({ id: 'sel-p', type: 'circle', source: 'sel', filter: ['==', ['get', 'k'], 'pt'], paint: { 'circle-radius': 5, 'circle-color': '#fff', 'circle-stroke-color': '#e67e00', 'circle-stroke-width': 2 } });
+  } });
+  const redraw = () => { const s = map.getSource('sel'); if (s) s.setData(drawFc()); };
+  const row = (k, val) => `<label style="display:grid;grid-template-columns:120px 1fr;gap:6px;align-items:center"><span class="src" style="overflow-wrap:anywhere">${KT.esc(k)}</span><input class="input" data-k="${KT.esc(k)}" value="${KT.esc(val === null || val === undefined ? '' : String(val))}" ${CAN ? '' : 'readonly'} style="padding:5px 8px"></label>`;
+  function show(f, isNew) {
+    cur = f; $('f-form').hidden = false; $('f-empty').hidden = true;
+    $('f-title').textContent = isNew ? 'Đối tượng mới' : `Đối tượng fid ${f.fid}`;
+    $('f-info').textContent = isNew ? 'Nhập thuộc tính cho đối tượng vừa vẽ rồi bấm Lưu.' : `${f.geometry.type}${f.area_ha ? ` · diện tích tính từ ranh ≈ ${KT.num(f.area_ha, 2)} ha` : ''}`;
+    const keys = [...new Set([...FIELDS, ...Object.keys(f.properties || {})])];
+    $('f-fields').innerHTML = keys.map((k) => row(k, (f.properties || {})[k])).join('') || '<p class="src">Lớp chưa có trường thuộc tính – thêm trường bên dưới.</p>';
+    if ($('f-reason')) $('f-reason').value = ''; if ($('f-del')) $('f-del').hidden = isNew; if ($('f-regeom')) $('f-regeom').hidden = isNew;
+    redraw();
+  }
+  const ui = () => { if (!CAN) return; $('f-add').hidden = Boolean(drawing); ['f-undo', 'f-finish', 'f-cancel'].forEach((i) => { $(i).hidden = !drawing; }); map.getCanvas().style.cursor = drawing ? 'crosshair' : '';
+    $('f-hint').textContent = drawing ? `Đang vẽ ${drawing === 'new' ? 'đối tượng mới' : 'lại ranh'}: ${pts.length} đỉnh – nhấp đúp hoặc “Hoàn tất vẽ” để khép vùng.` : 'Nhấp vào một đối tượng để xem và sửa.'; };
+  const post = async (body) => { const r = await fetch(base, { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': CSRF }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({ error: 'Lỗi máy chủ' })); if (!r.ok) { alert(j.error || 'Không lưu được'); return null; } return j; };
+  const finish = () => { if (pts.length < 3) { alert('Cần ít nhất 3 đỉnh.'); return; } pending = { type: 'Polygon', coordinates: [[...pts, pts[0]]] }; const mode = drawing; drawing = null; pts = []; map.doubleClickZoom.enable(); ui();
+    if (mode === 'new') show({ fid: null, geometry: pending, properties: {} }, true); else { $('f-info').textContent = 'Đã vẽ ranh mới – ghi lý do rồi bấm Lưu để áp dụng.'; redraw(); } };
+  let last = 0;
+  map.on('click', async (e) => {
+    if (drawing) { const n = Date.now(); if (n - last < 300) return; last = n; pts.push([Number(e.lngLat.lng.toFixed(7)), Number(e.lngLat.lat.toFixed(7))]); redraw(); ui(); return; }
+    const hit = map.queryRenderedFeatures(e.point, { layers: ['lyr-f', 'lyr-l', 'lyr-p'].filter((x) => map.getLayer(x)) })[0];
+    const q = hit && hit.properties.fid !== undefined && BIG ? `fid=${hit.properties.fid}` : `lon=${e.lngLat.lng}&lat=${e.lngLat.lat}`;
+    const j = await KT.getJSON(`${base}/tim?${q}`).catch(() => null);
+    if (j && j.feature) { pending = null; show(j.feature, false); } else if (!hit) { /* không trúng đối tượng */ } else alert('Lớp nhỏ chưa chuyển sang CSDL – bấm Lưu một thay đổi bất kỳ hoặc tải lại trang sau khi sửa đối tượng đầu tiên.');
+  });
+  map.on('dblclick', (e) => { if (!drawing) return; e.preventDefault(); finish(); });
+  if (CAN) {
+    $('f-add').onclick = () => { drawing = 'new'; pts = []; pending = null; cur = null; map.doubleClickZoom.disable(); redraw(); ui(); };
+    $('f-regeom').onclick = () => { if (!cur || cur.fid === null) return; drawing = 'regeom'; pts = []; pending = null; map.doubleClickZoom.disable(); redraw(); ui(); };
+    $('f-undo').onclick = () => { pts.pop(); redraw(); ui(); }; $('f-finish').onclick = finish;
+    $('f-cancel').onclick = () => { drawing = null; pts = []; pending = null; map.doubleClickZoom.enable(); redraw(); ui(); };
+    $('f-addkey').onclick = () => { const k = $('f-newkey').value.trim(); if (!k) return; $('f-fields').insertAdjacentHTML('beforeend', row(k, '')); $('f-newkey').value = ''; };
+    $('f-form').addEventListener('submit', async (ev) => { ev.preventDefault(); if (!cur) return;
+      const props = {}; $('f-fields').querySelectorAll('[data-k]').forEach((i) => { props[i.dataset.k] = i.value; });
+      const j = await post({ fid: cur.fid, props, geometry: pending || (cur.fid === null ? cur.geometry : null), reason: $('f-reason').value }); if (j) location.reload(); });
+    $('f-del').onclick = async () => { if (!cur || cur.fid === null) return; const reason = $('f-reason').value.trim(); if (!reason) { alert('Ghi lý do biến động trước khi xoá.'); return; } if (!confirm(`Xoá đối tượng fid ${cur.fid}? (khôi phục được từ nhật ký)`)) return; if (await post({ action: 'delete', fid: cur.fid, reason })) location.reload(); };
+    document.querySelectorAll('[data-restore]').forEach((b) => { b.onclick = async () => { if (await post({ action: 'restore', log_id: b.dataset.restore, reason: 'Khôi phục đối tượng đã xoá' })) location.reload(); }; });
+  }
+  document.querySelectorAll('[data-goto]').forEach((a) => a.addEventListener('click', async (e) => { e.preventDefault(); const j = await KT.getJSON(`${base}/tim?fid=${a.dataset.goto}`).catch(() => null); if (!j || !j.feature) { alert('Đối tượng không còn trong lớp (đã xoá).'); return; }
+    show(j.feature, false); const bb = new mapboxgl.LngLatBounds(); const walk = (c) => (typeof c[0] === 'number' ? bb.extend(c) : c.forEach(walk)); walk(j.feature.geometry.coordinates); v.userMoved = true; map.fitBounds(bb, { padding: 120, maxZoom: 16 }); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
+  ui();
+})();
+</script>
+</body></html>

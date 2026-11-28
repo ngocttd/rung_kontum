@@ -14,7 +14,7 @@
   ];
   const fcgHist = fcg ? fcg.history.aoi_annual_loss_ha : null;
   const ov = Object.fromEntries(overlays.map(o => [o.id, o]));
-  const tabs = [['tong-quan','grid-fill','Tổng quan'],['hien-trang','tree-fill','Hiện trạng rừng'],['phan-loai','bar-chart-fill','Phân loại rừng'],['lop-phu','clock-history','Lớp phủ qua các năm'],['__/bien-dong-rung','graph-up-arrow','Biến động rừng'],
+  const tabs = [['tong-quan','grid-fill','Tổng quan'],['hien-trang','tree-fill','Hiện trạng rừng'],['phan-loai','bar-chart-fill','Phân loại rừng'],['lop-phu','clock-history','Lớp phủ qua các năm'],['chu-rung','people-fill','Chủ rừng, diễn biến'],['__/bien-dong-rung','graph-up-arrow','Biến động rừng'],
     ['dac-dung','shield-fill-check','Rừng đặc dụng'],['phong-ho','tree-fill','Rừng phòng hộ'],['san-xuat','bar-chart-fill','Rừng sản xuất']];
   const catPanels = [['dac-dung','special_use_planning_ha','Quy hoạch rừng đặc dụng','special','#006b38'],['phong-ho','protection_planning_ha','Quy hoạch rừng phòng hộ','protection','#75bb25'],['san-xuat','production_planning_ha','Quy hoạch rừng sản xuất','production','#f8ce42']];
   const filterTypes = [['special','Quy hoạch đặc dụng','#006b38'],['protection','Quy hoạch phòng hộ','#75bb25'],['production','Quy hoạch sản xuất','#4caf50'],['natural','Rừng tự nhiên','#0f5f32'],['plantation','Rừng trồng','#f8b733']];
@@ -186,6 +186,21 @@
         <div style="display:flex;flex-wrap:wrap;gap:8px"><% ref.sort((a, b) => a.year - b.year).forEach(it => { %><button type="button" class="btn btn-outline btn-sm" data-show-year="<%= it.id %>"><b><%= it.year %></b>&nbsp;<%= it.kind === 'map' ? 'LPR' : '15 m' %></button><% }) %></div>
         <p class="src" style="margin:8px 0 0">Bản đồ do dự án cung cấp (ảnh/GeoTIFF), hiển thị để đối chiếu trực quan; diện tích và biến động ở trên tính từ dữ liệu chuẩn hoá.</p></div></section>
       <% } %>
+    </div>
+    <div data-panel-group="forest" data-panel="chu-rung" <%= tab === 'chu-rung' ? '' : 'hidden' %> class="grid span-2">
+      <% if (dtables && dtables.tables.length) { const own = dtables.tables.find(t => t.key === 'owner'); %>
+      <div class="note info" style="margin:0">Các biểu thuộc tính kèm theo <b><%= dtables.decision || D.decision %></b> (năm <%= dtables.year %>): diện tích rừng theo <b>chủ quản lý (chủ rừng)</b>, mục đích sử dụng, diễn biến theo nguyên nhân, rừng trồng theo loài cây. <b><%= dtables.scope %></b> Tự cập nhật khi nạp phụ lục của quyết định năm mới.</div>
+      <% if (own) { const tot = own.rows.find(r => r.level === 0) || own.rows[0]; const items = own.columns.map((c, i) => [c, tot.values[i]]).filter(([c, v]) => !/^(tổng|cộng)$/i.test(c) && v).sort((a, b) => b[1] - a[1]); const sum = items.reduce((a, x) => a + x[1], 0); %>
+      <section class="card"><div class="card-h"><h2><%- ic('people-fill') %> Diện tích rừng theo chủ quản lý (chủ rừng)</h2><span class="more muted" style="font-weight:400">Đơn vị: ha</span></div>
+        <div class="card-b"><% items.forEach(([c, v]) => { %><div style="display:grid;grid-template-columns:minmax(150px,280px) 1fr 150px;gap:10px;align-items:center;margin:5px 0"><span><%= c %></span><span style="height:14px;background:#e9efe9;border-radius:7px;overflow:hidden"><span style="display:block;height:100%;width:<%= (v / items[0][1] * 100).toFixed(1) %>%;background:var(--forest)"></span></span><span class="num" style="text-align:right"><b><%= fmt.num(v) %></b> <span class="src">(<%= fmt.num(v / sum * 100, 1) %>%)</span></span></div><% }) %>
+        <p class="src" style="margin:8px 0 0"><%= own.title %></p></div></section><% } %>
+      <% dtables.tables.forEach(t => { %>
+      <section class="card"><div class="card-h"><h2><%- ic(t.key === 'owner' ? 'people-fill' : t.key === 'change' ? 'graph-up-arrow' : t.key === 'species' ? 'tree-fill' : 'bar-chart-fill') %> <%= t.label %></h2><span class="more muted" style="font-weight:400"><%= t.rows.length %> dòng · <%= t.unit %></span></div>
+        <div class="card-b table-wrap"><table class="tbl compact" data-page-size="12"><thead><tr><th style="min-width:240px">Phân loại</th><% t.columns.forEach(c => { %><th class="num" style="min-width:86px"><%= c %></th><% }) %></tr></thead><tbody>
+          <% t.rows.forEach(r => { %><tr style="<%= r.level <= 1 ? 'font-weight:700;background:#f4f8f5' : '' %>"><td style="padding-left:<%= 8 + Math.max(0, r.level - 1) * 12 %>px"><%= r.tt ? r.tt + '. ' : '' %><%= r.name %></td><% r.values.forEach(v => { %><td class="num" style="<%= v < 0 ? 'color:var(--red)' : '' %>"><%= v === null || v === 0 ? '–' : fmt.num(v, Math.abs(v) < 100 ? 2 : 0) %></td><% }) %></tr><% }) %>
+        </tbody></table><p class="src" style="margin:6px 0 0"><%= t.title %> (sheet “<%= t.sheet %>”).</p></div></section>
+      <% }) %>
+      <% } else { %><div class="empty-state">Chưa có các biểu thuộc tính (chủ rừng, diễn biến…) của quyết định năm <%= D.forestYear %> – nạp phụ lục Excel ở Quản trị › Tài nguyên rừng.</div><% } %>
     </div>
     <% catPanels.forEach(([id, key, label, choro, color]) => { const rows = byCat(key); const tot = rows.reduce((a, c) => a + c.official[key], 0); %>
     <section data-panel-group="forest" data-panel="<%= id %>" data-choro-panel="<%= choro %>" <%= tab === id ? '' : 'hidden' %> class="card span-2">

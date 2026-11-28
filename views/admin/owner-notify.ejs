@@ -1,0 +1,43 @@
+<%- include('_top') %>
+<% const canSend = can('alerts.verify') || can('tasks.assign'); const foundIds = found.filter(f => f.owner).map(f => f.owner.id); %>
+<div class="adm-tabs"><a href="/quan-tri/chu-rung"><%- ic('chevron-left') %> Chủ rừng và thông báo</a><a href="/quan-tri/canh-bao">Cảnh báo cháy & biến động</a></div>
+<div class="grid" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);align-items:start">
+  <section class="card"><div class="card-h"><h2><%- ic('megaphone-fill') %> Báo chủ rừng: <%= OBJ[kind] %></h2></div>
+    <div class="card-b">
+      <table class="kv"><tr><td>Đối tượng</td><td><b><%= t.title %></b></td></tr><tr><td>Chi tiết</td><td><%= t.detail %></td></tr>
+        <tr><td>Vị trí (WGS84)</td><td><%= Number(t.lat).toFixed(5) %>, <%= Number(t.lon).toFixed(5) %> · <a href="/ban-do#<%= t.lon %>,<%= t.lat %>,14" target="_blank">xem trên bản đồ</a></td></tr>
+        <tr><td>Xã/phường</td><td><%= t.commune_name || names[t.commune] || '—' %></td></tr></table>
+      <% if (canSend) { %>
+      <form method="post" action="/quan-tri/chu-rung/bao" style="margin-top:12px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="kind" value="<%= kind %>"><input type="hidden" name="ref" value="<%= ref %>">
+        <b>Chủ rừng của khu vực (hệ thống xác định theo vị trí)</b>
+        <% if (!found.length) { %><div class="note" style="margin:6px 0">Chưa xác định được chủ rừng tại vị trí này (chưa có lớp bản đồ chủ rừng phủ vị trí, và chưa chủ rừng nào khai báo quản lý xã này). Chọn trong danh bạ hoặc nhập tên bên dưới.</div><% } %>
+        <% found.forEach(f => { %><label class="check" style="display:flex;gap:8px;margin:6px 0;align-items:flex-start"><% if (f.owner) { %><input type="checkbox" name="owner_ids" value="<%= f.owner.id %>" checked><% } else { %><input type="checkbox" name="extra_name" value="<%= f.name %>" checked><% } %>
+          <span><b><%= f.name %></b><%= f.owner ? ' – ' + K[f.owner.kind] : '' %><span class="src" style="display:block"><%= f.reason %><%= f.owner ? ' · ' + [f.owner.contact_name, f.owner.phone].filter(Boolean).join(' ') : ' · chưa có trong danh bạ (chưa có số liên hệ)' %></span></span></label><% }) %>
+        <% const rest = all.filter(o => !foundIds.includes(o.id)); if (rest.length) { %><details style="margin:6px 0"><summary style="cursor:pointer" class="src">Chọn thêm chủ rừng khác trong danh bạ (<%= rest.length %>)</summary><% rest.forEach(o => { %><label class="check" style="display:flex;gap:8px;margin:4px 0"><input type="checkbox" name="owner_ids" value="<%= o.id %>"> <%= o.name %> <span class="src"><%= o.phone || '' %></span></label><% }) %></details><% } %>
+        <% if (!found.some(f => !f.owner)) { %><label class="field" style="margin-top:6px"><span>Hoặc nhập tên chủ rừng chưa có trong danh bạ</span><input class="input" name="extra_name" maxlength="200"></label><% } %>
+        <label class="field"><span>Nội dung thông báo</span><textarea class="input" name="message" rows="6" maxlength="2000"><%= message %></textarea></label>
+        <label class="field" style="max-width:220px"><span>Hạn phản hồi (tuỳ chọn)</span><input class="input" type="date" name="due"></label>
+        <button class="btn btn-primary"><%- ic('send-fill') %> Tạo thông báo gửi chủ rừng</button>
+      </form>
+      <% } else { %><div class="note" style="margin-top:10px">Tài khoản của bạn chỉ xem được; cán bộ chuyên môn/lãnh đạo mới gửi thông báo cho chủ rừng.</div><% } %>
+    </div></section>
+  <section class="card"><div class="card-h"><h2><%- ic('clock-history') %> Thông báo đã tạo cho đối tượng này (<%= sent.length %>)</h2></div>
+    <div class="card-b"><% if (!sent.length) { %><div class="empty-state">Chưa báo chủ rừng nào về đối tượng này.</div><% } %>
+      <% sent.forEach(n => { const link = base + '/thong-bao-chu-rung/' + n.token; const text = n.message + '\nXem vị trí và phản hồi tại: ' + link; %>
+      <div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b><%= n.code %></b> · <%= n.owner_name %> <span class="badge <%= ST[n.status][0] %>" style="margin-left:auto"><%= ST[n.status][1] %></span></div>
+        <div class="src"><%= fmt.dateTime(n.created_at) %> · <%= n.sent_by %><%= n.contact && n.contact.phone ? ' · liên hệ: ' + (n.contact.name || '') + ' ' + n.contact.phone : '' %><%= n.called_at ? ' · đã báo qua ' + n.channel + ' lúc ' + fmt.dateTime(n.called_at) : '' %></div>
+        <textarea class="input" rows="4" readonly style="margin-top:6px;font-size:12.5px" id="t-<%= n.id %>"><%= text %></textarea>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          <button type="button" class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('t-<%= n.id %>').value);this.textContent='Đã sao chép'"><%- ic('share-fill') %> Sao chép nội dung + liên kết</button>
+          <a class="btn btn-outline btn-sm" href="<%= link %>" target="_blank">Xem như chủ rừng</a>
+          <% if (n.contact && n.contact.email) { %><a class="btn btn-outline btn-sm" href="mailto:<%= n.contact.email %>?subject=<%= encodeURIComponent('Thông báo ' + n.code + ': ' + n.title) %>&body=<%= encodeURIComponent(text) %>">Soạn email</a><% } %>
+          <% if (canSend && n.status !== 'closed') { %><form method="post" action="/quan-tri/chu-rung/thong-bao/<%= n.id %>" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="called">
+            <select class="input" name="channel" style="padding:4px 6px"><option>điện thoại</option><option>Zalo</option><option>email</option><option>văn bản</option><option>trực tiếp</option></select><button class="btn btn-outline btn-sm">Đã báo trực tiếp</button></form><% } %>
+        </div>
+        <% if (n.response) { %><div class="note info" style="margin:8px 0 0"><b>Phản hồi của chủ rừng: <%= n.response.result_label %></b><br><%= n.response.text %><div class="src"><%= n.response.person || '' %> <%= n.response.phone || '' %> · <%= fmt.dateTime(n.response.at) %></div></div><% } %>
+      </div><% }) %>
+    </div></section>
+</div>
+<%- include('_bottom') %>
+</body></html>

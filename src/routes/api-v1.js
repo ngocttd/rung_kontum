@@ -37,18 +37,20 @@ const ENDPOINTS = [
   ['GET', '/api/v1/catalog', 'Danh mục MỌI lớp đang hiển thị (raster, bản đồ chuyên đề, vector, tô màu theo xã) kèm đường dẫn dữ liệu: ảnh + toạ độ góc, ô ảnh XYZ, GeoJSON, chú giải. Công khai, không cần token (có token cán bộ: thêm lớp đang ẩn). Lọc ?type=raster|vector, ?group=, ?q='],
   ['GET', '/api/v1/catalog/:id', 'Thông tin và đường dẫn dữ liệu của một lớp'],
   ['GET', '/api/v1/catalog/:id/data', 'Chuyển thẳng tới dữ liệu lớp (ảnh WebP hoặc GeoJSON)'],
+  ['GET', '/api/v1/catalog/:id/export', 'Xuất dữ liệu lớp theo định dạng và hệ toạ độ: ?format=geojson|kml|shp|xlsx|csv (vector) hoặc tif (raster, GeoTIFF có toạ độ); ?crs=EPSG:4326|EPSG:32648|VN2000:<kinh tuyến trục>:<múi 3|6> (vd VN2000:107.5:3)'],
   ['PATCH', '/api/v1/catalog/:id', 'Cấu hình hiển thị lớp {title?, group?, sort?, hidden?, default_on?, on_forest?} (data.manage)'],
   ['DELETE', '/api/v1/catalog/:id', 'Xoá lớp: vector bổ sung/bản đồ chuyên đề xoá dữ liệu; lớp hệ thống gỡ khỏi danh mục (data.manage)'],
   ['GET', '/api/v1/layers', 'Danh sách lớp: lớp vector bổ sung (mọi trạng thái) + lớp hệ thống, bản đồ chuyên đề (chỉ đọc). Lọc ?status=staging|published|invalid, ?q='],
   ['GET', '/api/v1/layers/:id', 'Thông tin một lớp vector bổ sung'],
   ['GET', '/api/v1/layers/:id/geojson', 'Dữ liệu GeoJSON (WGS84) của lớp'],
-  ['POST', '/api/v1/layers', 'Tạo lớp: JSON {title, source?, description?, color?, geojson} hoặc multipart (file=.geojson/.zip Shapefile/.xlsx/.csv, title, crs?) → vào vùng chờ (staging)'],
+  ['POST', '/api/v1/layers', 'Tạo lớp: JSON {title, source?, description?, color?, geojson} hoặc multipart (file=.geojson/.kml/.kmz/.zip Shapefile hoặc MapInfo TAB–MIF/.xlsx/.csv, title, crs?, bang_ma=auto|tcvn3|none) → vào vùng chờ (staging)'],
   ['PATCH', '/api/v1/layers/:id', 'Sửa thông tin {title?, source?, description?, color?}'],
   ['PUT', '/api/v1/layers/:id/geojson', 'Thay dữ liệu (GeoJSON) – lớp quay về vùng chờ, cần duyệt lại'],
   ['POST', '/api/v1/layers/:id/publish', 'Công bố lớp lên Bản đồ WebGIS/MobileGIS'],
   ['POST', '/api/v1/layers/:id/unpublish', 'Gỡ công bố (về vùng chờ)'],
   ['DELETE', '/api/v1/layers/:id', 'Xoá lớp'],
 ];
+const INTERNAL_KEY = require('crypto').createHash('sha256').update(`export:${require('../config').sessionSecret}`).digest('hex');
 // ---------- danh mục lớp chia sẻ (công khai: chỉ lớp đang hiển thị; cán bộ có token: thêm lớp ẩn) ----------
 const VEC_URL = { province: '/api/public/boundaries/province', communes: '/api/public/boundaries/communes', hotspots: '/api/public/fire/hotspots', candidates: '/api/public/forest/candidates',
   samples: '/api/public/field-samples', reports: '/api/public/reports', weather: '/api/public/weather', 'wind-du-bao': '/api/public/weather/wind?nguon=du-bao', 'wind-era5': '/api/public/weather/wind?nguon=era5' };
@@ -72,7 +74,7 @@ async function catalogShared(req, includeHidden) {
 }
 r.get('/catalog', wrap(async (req, res) => {
   const u = await readToken(req);
-  const list = await catalogShared(req, Boolean(u && STAFF_ROLES.includes(u.role)));
+  const list = await catalogShared(req, Boolean(u && STAFF_ROLES.includes(u.role)) || (req.get('x-internal-key') === INTERNAL_KEY && req.get('x-internal-staff') === '1'));
   const q = String(req.query.q || '').toLowerCase();
   const out = list.filter((x) => (!req.query.type || x.type === req.query.type) && (!req.query.group || x.group === req.query.group) && (!q || `${x.title} ${x.group_title}`.toLowerCase().includes(q)));
   res.set('Access-Control-Allow-Origin', '*');
@@ -91,6 +93,37 @@ r.get('/catalog/:id/data', wrap(async (req, res) => {
   const url = it.type === 'raster' ? it.image && it.image.url : it.geojson;
   return url ? res.redirect(302, url) : res.status(404).json({ error: 'Lớp không có dữ liệu tải được' });
 }));
+// xuất dữ liệu lớp theo định dạng và hệ toạ độ: vector → geojson|kml|shp|xlsx|csv; raster → tif (GeoTIFF có toạ độ)
+//   ?format=shp&crs=VN2000:107.5:3   (hoặc ?dinh_dang=shp&he=vn2000&ktt=107.5&mui=3)
+const exportHits = new Map();
+r.get('/catalog/:id/export', wrap(async (req, res) => {
+  const geoio = require('../services/geoio');
+  const u = await readToken(req);
+  // yêu cầu nội bộ từ trang “Tải dữ liệu” (người dùng đã đăng nhập web): không tính hạn mức theo địa chỉ, cán bộ thấy cả lớp ẩn
+  const internal = req.get('x-internal-key') === INTERNAL_KEY;
+  const staff = Boolean((u && STAFF_ROLES.includes(u.role)) || (internal && req.get('x-internal-staff') === '1'));
+  // hạn mức cho khách: 20 lượt xuất / 10 phút / địa chỉ (chuyển đổi tốn tài nguyên máy chủ)
+  if (!staff && !internal) { const k = req.ip; const now = Date.now(); const h = (exportHits.get(k) || []).filter((t) => now - t < 600e3); if (h.length >= 20) return res.status(429).json({ error: 'Quá nhiều lượt xuất – thử lại sau ít phút.' }); h.push(now); exportHits.set(k, h); }
+  const it = (await catalogShared(req, staff)).find((x) => x.id === req.params.id);
+  if (!it) return res.status(404).json({ error: 'Không có lớp này (hoặc lớp đang ẩn)' });
+  const q = { ...req.query, dinh_dang: req.query.dinh_dang || req.query.format, ktt: req.query.ktt === 'other' ? req.query.ktt_khac : req.query.ktt };
+  const local = (url) => `http://127.0.0.1:${require('../config').port}${String(url).replace(/^https?:\/\/[^/]+/, '')}`;
+  try {
+    if (it.type === 'raster') {
+      if (!it.image || !it.image.url || !it.image.coordinates) return res.status(404).json({ error: 'Lớp ảnh không có dữ liệu tải được' });
+      const img = await fetch(local(it.image.url));
+      if (!img.ok) return res.status(404).json({ error: 'Không đọc được ảnh lớp' });
+      const crs = q.he || q.crs ? geoio.crsFrom(q) : 'EPSG:3857';
+      const out = await geoio.exportRaster(Buffer.from(await img.arrayBuffer()), it.image.coordinates, { crs, name: it.title });
+      return res.set('Content-Type', out.mime).set('Content-Disposition', `attachment; filename="${out.filename}"`).send(out.buffer);
+    }
+    if (!it.geojson) return res.status(404).json({ error: 'Lớp không có dữ liệu tải được' });
+    const g = await fetch(local(it.geojson));
+    if (!g.ok) return res.status(404).json({ error: 'Không đọc được dữ liệu lớp' });
+    const out = await geoio.exportVector(await g.json(), { format: String(q.dinh_dang || 'geojson').toLowerCase(), crs: geoio.crsFrom(q), name: it.title });
+    return res.set('Content-Type', out.mime).set('Content-Disposition', `attachment; filename="${out.filename}"`).send(out.buffer);
+  } catch (e) { return res.status(422).json({ error: e.message }); }
+}));
 // quản lý danh mục qua API (quyền data.manage)
 r.patch('/catalog/:id', need('data.manage'), (req, res) => {
   const b = req.body || {};
@@ -104,7 +137,7 @@ r.delete('/catalog/:id', need('data.manage'), wrap(async (req, res) => {
 r.get('/', (req, res) => res.json({
   name: 'WebGIS rừng Kon Tum – API quản lý lớp', version: '1.0',
   auth: 'Authorization: Bearer <access_token> – lấy bằng POST /api/mobile/auth/login {username, password} (tài khoản cán bộ; ghi cần quyền data.manage: Quản trị hệ thống, Cán bộ chuyên môn). Token hết hạn → POST /api/mobile/auth/refresh.',
-  formats: 'GeoJSON (EPSG:4326 hoặc khai báo crs), Shapefile nén .zip (.shp/.shx/.dbf/.prj), Excel .xlsx / CSV có cột lon/lat hoặc x/y + tham số crs (EPSG:4326 | EPSG:32648 | VN2000-KT | VN2000-UTM48)',
+  formats: 'GeoJSON (EPSG:4326 hoặc khai báo crs), Shapefile nén .zip (.shp/.shx/.dbf/.prj), KML/KMZ, Excel .xlsx / CSV có cột lon/lat hoặc x/y + tham số crs (EPSG:4326 | EPSG:32648 | VN2000:<kinh tuyến trục>:<múi 3|6>, vd VN2000:107.5:3 | VN2000-KT | VN2000-UTM48)',
   endpoints: ENDPOINTS.map(([method, path, description]) => ({ method, path, description })),
 }));
 
@@ -117,7 +150,7 @@ r.get('/layers', need(), (req, res) => {
   res.json({ custom: custom.map((l) => ({ ...l, kind: 'vector', geojson_url: `/api/v1/layers/${l.id}/geojson`, public_url: l.status === 'published' ? `/api/public/layers/custom/${l.id}` : null })), system });
 });
 r.get('/layers/:id', need(), (req, res) => { const l = found(req, res); if (l) res.json(layers.summary(l)); });
-r.get('/layers/:id/geojson', need(), (req, res) => { const l = found(req, res); if (!l) return; if (!l.geojson) return res.status(409).json({ error: 'Lớp không có dữ liệu hợp lệ', code: 'INVALID' }); return res.json(l.geojson); });
+r.get('/layers/:id/geojson', need(), wrap(async (req, res) => { const l = found(req, res); if (!l) return undefined; if (!l.geojson && !l.big) return res.status(409).json({ error: 'Lớp không có dữ liệu hợp lệ', code: 'INVALID' }); return res.json(await layers.featureCollection(l)); }));
 
 function fromRequest(req) {
   if (req.file) {
@@ -132,7 +165,7 @@ function fromRequest(req) {
 r.post('/layers', need('data.manage'), upload.single('file'), wrap(async (req, res) => {
   try {
     const { gj, info, originalName } = fromRequest(req);
-    const { row, v } = layers.create(req.user, { title: req.body.title, source: req.body.source, description: req.body.description, color: req.body.color, gj, info, originalName });
+    const { row, v } = await layers.create(req.user, { title: req.body.title, source: req.body.source, description: req.body.description, color: req.body.color, gj, info, originalName });
     res.status(v.errors.length ? 422 : 201).json({ ...layers.summary(row), errors: v.errors });
   } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
 }));

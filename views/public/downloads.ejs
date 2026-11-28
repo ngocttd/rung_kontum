@@ -1,0 +1,48 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<% const groups = {}; layers.forEach(l => { (groups[l.group_title || 'Khác'] = groups[l.group_title || 'Khác'] || []).push(l); }); const vecN = layers.filter(l => l.type === 'vector').length; %>
+<main class="container page" style="padding-top:18px">
+  <h1 style="font-size:24px;margin:0 0 6px"><%- ic('download') %> Tải dữ liệu bản đồ</h1>
+  <p class="muted" style="margin:0 0 12px">Dữ liệu các lớp đang công bố trên WebGIS: <b><%= vecN %></b> lớp vector (GeoJSON, Shapefile, KML, Excel, CSV) và <b><%= layers.length - vecN %></b> lớp ảnh (GeoTIFF có toạ độ). Chọn định dạng và hệ toạ độ một lần ở khung dưới, rồi bấm “Tải” ở lớp cần lấy.</p>
+  <section class="card" style="margin-bottom:14px;position:sticky;top:78px;z-index:5">
+    <form class="card-b" id="dl-opts" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end" onsubmit="return false">
+      <label class="field" style="margin:0"><span>Định dạng lớp vector</span><select class="input" name="dinh_dang"><option value="shp">Shapefile (.zip)</option><option value="kml">KML (Google Earth)</option><option value="geojson">GeoJSON</option><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></select></label>
+      <label class="field" style="margin:0"><span>Hệ toạ độ</span><select class="input" name="he"><option value="wgs84">WGS84 – kinh độ, vĩ độ</option><option value="vn2000">VN-2000 (chọn kinh tuyến trục, múi)</option><option value="utm48">WGS84 / UTM múi 48N</option><option value="utm49">WGS84 / UTM múi 49N</option></select></label>
+      <label class="field" style="margin:0" data-vn hidden><span>Kinh tuyến trục</span><select class="input" name="ktt"><% GEO.MERIDIANS.forEach(([v, l, z]) => { %><option value="<%= v %>" data-mui="<%= z %>"><%= l %></option><% }) %></select></label>
+      <label class="field" style="margin:0" data-vn hidden><span>Múi chiếu</span><select class="input" name="mui"><option value="3">3°</option><option value="6">6°</option></select></label>
+      <label class="field" style="margin:0;flex:1;min-width:200px"><span>Tìm lớp</span><input class="input" id="dl-q" placeholder="Tên lớp, nhóm…"></label>
+      <span class="src" style="flex-basis:100%">KML luôn là WGS84. Lớp ảnh tải về dạng GeoTIFF; chọn WGS84 thì ảnh giữ lưới gốc (EPSG:3857). Dữ liệu ghi nguồn từng lớp – trích dẫn nguồn khi sử dụng; kết quả phân tích ảnh là thông tin tham khảo, chưa phải số liệu chính thức.</span>
+    </form>
+  </section>
+  <% Object.entries(groups).forEach(([g, ls]) => { %>
+  <section class="card" style="margin-bottom:12px" data-dl-group>
+    <div class="card-h"><h2><%- ic('layers-fill') %> <%= g %></h2><span class="more muted" style="font-weight:400"><%= ls.length %> lớp</span></div>
+    <div class="card-b table-wrap"><table class="tbl compact"><thead><tr><th>Lớp dữ liệu</th><th style="width:110px">Kiểu</th><th>Nguồn, mô tả</th><th style="width:210px"></th></tr></thead><tbody>
+      <% ls.forEach(l => { %><tr data-dl-row="<%= (l.title + ' ' + g).toLowerCase() %>" id="lop-<%= l.id %>">
+        <td><b><%= l.title %></b><% if (l.resolution) { %><div class="src"><%= l.resolution %></div><% } %></td>
+        <td><span class="badge <%= l.type === 'raster' ? 'b-purple' : 'b-green' %>"><%= l.type === 'raster' ? 'Ảnh (raster)' : 'Vector' %></span></td>
+        <td class="src"><%= String(l.description || '').slice(0, 220) %></td>
+        <td style="white-space:nowrap;text-align:right"><a class="btn btn-primary btn-sm" data-dl="<%= l.id %>" data-type="<%= l.type %>" href="/tai-du-lieu/xuat/<%= encodeURIComponent(l.id) %>"><%- ic('download') %> Tải <%= l.type === 'raster' ? 'GeoTIFF' : '' %></a>
+          <a class="btn btn-outline btn-sm" href="/ban-do?lop=<%= encodeURIComponent(l.id) %>" target="_blank" title="Xem trên bản đồ"><%- ic('map-fill') %></a></td>
+      </tr><% }) %>
+    </tbody></table></div>
+  </section>
+  <% }) %>
+  <p class="src">Tích hợp phần mềm khác: dùng API <a href="/api/v1/catalog" target="_blank">/api/v1/catalog</a> (mỗi lớp có trường <code>export</code>: <code>…/export?format=shp&amp;crs=VN2000:107.5:3</code>).</p>
+</main>
+<%- include('../partials/footer') %>
+<script>
+(function () {
+  const f = document.getElementById('dl-opts');
+  const upd = () => { f.querySelectorAll('[data-vn]').forEach((x) => { x.hidden = f.he.value !== 'vn2000'; });
+    document.querySelectorAll('[data-dl]').forEach((a) => { const p = new URLSearchParams({ he: f.he.value, ktt: f.ktt.value, mui: f.mui.value }); if (a.dataset.type === 'vector') p.set('dinh_dang', f.dinh_dang.value); else p.set('dinh_dang', 'tif'); a.href = `/tai-du-lieu/xuat/${encodeURIComponent(a.dataset.dl)}?${p}`; }); };
+  f.addEventListener('change', upd); upd();
+  const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+  document.getElementById('dl-q').addEventListener('input', (e) => { const q = norm(e.target.value);
+    document.querySelectorAll('[data-dl-row]').forEach((r) => { r.hidden = q && !norm(r.dataset.dlRow).includes(q); });
+    document.querySelectorAll('[data-dl-group]').forEach((g) => { g.hidden = ![...g.querySelectorAll('[data-dl-row]')].some((r) => !r.hidden); }); });
+  if (location.hash) { const el = document.getElementById(location.hash.slice(1)); if (el) el.style.background = '#fff8e1'; }
+})();
+</script>
+<script>document.querySelectorAll('select[name=ktt]').forEach((k) => k.addEventListener('change', () => { const m = k.form && k.form.querySelector('[name=mui]'); const z = (k.selectedOptions[0] || {}).dataset.mui; if (m && z) { m.value = z; m.dispatchEvent(new Event('change', { bubbles: true })); } }));</script>
+</body></html>

@@ -23,3 +23,6 @@ data/
 
 # ảnh lớp bản đồ do lịch chạy tự động sinh lại trên máy chủ (không đưa lên git để git pull không xung đột)
 public/generated/
+
+# ô ảnh Sentinel-2 hiển thị (tự dựng hằng tháng bởi sentinel_export.py display)
+public/tiles/s2-latest/

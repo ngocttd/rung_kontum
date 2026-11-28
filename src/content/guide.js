@@ -139,11 +139,23 @@ const publicGuide = {
       id: 'so-sanh-anh', title: '12. So sánh ảnh vệ tinh', icon: 'layout-split', img: 'p-compare', caption: 'So sánh ảnh Sentinel-2 tháng 10/2025 và 10/2026 bằng thanh trượt',
       intro: 'Trang So sánh ảnh (Bản đồ › nút “So sánh ảnh”, hoặc /so-sanh-anh) đặt hai ảnh chồng lên nhau trên cùng khung nhìn để nhận ra thay đổi lớp phủ.',
       steps: [
-        'Chọn ảnh “Bên trái” và “Bên phải”: ảnh tháng Sentinel-2 (màu tự nhiên, giả màu hồng ngoại, NDVI) của bất kỳ tháng nào có ảnh, hoặc sản phẩm khác (lớp phủ 1991/2014/2023, WorldCover, NDMI, phân loại đã công bố).',
+        'Chọn ảnh “Bên trái” và “Bên phải”: ảnh tháng Sentinel-2 (màu tự nhiên, giả màu hồng ngoại, NDVI) của bất kỳ tháng nào có ảnh, hoặc sản phẩm khác (lớp phủ Dynamic World từng năm, NDMI, phân loại đã công bố, bản đồ lớp phủ của dự án – chỉ để tham khảo).',
         'Kéo thanh trắng ở giữa (hoặc dùng phím ←/→) để quét qua lại; phóng to, kéo bản đồ ở một bên – bên kia đi theo.',
         'Nút ⇅ đổi hai bên; “Tải ảnh bên phải” lưu ảnh đang xem (WebP).',
       ],
       notes: [{ type: 'tip', text: 'Ảnh một tháng được dựng lần đầu khi chọn (vài giây), các lần sau mở ngay. Vùng trống là pixel bị mây che cả tháng.' }],
+    },
+    {
+      id: 'tai-du-lieu', title: '12b. Tải dữ liệu bản đồ, chuyển toạ độ VN-2000', icon: 'download', img: null, caption: '',
+      intro: 'Người dùng đã đăng nhập (tài khoản người dân hoặc cán bộ) tải được dữ liệu các lớp đang công bố: lớp vector ra Shapefile, KML, GeoJSON, Excel, CSV; lớp ảnh ra GeoTIFF có toạ độ.',
+      steps: [
+        'Bấm biểu tượng tải xuống cạnh nút tài khoản (hoặc mở /tai-du-lieu). Chọn định dạng và hệ toạ độ ở khung trên cùng rồi bấm “Tải” ở lớp cần lấy.',
+        'Hệ toạ độ: WGS84 (kinh/vĩ độ), WGS84 UTM múi 48N/49N, hoặc VN-2000 với kinh tuyến trục và múi chiếu tự chọn. Kon Tum vắt qua kinh tuyến 108°: múi 6° có hai kinh tuyến trục (105° – múi 48, 111° – múi 49); múi 3° dùng 107°30′ (Kon Tum cũ) hoặc 108°00′ (Quảng Ngãi).',
+        'Trên trang Bản đồ, công cụ “Tọa độ”: nhấp một điểm để xem toạ độ WGS84 và X, Y VN-2000 theo kinh tuyến trục, múi chiếu chọn trong hộp thông tin.',
+        'Trang Tài nguyên rừng có thêm thẻ “Chủ rừng, diễn biến”: diện tích rừng theo chủ quản lý, mục đích sử dụng, diễn biến theo nguyên nhân, rừng trồng theo loài cây – lấy từ phụ lục quyết định công bố (số liệu toàn tỉnh).',
+        'Trang Phản ánh phân biệt “Người dân phản ánh” và “Cán bộ ghi nhận” (cột Nguồn, có ô lọc).',
+      ],
+      notes: [{ type: 'warn', text: 'Dữ liệu từ phân tích ảnh là thông tin tham khảo, ghi nguồn khi sử dụng. Chuyển đổi VN-2000 dùng 7 tham số của Bộ TN&MT, sai số cỡ dưới 1 m.' }],
     },
     {
       id: 'tai-khoan', title: '13. Tài khoản người dân, bình luận tin bài', icon: 'person-circle', img: null, caption: '',
@@ -189,7 +201,7 @@ const adminGuide = {
       steps: ['Nhấp vào từng thẻ để đi tới trang xử lý tương ứng.', 'Mục “Độ mới dữ liệu” cảnh báo nguồn nào chưa cập nhật đúng hạn.'],
     },
     {
-      id: 'du-lieu', title: '3. Dữ liệu không gian (lớp vector)', icon: 'layers-fill', img: 'a-layers', caption: 'Quản lý lớp dữ liệu không gian',
+      id: 'du-lieu', title: '3. Lớp dữ liệu, lô rừng (lớp vector)', icon: 'layers-fill', img: 'a-layers', caption: 'Quản lý lớp dữ liệu không gian',
       intro: 'Nhập lớp vector bổ sung để hiển thị trên bản đồ công khai, ví dụ ranh giới khu bảo tồn, chòi canh lửa, tuyến tuần tra. Hỗ trợ GeoJSON, Shapefile (nén .zip), Excel .xlsx và CSV có cột toạ độ.',
       steps: [
         'Thẻ “Lớp dữ liệu bản đồ”: mọi lớp trên Bản đồ WebGIS, MobileGIS, trang Tài nguyên rừng và API chia sẻ (lớp hệ thống, lớp ảnh tự sinh, bản đồ PDF/GeoTIFF đã xuất bản, lớp vector). Sửa ô Nhóm, Tên hiển thị, Thứ tự hoặc đánh dấu Bật sẵn / Tài nguyên rừng → nút “Lưu thay đổi” của dòng đó sáng lên, bấm để lưu. “Ẩn/Hiện”: tạm gỡ khỏi bản đồ. “Xoá”: lớp vector bổ sung và bản đồ chuyên đề bị xoá hẳn dữ liệu; lớp hệ thống chỉ gỡ khỏi danh mục, khôi phục được ở mục “Lớp đã gỡ” cuối trang. Bản trùng dữ liệu được ẩn sẵn, có ghi chú lý do.',
@@ -215,7 +227,7 @@ const adminGuide = {
       notes: [{ type: 'tip', text: 'Ví dụ: curl -H "Authorization: Bearer $TOKEN" -F title="Chòi canh lửa" -F file=@choi_canh.zip https://<máy chủ>/api/v1/layers. Mọi thao tác qua API được ghi nhật ký như trên giao diện.' }],
     },
     {
-      id: 'ban-do', title: '4. Dữ liệu bản đồ (GeoTIFF/ảnh) và Bản đồ PDF', icon: 'map-fill', img: 'a-maps', caption: 'Danh sách dữ liệu bản đồ',
+      id: 'ban-do', title: '4. Bản đồ ảnh (GeoTIFF/ảnh) và Bản đồ PDF', icon: 'map-fill', img: 'a-maps', caption: 'Danh sách dữ liệu bản đồ',
       intro: 'Hai mục tách riêng trên menu: “Dữ liệu bản đồ” (GeoTIFF, ảnh bản đồ JPG/PNG/TIFF, gói .mpk – sau khi duyệt thành lớp tham khảo trên WebGIS và API) và “Bản đồ PDF” (tài liệu, hiện ở trang Tài liệu). Cả hai theo quy trình: Tải lên → Xử lý → (Nắn chỉnh) → Gửi duyệt → Xuất bản. Dữ liệu bản đồ của dự án không dùng để tính thống kê.',
       steps: [
         'Lọc theo trạng thái, chuyên đề, định dạng hoặc tìm theo tên.',
@@ -335,6 +347,42 @@ const adminGuide = {
       id: 'tai-lieu', title: '12. Tài liệu', icon: 'file-earmark-pdf-fill', img: 'a-docs', caption: 'Quản lý tài liệu',
       intro: 'Tải lên văn bản, báo cáo PDF (≤ 40 MB) để công bố ở trang Tài liệu.',
       steps: ['Chọn tệp PDF, nhập tên, danh mục, số hiệu, cơ quan ban hành, ngày ban hành → “Tải lên”.', '“Sửa” ở cột thao tác để cập nhật thông tin tài liệu đã tải lên; tìm kiếm, sắp xếp, chọn số dòng ngay trên bảng.', 'Bản đồ PDF đưa vào mục “Bản đồ PDF”, GeoTIFF/ảnh bản đồ đưa vào “Dữ liệu bản đồ” để có quy trình duyệt và xem trước.'],
+    },
+    {
+      id: 'lo-rung', title: '12a. Lô rừng: nhập bản đồ kiểm kê, quản lý từng lô, so sánh các kỳ', icon: 'layers-fill', img: null, caption: '',
+      intro: 'Mục “Lớp dữ liệu, lô rừng” nhận bản đồ kiểm kê, hiện trạng rừng theo lô và lưu CẢ hình học lẫn toàn bộ trường thuộc tính (tiểu khu, khoảnh, lô, loại đất loại rừng, chủ rừng, diện tích…) vào cơ sở dữ liệu không gian.',
+      steps: [
+        'Nhập lớp: nhận Shapefile (.zip), MapInfo (nén cả bộ .TAB/.DAT/.MAP/.ID hoặc .MIF/.MID thành .zip), KML/KMZ, GeoJSON, Excel/CSV; tệp tới 200 MB. Chữ Việt bảng mã TCVN3 (ABC) tự chuyển sang Unicode. Ghi “Năm dữ liệu” và “Bộ dữ liệu” để nối các kỳ với nhau.',
+        'Hệ toạ độ: tự nhận theo tệp (.prj, CoordSys MapInfo). Tệp toạ độ mét không khai báo: hệ thống thử 107°30′ và 108° (múi 3°), 105° và 111° (múi 6°); nếu nhiều phương án cùng hợp lệ sẽ CẢNH BÁO – khi đó phải chọn đúng kinh tuyến trục, múi chiếu của bản đồ gốc rồi nhập lại.',
+        'Lớp nhiều đối tượng (trên 2.000 lô) hiển thị bằng ô vector sinh từ CSDL nên vẫn nhanh. Nhấp một lô trên Bản đồ để xem bảng thuộc tính; “Tô theo trường” để tô màu theo loại rừng, chủ rừng…',
+        '“Quản lý đối tượng”: nhấp lô để sửa thuộc tính, vẽ lại ranh, xoá; “Thêm đối tượng” để vẽ lô mới. Mỗi thay đổi bắt buộc ghi lý do và vào Nhật ký biến động (người, thời điểm, trước – sau); lô đã xoá khôi phục được; nhật ký tải ra Excel.',
+        'Khi có dữ liệu kiểm kê kỳ mới: nhập thành lớp mới cùng bộ dữ liệu (để “chờ duyệt”) → “So sánh với kỳ trước”: ghép lô theo khoá (vd tk,khoanh,lo) hoặc theo vị trí, liệt kê lô mới, lô không còn, đổi thuộc tính, đổi diện tích → chọn lô lệch, bấm “Tạo vùng cần xác minh” → giao kiểm tra hiện trường/báo chủ rừng → sửa lô sai rồi mới duyệt công bố kỳ mới.',
+        '“Đối chiếu số liệu công bố”: cộng diện tích lô theo xã, chọn các giá trị được tính là có rừng, so với diện tích có rừng công bố cùng năm; chênh trên 5% tô đỏ.',
+      ],
+      notes: [{ type: 'warn', text: 'Số liệu công bố hằng năm (nạp ở “Số liệu rừng công bố”) là số pháp lý theo xã và KHÔNG tự đổi khi sửa lô. Đối chiếu chỉ để kiểm tra chênh lệch.' }],
+    },
+    {
+      id: 'khoanh-vung', title: '12b. Khoanh vùng nghi vấn, báo chủ rừng', icon: 'bounding-box', img: null, caption: '',
+      intro: 'Trình tự xử lý: Cảnh báo cháy & biến động (phát hiện tự động) hoặc Khoanh vùng nghi vấn (cán bộ tự khoanh trên ảnh) → Nhiệm vụ hiện trường (giao cán bộ xác minh) và/hoặc Báo chủ rừng → kết luận.',
+      steps: [
+        'Khoanh vùng: bật ảnh Sentinel-2/NDVI/biến động, bấm “Vẽ vùng”, nhấp các đỉnh, nhấp đúp để khép, nhập tên – loại – nguồn ảnh rồi Lưu. Có thể nhập vùng từ KML/Shapefile/GeoJSON. Vùng xuất được ra KML, Shapefile, GeoJSON, Excel theo hệ toạ độ chọn.',
+        'Giao kiểm tra: mở “Thao tác” của vùng → chọn cán bộ, hạn → nhiệm vụ xuất hiện trong MobileGIS của cán bộ.',
+        'Báo chủ rừng: bấm “Báo chủ rừng” ở dòng điểm nóng, vùng biến động hoặc vùng khoanh. Hệ thống xác định chủ rừng theo lớp bản đồ có trường chủ rừng (đặt ở Chủ rừng › Lớp bản đồ chủ rừng), nếu không có thì theo xã quản lý khai trong danh bạ.',
+        'Thông báo có mã TB-… và một liên kết riêng: sao chép nội dung + liên kết gửi cho chủ rừng (điện thoại, Zalo, email), bấm “Đã báo trực tiếp” để ghi nhận. Chủ rừng mở liên kết (không cần tài khoản) để xem bản đồ, xác nhận đã nhận và phản hồi kết quả kiểm tra; chủ rừng có tài khoản liên kết còn nhận thông báo trên MobileGIS.',
+        'Danh bạ chủ rừng: thêm/sửa/xoá chủ rừng (tên, loại, người liên hệ, điện thoại, xã quản lý, tên khác dùng trong bản đồ).',
+      ],
+      notes: [{ type: 'tip', text: 'Hệ thống không tự gửi SMS/email. Báo chủ rừng do Cán bộ chuyên môn và Lãnh đạo thực hiện; cán bộ có địa bàn chỉ khoanh vùng, báo chủ rừng trong xã được phân quyền.' }],
+    },
+    {
+      id: 'bao-cao', title: '12c. Xuất báo cáo, mẫu báo cáo, tải ảnh Sentinel-2', icon: 'bar-chart-fill', img: null, caption: '',
+      intro: 'Mục “Xuất báo cáo” có 4 loại: hiện trạng rừng theo xã, nghi vấn mất rừng, phản ánh hiện trường, ghi nhận hiện trường (xác minh, khảo sát). Mỗi loại xuất Excel hoặc mở bản in/PDF, lọc theo năm, khoảng ngày, xã, trạng thái, nguồn (cán bộ/người dân).',
+      steps: [
+        'Mẫu báo cáo: thẻ “Mẫu báo cáo” → chọn loại, tải tệp Excel mẫu của đơn vị. Hệ thống tự tìm dòng tiêu đề (kể cả tiêu đề nhiều tầng), khớp tên cột với trường dữ liệu, nhận dòng đánh số, dòng Tổng và ô giữ chỗ {{ky}}, {{ngay_xuat}}, {{pham_vi}}, {{can_cu}}… → kiểm tra bảng “Gán cột”, sửa nếu cần, Lưu. Khi có biểu mẫu mới chỉ cần tải mẫu mới lên.',
+        'Khi xuất, chọn “Mẫu đơn vị: …” ở ô Mẫu xuất: dữ liệu điền vào mẫu, giữ nguyên định dạng, tiêu đề, phần chữ ký.',
+        'Ảnh vệ tinh › “Tìm và tải ảnh Sentinel-2”: chọn vùng (xã, vùng khoanh, cả vùng), khoảng ngày, độ phủ mây tối đa, độ phân giải 10/20/30/60 m, sản phẩm (màu tự nhiên, giả màu, 6 kênh, NDVI) và hệ toạ độ → “Tìm ảnh” để xem các ngày chụp và tải riêng một ngày, hoặc “Tải tổ hợp không mây cả kỳ”. Tệp GeoTIFF giữ 14 ngày.',
+        'Phân tích: khối “Kết quả chờ công bố” ở đầu trang gom mọi kết quả (tự động và theo yêu cầu) kèm nút Công bố; có thêm phân tích “Mất tán cây (Hansen)” theo khoảng năm. Quản trị, Cán bộ chuyên môn và Lãnh đạo công bố được kết quả phân tích.',
+        'Phân quyền theo khu vực: ở Người dùng, mỗi cán bộ gán được nhiều xã phụ trách. Cán bộ có địa bàn chỉ thấy và thao tác trên cảnh báo, phản ánh, nhiệm vụ, vùng khoanh, báo cáo thuộc các xã đó (kiểm tra cả ở máy chủ).',
+      ],
     },
     {
       id: 'nguoi-dung', title: '13. Người dùng và phân quyền', icon: 'people-fill', img: 'a-users', caption: 'Quản lý người dùng (chỉ quản trị)',

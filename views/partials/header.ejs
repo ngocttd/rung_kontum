@@ -43,8 +43,10 @@
         <div class="search-results" role="listbox"></div>
       </div>
       <% if (user) { %>
+        <a class="btn btn-outline" href="/tai-du-lieu" title="Tải dữ liệu bản đồ (vector, raster)"><%- ic('download') %></a>
         <a class="btn btn-primary" href="/quan-tri"><%- ic('gear-fill') %> Quản trị</a>
       <% } else if (citizen) { %>
+        <a class="btn btn-outline" href="/tai-du-lieu" title="Tải dữ liệu bản đồ (vector, raster)"><%- ic('download') %></a>
         <a class="btn btn-primary" href="/tai-khoan" title="Tài khoản của tôi"><%- ic('person-circle') %> <%= String(citizen.name || 'Tài khoản').split(' ').slice(-1)[0] %></a>
       <% } else { %>
         <a class="btn btn-primary" href="/dang-nhap">Đăng nhập</a>

@@ -33,6 +33,7 @@
       <form class="card card-b" action="/phan-anh">
         <h3 style="font-size:15px;margin-bottom:10px;display:flex;gap:8px;align-items:center"><%- ic('funnel-fill') %> Bộ lọc tìm kiếm</h3>
         <label class="field"><span>Loại phản ánh</span><select class="input" name="loai"><option value="">Tất cả</option><% Object.entries(types).forEach(([k, t]) => { %><option value="<%= k %>" <%= filter.loai === k ? 'selected' : '' %>><%= t.label %></option><% }) %></select></label>
+        <label class="field"><span>Nguồn</span><select class="input" name="nguon"><option value="">Người dân và cán bộ</option><option value="nguoi-dan" <%= filter.nguon === 'nguoi-dan' ? 'selected' : '' %>>Người dân phản ánh</option><option value="can-bo" <%= filter.nguon === 'can-bo' ? 'selected' : '' %>>Cán bộ ghi nhận</option></select></label>
         <label class="field"><span>Trạng thái xử lý</span><select class="input" name="trang_thai"><option value="">Tất cả</option><% Object.entries(statuses).forEach(([k, s]) => { %><option value="<%= k %>" <%= filter.trang_thai === k ? 'selected' : '' %>><%= s.label %></option><% }) %></select></label>
         <label class="field"><span>Mã hồ sơ</span><input class="input" name="ma" value="<%= lookupCode %>" placeholder="VD: PA-2026-0001"></label>
         <button class="btn btn-primary btn-block"><%- ic('search') %> Tìm kiếm</button>
@@ -57,8 +58,8 @@
           <% if (!list.length) { %>
             <div class="empty-state"><%- ic('clipboard-check-fill') %>Chưa có phản ánh nào được công khai.<br><span class="src">Phản ánh chỉ hiển thị ở đây sau khi cán bộ tiếp nhận kiểm tra và cho phép công khai; thông tin người gửi luôn được bảo mật.</span></div>
           <% } else { %>
-          <table class="tbl"><thead><tr><th>Mã</th><th>Thời gian</th><th>Loại phản ánh</th><th>Nội dung</th><th>Địa bàn</th><th>Trạng thái</th></tr></thead><tbody>
-            <% const pgR = paginate(list, query.trang, 10); pgR.items.forEach(r => { %><tr><td><a href="/phan-anh?ma=<%= r.code %>"><%= r.code %></a></td><td><%= fmt.dateTime(r.created_at) %></td><td><img src="/assets/markers/<%= r.marker %>.svg" width="16" alt=""> <%= r.typeLabel %></td><td><%= r.description.slice(0, 70) %><%= r.description.length > 70 ? '…' : '' %></td><td><%= r.commune_name || '—' %></td><td><span class="badge <%= tone[r.statusTone] %>"><%= r.statusLabel %></span></td></tr><% }) %>
+          <table class="tbl"><thead><tr><th>Mã</th><th>Thời gian</th><th>Loại phản ánh</th><th>Nguồn</th><th>Nội dung</th><th>Địa bàn</th><th>Trạng thái</th></tr></thead><tbody>
+            <% const pgR = paginate(list, query.trang, 10); pgR.items.forEach(r => { %><tr><td><a href="/phan-anh?ma=<%= r.code %>"><%= r.code %></a></td><td><%= fmt.dateTime(r.created_at) %></td><td><img src="/assets/markers/<%= r.marker %>.svg" width="16" alt=""> <%= r.typeLabel %></td><td><span class="badge <%= r.origin === 'staff' ? 'b-blue' : 'b-gray' %>"><%= r.originLabel %></span></td><td><%= r.description.slice(0, 70) %><%= r.description.length > 70 ? '…' : '' %></td><td><%= r.commune_name || '—' %></td><td><span class="badge <%= tone[r.statusTone] %>"><%= r.statusLabel %></span></td></tr><% }) %>
           </tbody></table><%- include('../partials/pager', { pg: pgR, anchor: '#ds' }) %><% } %>
         </div>
       </div>
@@ -80,7 +81,7 @@
             <span class="badge <%= tone[lookup.statusTone] %>"><%= lookup.statusLabel %></span>
             <h3 style="font-size:17px;margin:8px 0"><%= lookup.typeLabel %><%= lookup.commune_name ? ' tại ' + lookup.commune_name : '' %></h3>
             <div class="meta"><span>Mã phản ánh: <b><%= lookup.code %></b></span><span><%- ic('clock-history') %> <%= fmt.dateTime(lookup.created_at) %></span></div>
-            <table class="kv" style="margin-top:10px"><tr><td>Loại phản ánh</td><td><%= lookup.typeLabel %></td></tr><tr><td>Địa bàn</td><td><%= lookup.commune_name || '—' %></td></tr>
+            <table class="kv" style="margin-top:10px"><tr><td>Loại phản ánh</td><td><%= lookup.typeLabel %></td></tr><tr><td>Nguồn</td><td><%= lookup.originLabel %></td></tr><tr><td>Địa bàn</td><td><%= lookup.commune_name || '—' %></td></tr>
               <tr><td>Vị trí (làm tròn)</td><td><%= lookup.lat !== null ? lookup.lat + ', ' + lookup.lon : '—' %></td></tr><tr><td>Nội dung</td><td><%= lookup.description %></td></tr>
               <% if (lookup.response) { %><tr><td>Phản hồi</td><td><%= lookup.response %></td></tr><% } %></table>
             <% if (lookup.photos.length) { %><div class="photo-strip" style="margin-top:10px"><% lookup.photos.forEach(p => { %><img src="<%= p %>" alt=""><% }) %></div><% } %>

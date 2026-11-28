@@ -17,18 +17,22 @@
       <% const items = [
         ['dashboard','/quan-tri','grid-fill','Dashboard','dashboard.view'],
         ['grp','Dữ liệu'],
-        ['layers','/quan-tri/du-lieu','layers-fill','Dữ liệu không gian','dashboard.view'],
-        ['maps','/quan-tri/ban-do?loai=raster','map-fill','Dữ liệu bản đồ','dashboard.view'],
+        ['layers','/quan-tri/du-lieu','layers-fill','Lớp dữ liệu, lô rừng','dashboard.view'],
+        ['maps','/quan-tri/ban-do?loai=raster','map-fill','Bản đồ ảnh (GeoTIFF)','dashboard.view'],
         ['imagery','/quan-tri/anh-ve-tinh','globe2','Ảnh vệ tinh','dashboard.view'],
-        ['forest','/quan-tri/tai-nguyen','tree-fill','Tài nguyên rừng','dashboard.view'],
+        ['forest','/quan-tri/tai-nguyen','tree-fill','Số liệu rừng công bố','dashboard.view'],
         ['analysis','/quan-tri/phan-tich','graph-up-arrow','Phân tích (Python)','dashboard.view'],
-        ['grp','Nghiệp vụ'],
+        ['grp','Giám sát – xử lý'],
         ['alerts','/quan-tri/canh-bao','fire','Cảnh báo cháy & biến động','dashboard.view'],
+        ['zones','/quan-tri/khoanh-vung','bounding-box','Khoanh vùng nghi vấn','dashboard.view'],
+        ['field','/quan-tri/hien-truong','geo-alt-fill','Nhiệm vụ hiện trường','dashboard.view'],
+        ['owners','/quan-tri/chu-rung','people-fill','Chủ rừng – báo chủ rừng','dashboard.view'],
         ['reports','/quan-tri/phan-anh','megaphone-fill','Phản ánh hiện trường','reports.view'],
+        ['grp','Báo cáo – nội dung'],
+        ['reporting','/quan-tri/bao-cao','bar-chart-fill','Xuất báo cáo','dashboard.view'],
         ['news','/quan-tri/tin-tuc','newspaper','Tin tức','dashboard.view'],
         ['docs','/quan-tri/tai-lieu','file-earmark-text-fill','Tài liệu, văn bản','dashboard.view'],
         ['maps-pdf','/quan-tri/ban-do?loai=pdf','file-earmark-pdf-fill','Bản đồ PDF','dashboard.view'],
-        ['field','/quan-tri/hien-truong','geo-alt-fill','Nhiệm vụ hiện trường','dashboard.view'],
         ['grp','Hệ thống'],
         ['users','/quan-tri/nguoi-dung','people-fill','Người dùng','users.manage'],
         ['audit','/quan-tri/nhat-ky','clock-history','Nhật ký hệ thống','audit.view'],
@@ -44,7 +48,7 @@
     <header class="adm-top">
       <h1><%= title %></h1>
       <div class="who">
-        <span class="muted"><%= ROLES[user.role] %></span>
+        <span class="muted"><%= ROLES[user.role] %></span><% if (user.scope) { %><span class="badge b-blue" title="Địa bàn được phân quyền: <%= user.scope %>"><%- ic('geo-alt-fill') %> <%= String(user.scope).split(',').length %> xã phụ trách</span><% } %>
         <span class="avatar" title="<%= user.username %>"><%= (user.name || user.username).trim().charAt(0).toUpperCase() %></span>
         <span><b><%= user.name || user.username %></b></span>
         <form method="post" action="/quan-tri/dang-xuat"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm"><%- ic('box-arrow-right') %> Đăng xuất</button></form>

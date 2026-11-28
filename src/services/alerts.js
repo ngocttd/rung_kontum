@@ -50,7 +50,7 @@ function changeAlerts(limit = 50) {
     .slice(0, limit)
     .map((p) => ({
       id: p.id, type: 'forest_change', level: null, title: `Biến động nghi vấn ${p.area_ha} ha${p.commune_name ? ` tại ${p.commune_name}` : ''}`,
-      detail: `ΔNDVI ${p.mean_dndvi} · ${p.window}${p.seasonal_leaf_fall_possible ? ' · có thể do rụng lá mùa khô' : ''}`,
+      detail: `${p.kind === 'treeloss' ? `Mất tán cây ${p.loss_years}` : `ΔNDVI ${p.mean_dndvi}`} · ${p.window}${p.seasonal_leaf_fall_possible ? ' · có thể do rụng lá mùa khô' : ''}`,
       commune: p.commune_name, communeCode: p.commune_code, status: p.status, statusLabel: p.statusLabel,
       official: p.status === 'confirmed', link: `/bien-dong-rung?diem=${p.id}`, lon: p.lon, lat: p.lat,
     }));

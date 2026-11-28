@@ -24,6 +24,8 @@ function communeAt(lon, lat) {
 // ---------- official forest statistics (QĐ 1047/QĐ-UBND, số liệu 31/12/2025) ----------
 // Số liệu hiện trạng rừng chính thức theo năm (scripts/import_official_statistics.py, danh mục forest-statistics-index.json).
 // Không truyền năm → năm mới nhất. Năm không có → năm mới nhất.
+// các biểu thuộc tính của quyết định công bố (chủ quản lý/chủ rừng, mục đích sử dụng, diễn biến theo nguyên nhân, loài cây) – toàn tỉnh
+function decisionTables(year) { return readJson(P('processed', `forest-statistics-${statYear(year)}-tables.json`)); }
 function statYears() {
   const idx = readJson(P('processed', 'forest-statistics-index.json'));
   const ys = idx && idx.years && idx.years.length ? idx.years : [{ year: 2025, file: 'forest-statistics-2025-kon-tum-communes.json' }];
@@ -353,6 +355,12 @@ function overlays() {
   const list = (readJson(P('web', 'overlays.json')) || []).filter((o) => o.id !== 'change-latest');
   if (st.overlay) list.splice(1, 0, st.overlay); // lớp biến động NDVI: chỉ bản đã công bố
   for (const r of runs.published()) {
+    if (r.summary.kind === 'treeloss') {
+      list.push({ id: `chg-${r.id}`, url: `/bien-dong/lop/${r.id}.webp`, title: `${r.summary.window} (${r.code})`, group: 'change-run', source: `${r.summary.source} – phân tích theo yêu cầu`,
+        meaning: `Kỳ phân tích ${r.code} do ${r.created_by} chạy, ${r.published_by} công bố. Điểm ảnh mất tán cây trong khoảng năm (mọi nguyên nhân, kể cả khai thác rừng trồng) – cần xác minh.`,
+        legend: [{ value: r.summary.years.from, color: '#ffdc3c' }, { value: r.summary.years.to, color: '#ff1e14' }], resolution: '30 m', coordinates: r.summary.overlay_coordinates });
+      continue;
+    }
     list.push({ id: `chg-${r.id}`, url: `/bien-dong/lop/${r.id}.webp`, title: `Biến động NDVI ${r.summary.window} (${r.code})`, group: 'change-run',
       source: 'Copernicus Sentinel-2 SR (GEE) – phân tích theo yêu cầu, Python', meaning: `Kỳ phân tích ${r.code} do ${r.created_by} chạy, ${r.published_by} công bố. Đỏ = NDVI giảm (nghi vấn, cần xác minh), xanh = tăng.`,
       legend: [{ value: -0.3, color: '#a50026' }, { value: -0.15, color: '#f46d43' }, { value: 0, color: '#f7f7f7' }, { value: 0.15, color: '#66bd63' }, { value: 0.3, color: '#006837' }],
@@ -401,7 +409,7 @@ function dataFreshness() {
 
 function fileExists(p) { try { return fs.statSync(p).isFile(); } catch { return false; } }
 
-module.exports = {
+module.exports = { decisionTables,
   communeFeatures, province, communeAt, officialStats, statYears, statYear, communes, communeByCode, forestSummary, landcover,
   hotspots, publicHotspot, backfillHotspotSnapshots, RETENTION, firmsMeta, firmsHistory, burnedHistory, HOTSPOT_STATUS, SENSORS,
   forestChange, landcoverHistory, fieldSamples, changeCandidates, CANDIDATE_STATUS, fireDanger,

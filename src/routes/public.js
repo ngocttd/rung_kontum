@@ -97,7 +97,7 @@ r.get('/tai-nguyen-rung', async (req, res, next) => {
     res.render('public/forest', {
       title: 'Tài nguyên rừng', nav: 'forest', summary: repo.forestSummary(nam), communes, photos: repo.photos(),
       overlays, fcg: repo.forestChange(), tab: req.query.tab || 'tong-quan', yearLayers, extras,
-      lcs: require('../services/landcover').series(),
+      lcs: require('../services/landcover').series(), dtables: repo.decisionTables(nam),
     });
   } catch (e) { next(e); }
 });
@@ -229,8 +229,46 @@ r.post('/tai-khoan', rateLimit('citizen-account', 20, 3600e3), async (req, res, 
   } catch (e) { return next(e); }
 });
 
+const config = require('../config');
+// ---------- Tải dữ liệu bản đồ (người dùng đã đăng nhập: tài khoản người dân hoặc cán bộ) ----------
+const INTERNAL_KEY = require('crypto').createHash('sha256').update(`export:${config.sessionSecret}`).digest('hex');
+const loopback = (p, staff) => fetch(`http://127.0.0.1:${config.port}${p}`, { headers: { 'x-internal-key': INTERNAL_KEY, ...(staff ? { 'x-internal-staff': '1' } : {}) } });
+const needLogin = (req, res, next) => (req.session.user || req.session.citizen ? next() : res.redirect(`/dang-nhap?tiep=${encodeURIComponent(req.originalUrl)}`));
+r.get('/tai-du-lieu', needLogin, async (req, res, next) => {
+  try {
+    const j = await (await loopback('/api/v1/catalog', Boolean(req.session.user))).json();
+    res.render('public/downloads', { title: 'Tải dữ liệu bản đồ', nav: 'docs', layers: (j.layers || []).filter((l) => (l.type === 'raster' ? l.image && l.image.url && l.image.coordinates : l.geojson)), GEO: require('../services/geoio') });
+  } catch (e) { next(e); }
+});
+r.get('/tai-du-lieu/xuat/:id', needLogin, async (req, res, next) => {
+  try {
+    const q = new URLSearchParams(req.query).toString();
+    const x = await loopback(`/api/v1/catalog/${encodeURIComponent(req.params.id)}/export?${q}`, Boolean(req.session.user));
+    if (!x.ok) { const e = await x.json().catch(() => ({})); return res.status(x.status).render('public/error', { title: 'Không tải được dữ liệu', nav: '', code: x.status, message: e.error || 'Không tải được dữ liệu lớp này.' }); }
+    const who = req.session.user || { username: req.session.citizen.username, role: 'citizen' };
+    store.audit(who, 'data.download', req.params.id, { format: req.query.dinh_dang || 'geojson', he: req.query.he || 'wgs84' });
+    res.set('Content-Type', x.headers.get('content-type')).set('Content-Disposition', x.headers.get('content-disposition')).set('Cache-Control', 'no-store');
+    return res.send(Buffer.from(await x.arrayBuffer()));
+  } catch (e) { return next(e); }
+});
+
+// ---------- Thông báo gửi chủ rừng: liên kết riêng (không cần tài khoản) để xem vị trí, xác nhận và phản hồi kết quả kiểm tra ----------
+r.get('/thong-bao-chu-rung/:token', (req, res, next) => {
+  const owners = require('../services/owners'); let n = owners.byToken(req.params.token);
+  if (!n) return next();
+  n = owners.ownerOpen(n);
+  return res.set('Cache-Control', 'no-store').render('public/owner-notice', { title: `Thông báo ${n.code}`, nav: '', n, ST: owners.STATUS, done: req.query.ok || null, err: req.query.loi || null, needsMap: true });
+});
+r.post('/thong-bao-chu-rung/:token', (req, res, next) => {
+  const owners = require('../services/owners'); const n = owners.byToken(req.params.token);
+  if (!n) return next();
+  if (n.status === 'closed') return res.redirect(`/thong-bao-chu-rung/${n.token}`);
+  try { owners.ownerRespond(n, req.body); return res.redirect(`/thong-bao-chu-rung/${n.token}?ok=${req.body.action === 'ack' ? 'xac-nhan' : 'phan-hoi'}`); }
+  catch (e) { return res.redirect(`/thong-bao-chu-rung/${n.token}?loi=${encodeURIComponent(e.message)}`); }
+});
+
 r.get('/phan-anh', (req, res) => {
-  const list = reports.listPublic({ type: req.query.loai, status: req.query.trang_thai });
+  const list = reports.listPublic({ type: req.query.loai, status: req.query.trang_thai }).filter((x) => !req.query.nguon || x.origin === (req.query.nguon === 'can-bo' ? 'staff' : 'citizen'));
   const lookup = req.query.ma ? reports.byCode(req.query.ma) : null;
   res.render('public/reports', {
     title: 'Phản ánh hiện trường', nav: 'reports', list, types: reports.TYPES, statuses: reports.STATUS, counts: reports.counts(),
@@ -371,7 +409,7 @@ function statRows(nam) {
       'Mã xã': c.code, 'Tên xã/phường': c.fullName, 'Diện tích tự nhiên (ha)': o.natural_area_ha, 'Rừng đã thành rừng (ha)': o.established_forest_ha,
       'Rừng tự nhiên (ha)': o.natural_forest_ha, 'Rừng trồng đã thành rừng (ha)': o.established_plantation_ha, 'Rừng trồng chưa thành rừng (ha)': o.immature_plantation_ha,
       'QH đặc dụng (ha)': o.special_use_planning_ha, 'QH phòng hộ (ha)': o.protection_planning_ha, 'QH sản xuất (ha)': o.production_planning_ha,
-      'Tỷ lệ che phủ công bố (%)': o.official_forest_cover_percent, 'Mất tán cây Hansen 2020–2024 (ha)': c.loss ? Math.round(c.loss.last5 * 10) / 10 : null,
+      'Tỷ lệ che phủ công bố (%)': o.official_forest_cover_percent, [`Mất tán cây Hansen ${D0.lossRecentFrom}–${D0.hansenLast} (ha)`]: c.loss ? Math.round(c.loss.last5 * 10) / 10 : null,
       [`Dự báo mất rừng kỳ vọng ${D0.forecastLabel} (ha)`]: c.risk ? c.risk.expected_loss_ha : null, 'Cấp nguy cơ cháy hiện tại': c.danger && c.danger.current ? c.danger.current.cls : null,
     };
   });

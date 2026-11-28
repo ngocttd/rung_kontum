@@ -26,7 +26,7 @@ pub.get('/map/layers', (req, res) => {
       { id: 'candidates', title: 'Biến động rừng nghi vấn', source: 'Sentinel-2 chuỗi tháng 100 m', url: '/api/public/forest/candidates' },
       { id: 'weather', title: 'Thời tiết tại điểm đại diện xã', source: 'OpenWeather', url: '/api/public/weather' },
     ],
-    custom: repo.customLayers(false).map((l) => ({ id: l.id, title: l.title, source: l.source, url: `/api/public/layers/custom/${l.id}`, style: l.style })),
+    custom: repo.customLayers(false).map((l) => ({ id: l.id, title: l.title, source: l.source, url: `/api/public/layers/custom/${l.id}`, style: l.style, tiles: l.big ? `/api/public/layers/custom/${l.id}/tiles/{z}/{x}/{y}.mvt` : null, bbox: (l.validation || {}).bbox || null, count: l.feature_count || (l.validation || {}).count })),
   });
 });
 
@@ -168,10 +168,24 @@ pub.get('/reports', (req, res) => {
   res.json({ total: all.length, page, items: all.slice((page - 1) * 50, page * 50) });
 });
 
-pub.get('/layers/custom/:id', (req, res) => {
-  const l = store.get('layers', req.params.id);
-  if (!l || l.status !== 'published') return res.status(404).json({ error: 'Không tìm thấy' });
-  return res.json(l.geojson);
+pub.get('/layers/custom/:id', async (req, res, next) => {
+  try {
+    const l = store.get('layers', req.params.id);
+    if (!l || l.status !== 'published') return res.status(404).json({ error: 'Không tìm thấy' });
+    const bbox = req.query.bbox ? String(req.query.bbox).split(',').map(Number) : null;
+    return res.json(await require('../services/layers').featureCollection(l, { bbox }));
+  } catch (e) { return next(e); }
+});
+// ô vector (MVT) của lớp nhiều đối tượng – sinh trực tiếp từ PostGIS, kèm mọi thuộc tính
+pub.get('/layers/custom/:id/tiles/:z/:x/:y.mvt', async (req, res, next) => {
+  try {
+    const l = store.get('layers', req.params.id);
+    const [z, x, y] = [req.params.z, req.params.x, req.params.y].map(Number);
+    if (!l || !l.big || l.status === 'invalid' || ![z, x, y].every(Number.isInteger) || z < 0 || z > 22) return res.status(404).end();
+    const buf = await require('../services/layers').tile(l, z, x, y);
+    res.set('Content-Type', 'application/vnd.mapbox-vector-tile').set('Cache-Control', req.query.v ? 'no-store' : 'public, max-age=300');
+    return buf && buf.length ? res.send(buf) : res.status(204).end();
+  } catch (e) { return next(e); }
 });
 
 // ---------- công cụ không gian (OSM) ----------
@@ -179,6 +193,17 @@ const geotools = require('../services/geotools');
 const { rateLimit } = require('../middleware/security');
 const ll = (s) => String(s || '').split(',').map(Number);
 // khoảng cách tới khu dân cư, đường và cơ sở ứng cứu gần nhất
+// chuyển toạ độ điểm WGS84 ↔ VN-2000 (kinh tuyến trục, múi chiếu tuỳ chọn): ?x=&y=&ktt=107.5&mui=3&chieu=sang-vn2000|ve-wgs84
+pub.get('/tools/toa-do', (req, res) => {
+  try {
+    const geoio = require('../services/geoio');
+    const x = Number(String(req.query.x).replace(',', '.')); const y = Number(String(req.query.y).replace(',', '.'));
+    if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error('Toạ độ không hợp lệ.');
+    const vn = geoio.crsFrom({ he: 'vn2000', ktt: req.query.ktt, mui: req.query.mui });
+    const toVn = req.query.chieu !== 've-wgs84';
+    res.json(geoio.convertPoints([[x, y]], toVn ? 'EPSG:4326' : vn, toVn ? vn : 'EPSG:4326'));
+  } catch (e) { res.status(422).json({ ok: false, error: e.message }); }
+});
 pub.get('/tools/nearest', (req, res) => {
   try { return res.json(geotools.nearest(req.query.lon, req.query.lat)); } catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
 });

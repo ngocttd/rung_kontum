@@ -105,6 +105,7 @@ if (require.main === module) {
     maps.start();
     jobs.startScheduler();
     require('./src/services/changeRuns').start(); // phân tích biến động theo yêu cầu + kiểm soát công bố kết quả tự động
+    require('./src/services/s2export').start(); // yêu cầu tải Sentinel-2 dở dang khi khởi động lại
     require('./src/services/notifier').start();
     // HOST=127.0.0.1 khi chạy sau reverse proxy (Caddy) trên VPS – không mở cổng 3000 ra ngoài
     const server = app.listen(config.port, config.host, () => console.log(`WebGIS rừng Kon Tum: http://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`));

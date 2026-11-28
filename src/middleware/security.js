@@ -15,6 +15,8 @@ const PERMISSIONS = {
   'data.manage': ['admin', 'specialist'],
   'alerts.verify': ['specialist'],
   'alerts.approve': ['specialist', 'leader'],
+  // công bố KẾT QUẢ PHÂN TÍCH (lớp ảnh + vùng nghi vấn ở trạng thái 'chưa xác minh') ra bản đồ – khác với phê duyệt cảnh báo/xác minh nghiệp vụ
+  'analysis.publish': ['admin', 'specialist', 'leader'],
   // nhập tay điểm cháy (tin báo); chỉ người có alerts.verify mới nhập ở trạng thái "Xác nhận cháy"
   'alerts.manual': ['admin', 'leader', 'specialist'],
   'reports.view': ['admin', 'leader', 'specialist'],

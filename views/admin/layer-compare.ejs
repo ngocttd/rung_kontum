@@ -1,0 +1,42 @@
+<%- include('_top') %>
+<% const fa = other ? fieldsOf(other) : []; const fb = fieldsOf(l); const common = other ? fb.filter(f => fa.includes(f)) : fb; const keys = String(q.khoa || '').split(',').filter(Boolean); const flds = String(q.truong || '').split(',').filter(Boolean);
+   const B = { added: 'b-green', removed: 'b-red', attr: 'b-blue', area: 'b-orange', both: 'b-purple' }; %>
+<div class="adm-tabs"><a href="/quan-tri/du-lieu/vector/<%= l.id %>/doi-tuong"><%- ic('chevron-left') %> Quản lý đối tượng: <%= l.title %></a><a href="/quan-tri/khoanh-vung">Khoanh vùng – giao xác minh</a></div>
+<div class="note info" style="margin:0 0 12px"><b>Quy trình khi nhập dữ liệu kiểm kê / hiện trạng rừng kỳ mới:</b> (1) nhập bản đồ kỳ mới thành lớp riêng, cùng “bộ dữ liệu”, để ở trạng thái <b>chờ duyệt</b>; (2) <b>so sánh với kỳ trước</b> ở trang này – hệ thống liệt kê lô mới, lô không còn, lô đổi thuộc tính, lô đổi diện tích; (3) lô lệch chưa rõ nguyên nhân → chọn và bấm <b>“Tạo vùng cần xác minh”</b> để giao kiểm tra hiện trường / báo chủ rừng; (4) sau khi xác minh, sửa lô sai ở “Quản lý đối tượng” (ghi lý do) rồi mới <b>duyệt công bố</b> lớp kỳ mới và gỡ lớp kỳ cũ; (5) đối chiếu tổng diện tích theo xã với số liệu công bố.</div>
+<section class="card"><div class="card-h"><h2><%- ic('layout-split') %> So sánh hai kỳ dữ liệu</h2></div>
+  <form class="card-b" method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+    <label class="field" style="margin:0;min-width:260px"><span>Kỳ mới (lớp đang xem)</span><input class="input" value="<%= l.title %><%= l.data_year ? ' – ' + l.data_year : '' %> (<%= l.feature_count || l.validation.count %> lô)" readonly></label>
+    <label class="field" style="margin:0;min-width:260px"><span>Kỳ trước để so sánh *</span><select class="input" name="voi" required><option value="">— chọn lớp —</option><% others.forEach(o => { %><option value="<%= o.id %>" <%= q.voi === o.id ? 'selected' : '' %>><%= o.title %><%= o.data_year ? ' – ' + o.data_year : '' %><%= l.series && o.series === l.series ? ' (cùng bộ dữ liệu)' : '' %></option><% }) %></select></label>
+    <label class="field" style="margin:0;min-width:220px"><span>Khoá ghép lô (cách nhau dấu phẩy)</span><input class="input" name="khoa" value="<%= q.khoa || '' %>" placeholder="vd tk,khoanh,lo – bỏ trống: ghép theo vị trí" list="fl"></label>
+    <label class="field" style="margin:0;min-width:220px"><span>Trường thuộc tính cần so</span><input class="input" name="truong" value="<%= q.truong || '' %>" placeholder="vd ldlr,churung" list="fl"></label>
+    <label class="field" style="margin:0;width:150px"><span>Ngưỡng lệch diện tích (%)</span><input class="input" type="number" name="nguong" min="1" max="50" value="<%= q.nguong || 5 %>"></label>
+    <button class="btn btn-primary"><%- ic('arrow-repeat') %> So sánh</button>
+    <datalist id="fl"><% common.forEach(f => { %><option value="<%= f %>"><% }) %></datalist>
+    <span class="src" style="flex-basis:100%">Trường có ở cả hai lớp: <%= common.join(', ') || '—' %>. Có mã lô ổn định (tiểu khu, khoảnh, lô) thì nên ghép theo khoá; không có thì hệ thống ghép lô theo vị trí.</span>
+  </form></section>
+<% if (err) { %><div class="note" style="margin-top:12px"><%= err %></div><% } %>
+<% if (cmp) { %>
+<div class="kpi-cards" style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+  <div class="card card-b"><span class="src">Kỳ trước → kỳ mới</span><div style="font-size:19px;font-weight:700"><%= fmt.num(cmp.a_count) %> → <%= fmt.num(cmp.b_count) %> lô</div><span class="src"><%= fmt.num(cmp.a_area) %> → <%= fmt.num(cmp.b_area) %> ha (<%= cmp.b_area - cmp.a_area >= 0 ? '+' : '' %><%= fmt.num(cmp.b_area - cmp.a_area) %>)</span></div>
+  <div class="card card-b"><span class="src">Không đổi</span><div style="font-size:19px;font-weight:700;color:var(--forest)"><%= fmt.num(cmp.same) %> lô</div></div>
+  <div class="card card-b"><span class="src">Lô mới</span><div style="font-size:19px;font-weight:700"><%= fmt.num(cmp.summary.added[0]) %></div><span class="src"><%= fmt.num(cmp.summary.added[1]) %> ha</span></div>
+  <div class="card card-b"><span class="src">Lô không còn</span><div style="font-size:19px;font-weight:700;color:var(--red)"><%= fmt.num(cmp.summary.removed[0]) %></div><span class="src"><%= fmt.num(cmp.summary.removed[1]) %> ha</span></div>
+  <div class="card card-b"><span class="src">Đổi thuộc tính</span><div style="font-size:19px;font-weight:700"><%= fmt.num(cmp.summary.attr[0]) %></div></div>
+  <div class="card card-b"><span class="src">Đổi diện tích / ranh</span><div style="font-size:19px;font-weight:700"><%= fmt.num(cmp.summary.area[0]) %></div></div>
+</div>
+<section class="card" style="margin-top:14px"><div class="card-h"><h2><%- ic('exclamation-triangle-fill') %> Danh sách khác biệt (<%= fmt.num(cmp.total) %>)</h2><a class="more" href="?voi=<%= q.voi %>&khoa=<%= encodeURIComponent(q.khoa || '') %>&truong=<%= encodeURIComponent(q.truong || '') %>&nguong=<%= q.nguong || 5 %>&xuat=1"><%- ic('download') %> Xuất Excel</a></div>
+  <form class="card-b" method="post" action="/quan-tri/du-lieu/vector/<%= l.id %>/so-sanh/xac-minh"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="voi" value="<%= q.voi %>"><input type="hidden" name="khoa" value="<%= q.khoa || '' %>"><input type="hidden" name="truong" value="<%= q.truong || '' %>">
+    <% if (!cmp.rows.length) { %><div class="empty-state">Hai kỳ khớp nhau theo các tiêu chí đã chọn.</div><% } else { %>
+    <div class="table-wrap"><table class="tbl compact" data-page-size="20"><thead><tr><th data-sort="off"></th><th>Loại khác biệt</th><th>Lô</th><th class="num">Kỳ trước (ha)</th><th class="num">Kỳ mới (ha)</th><th>Chi tiết</th><th data-sort="off"></th></tr></thead><tbody>
+      <% cmp.rows.slice(0, 1000).forEach(x => { const side = x.b_fid !== null ? 'b' : 'a'; const fid = x.b_fid !== null ? x.b_fid : x.a_fid; %><tr>
+        <td><input type="checkbox" name="pick" value="<%= side %>|<%= fid %>|<%= x.type %>|<%= x.label %>"></td>
+        <td><span class="badge <%= B[x.type] %>"><%= T[x.type] %></span></td><td><%= x.label %></td><td class="num"><%= x.ha_a === null ? '—' : fmt.num(x.ha_a, 2) %></td><td class="num"><%= x.ha_b === null ? '—' : fmt.num(x.ha_b, 2) %></td><td class="src"><%= x.detail %></td>
+        <td><a class="btn btn-outline btn-sm" href="/ban-do#<%= x.lon %>,<%= x.lat %>,15" target="_blank" title="Xem vị trí trên bản đồ"><%- ic('map-fill') %></a></td></tr><% }) %>
+    </tbody></table></div>
+    <% if (cmp.rows.length > 1000) { %><p class="src">Hiển thị 1.000 khác biệt lớn nhất trong <%= fmt.num(cmp.total) %> – tải Excel để xem đủ.</p><% } %>
+    <% if (canEdit) { %><div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap"><button class="btn btn-primary"><%- ic('bounding-box') %> Tạo vùng cần xác minh từ các lô đã chọn</button><span class="src">Tối đa 100 lô mỗi lần. Vùng tạo ra nằm ở “Khoanh vùng trên bản đồ” – từ đó giao kiểm tra hiện trường (MobileGIS) hoặc báo chủ rừng; sau khi có kết luận thì sửa lô ở “Quản lý đối tượng”.</span></div><% } %>
+    <% } %>
+  </form></section>
+<% } %>
+<%- include('_bottom') %>
+</body></html>

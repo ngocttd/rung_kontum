@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><title><%= rep.ds.title %></title>
+<style>
+  @page { size: A4 landscape; margin: 12mm; }
+  body { font-family: "Times New Roman", serif; font-size: 12px; color: #111; margin: 16px; }
+  h1 { font-size: 17px; text-align: center; margin: 14px 0 4px; text-transform: uppercase; }
+  .sub { text-align: center; margin: 0 0 10px; }
+  .head { display: flex; justify-content: space-between; text-align: center; font-size: 12.5px; }
+  .kpi { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0 12px; }
+  .kpi div { border: 1px solid #999; padding: 5px 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #555; padding: 3px 5px; vertical-align: top; }
+  th { background: #e8efe9; text-align: center; }
+  td.n { text-align: right; white-space: nowrap; }
+  tfoot td { font-weight: bold; background: #f2f2f2; }
+  .sign { display: flex; justify-content: space-between; margin-top: 26px; text-align: center; page-break-inside: avoid; }
+  .bar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ccc; margin-bottom: 10px; font-family: Arial, sans-serif; }
+  .bar button { padding: 7px 14px; font-size: 14px; cursor: pointer; }
+  @media print { .bar { display: none; } body { margin: 0; } }
+</style></head><body>
+<% const num = (v) => (typeof v === 'number' ? new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(v) : (v ?? '')); const m = rep.meta; %>
+<div class="bar"><button onclick="window.print()">In / Lưu PDF</button> <span style="color:#666;font-size:13px">Trong hộp thoại in chọn “Lưu dưới dạng PDF” để có tệp PDF.</span></div>
+<div class="head"><div><b>HỆ THỐNG GIÁM SÁT TÀI NGUYÊN RỪNG<br>VÀ CẢNH BÁO CHÁY RỪNG KON TUM</b></div><div><b>CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br>Độc lập – Tự do – Hạnh phúc</div></div>
+<h1><%= rep.ds.title %></h1>
+<p class="sub">Phạm vi: <%= m.pham_vi %> · Kỳ: <%= m.ky %><%= m.can_cu ? ' · Căn cứ: ' + m.can_cu : '' %><%= m.ngay_so_lieu ? ' (số liệu đến ' + m.ngay_so_lieu + ')' : '' %></p>
+<div class="kpi"><div>Số dòng: <b><%= rep.rows.length %></b></div><% cols.filter(f => rep.totals[f.key] !== undefined).slice(0, 6).forEach(f => { %><div><%= f.label.replace(/ \(.*\)$/, '') %>: <b><%= num(rep.totals[f.key]) %></b></div><% }) %></div>
+<table><thead><tr><% cols.forEach(f => { %><th><%= f.label %></th><% }) %></tr></thead>
+<tbody><% rep.rows.forEach(r => { %><tr><% cols.forEach(f => { %><td class="<%= f.type === 'num' ? 'n' : '' %>"><%= ['lon', 'lat', 'stt', 'code'].includes(f.key) ? (r[f.key] ?? '') : num(r[f.key]) %></td><% }) %></tr><% }) %>
+<% if (!rep.rows.length) { %><tr><td colspan="<%= cols.length %>" style="text-align:center">Không có dữ liệu theo điều kiện đã chọn.</td></tr><% } %></tbody>
+<% if (rep.rows.length && Object.keys(rep.totals).length) { %><tfoot><tr><% cols.forEach((f, i) => { %><td class="<%= f.type === 'num' ? 'n' : '' %>"><%= i === 0 ? 'Tổng' : num(rep.totals[f.key]) %></td><% }) %></tr></tfoot><% } %></table>
+<p style="margin-top:8px;font-style:italic">Xuất từ hệ thống ngày <%= m.ngay_xuat %>. Vùng nghi vấn và kết quả phân tích ảnh là thông tin cần xác minh, chưa phải kết luận chính thức.</p>
+<div class="sign"><div><b>NGƯỜI LẬP BIỂU</b><br><i>(Ký, ghi rõ họ tên)</i></div><div><i>…………, ngày <%= m.ngay %> tháng <%= m.thang %> năm <%= m.nam_xuat %></i><br><b>THỦ TRƯỞNG ĐƠN VỊ</b><br><i>(Ký, đóng dấu)</i></div></div>
+</body></html>

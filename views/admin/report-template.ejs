@@ -1,0 +1,25 @@
+<%- include('_top') %>
+<% const m = t.mapping || {}; const cols = Object.keys(m.headers || {}).map(Number).sort((a, b) => a - b); const L = (n) => { let s = ''; while (n > 0) { s = String.fromCharCode(65 + (n - 1) % 26) + s; n = Math.floor((n - 1) / 26); } return s; }; %>
+<div class="adm-tabs"><a href="/quan-tri/bao-cao?tab=mau"><%- ic('chevron-left') %> Mẫu báo cáo</a><a href="/quan-tri/bao-cao/mau/<%= t.id %>/tep"><%- ic('download') %> Tải tệp mẫu gốc</a><a href="/quan-tri/bao-cao/<%= t.report_key %>/xuat?mau=<%= t.id %>"><%- ic('download') %> Xuất thử theo mẫu</a></div>
+<section class="card">
+  <div class="card-h"><h2><%- ic('file-earmark-text-fill') %> <%= t.title %></h2><span class="badge b-gray" style="margin-left:auto"><%= ds.short %></span></div>
+  <form class="card-b" method="post" action="/quan-tri/bao-cao/mau/<%= t.id %>">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="note info" style="margin:0 0 12px">Hệ thống đã đọc tệp <b><%= t.original_name %></b>: sheet “<%= m.sheet %>”, dòng tiêu đề <b><%= m.header_row %></b>, dữ liệu bắt đầu từ dòng <b><%= m.data_row %></b><%= m.total_row ? ', dòng tổng ' + m.total_row : '' %>; tự khớp <b><%= Object.keys(m.cols || {}).length %></b>/<%= cols.length %> cột. Kiểm tra bảng dưới – cột nào chưa đúng thì chọn lại trường dữ liệu; cột để trống sẽ không điền.<% if ((m.placeholders || []).length) { %> Ô giữ chỗ tìm thấy: <%= m.placeholders.map(p => '{{' + p + '}}').join(', ') %>.<% } %></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:12px">
+      <label class="field" style="margin:0;flex:1;min-width:240px"><span>Tên mẫu</span><input class="input" name="title" value="<%= t.title %>" maxlength="150"></label>
+      <label class="field" style="margin:0;width:130px"><span>Dòng tiêu đề</span><input class="input" type="number" min="1" name="header_row" value="<%= m.header_row %>"></label>
+      <label class="field" style="margin:0;width:150px"><span>Dòng dữ liệu đầu</span><input class="input" type="number" min="1" name="data_row" value="<%= m.data_row %>"></label>
+      <label class="field" style="margin:0;width:150px"><span>Dòng tổng (nếu có)</span><input class="input" type="number" min="1" name="total_row" value="<%= m.total_row || '' %>"></label>
+      <label class="field" style="margin:0"><span>Trạng thái</span><select class="input" name="active"><option value="1" <%= t.active !== false ? 'selected' : '' %>>Đang dùng</option><option value="0" <%= t.active === false ? 'selected' : '' %>>Tạm ngưng</option></select></label>
+    </div>
+    <div class="table-wrap"><table class="tbl" data-tools="off"><thead><tr><th style="width:70px">Cột</th><th>Tiêu đề trong mẫu</th><th style="width:44%">Trường dữ liệu của hệ thống</th></tr></thead><tbody>
+      <% cols.forEach(c => { %><tr><td><b><%= L(c) %></b></td><td><%= m.headers[c] %></td>
+        <td><select class="input" name="col_<%= c %>" <%= !can('data.manage') ? 'disabled' : '' %>><option value="">— không điền —</option><% ds.fields.forEach(f => { %><option value="<%= f.key %>" <%= (m.cols || {})[c] === f.key ? 'selected' : '' %>><%= f.label %></option><% }) %></select></td></tr><% }) %>
+    </tbody></table></div>
+    <% if (can('data.manage')) { %><div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-primary"><%- ic('check-lg') %> Lưu cấu hình mẫu</button>
+      <button class="btn btn-outline" formaction="/quan-tri/bao-cao/mau/<%= t.id %>/xoa" onclick="return confirm('Xoá mẫu này?')" style="color:#c0392b">Xoá mẫu</button></div><% } %>
+  </form>
+</section>
+<%- include('_bottom') %>
+</body></html>

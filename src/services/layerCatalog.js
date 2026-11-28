@@ -234,6 +234,7 @@ function restore(user, id) {
 function share(it, base, extra = {}) {
   const link = (u) => (u ? `${base}${u}` : null);
   const out = { id: it.id, title: it.title, kind: it.kind, group: it.group, group_title: (groupMap()[it.group] || {}).title, source: it.source, description: it.info || null };
+  out.export = { url: link(`/api/v1/catalog/${encodeURIComponent(it.id)}/export`), formats: it.kind === 'overlay' || it.kind === 'map' ? ['tif'] : ['geojson', 'kml', 'shp', 'xlsx', 'csv'], crs: ['EPSG:4326', 'EPSG:32648', 'VN2000:<kinh tuyến trục>:<múi 3|6>'] };
   if (it.kind === 'overlay' || it.kind === 'map') {
     const o = extra.overlay || {};
     out.type = 'raster';

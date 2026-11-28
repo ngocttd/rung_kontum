@@ -17,7 +17,20 @@ const ym = (v) => (/^\d{4}-(0[1-9]|1[0-2])$/.test(String(v || '')) ? String(v) :
 const mIdx = (s) => { const [y, m] = s.split('-').map(Number); return y * 12 + m - 1; };
 const fmtYm = (s) => `${s.slice(5)}/${s.slice(0, 4)}`;
 
+// phân tích mất tán cây (Hansen) theo khoảng năm
+function validateTreeloss(b) {
+  const fcg = require('../data/repo').forestChange();
+  const ys = fcg && fcg.history ? Object.keys(fcg.history.aoi_annual_loss_ha).map(Number).sort((a, c) => a - c) : [];
+  const from = Number(b.year_from); const to = Number(b.year_to);
+  if (!ys.length) throw new InputError('Chưa có dữ liệu mất tán cây Hansen.');
+  if (!ys.includes(from) || !ys.includes(to)) throw new InputError(`Chọn năm trong khoảng ${ys[0]}–${ys[ys.length - 1]}.`);
+  if (to < from) throw new InputError('Năm kết thúc phải sau năm bắt đầu.');
+  const minHa = Math.min(50, Math.max(0.5, Number(b.min_ha) || 3));
+  return { type: 'treeloss', years: { from, to }, min_ha: minHa, title: `Mất tán cây ${from}${to !== from ? `–${to}` : ''} (vùng ≥ ${minHa} ha)`, note: String(b.note || '').slice(0, 500) };
+}
+
 function validate(b) {
+  if (b.type === 'treeloss') return validateTreeloss(b);
   const from = ym(b.from); const to = ym(b.to);
   if (!from || !to) throw new InputError('Chọn tháng bắt đầu và kết thúc của kỳ phân tích.');
   if (mIdx(to) < mIdx(from)) throw new InputError('Tháng kết thúc phải sau tháng bắt đầu.');
@@ -55,7 +68,7 @@ function next() {
   fs.writeFileSync(cfg, JSON.stringify({ ...run.params, id_prefix: `CR-${run.code.replace(/^PT-/, '').replace('-', '')}` }));
   store.update('change_runs', id, { status: 'running', started_at: store.now() });
   const log = [];
-  const child = spawn(python, [SCRIPT, cfg, dir], { cwd: paths.scripts, env: { ...process.env, PYTHONIOENCODING: 'utf-8' }, windowsHide: true });
+  const child = spawn(python, [run.params.type === 'treeloss' ? path.join(paths.scripts, 'analyze_treeloss.py') : SCRIPT, cfg, dir], { cwd: paths.scripts, env: { ...process.env, PYTHONIOENCODING: 'utf-8' }, windowsHide: true });
   const onData = (b) => { log.push(...b.toString('utf8').split(/\r?\n/).filter(Boolean)); if (log.length > 200) log.splice(0, log.length - 200); };
   child.stdout.on('data', onData); child.stderr.on('data', onData);
   const timer = setTimeout(() => { log.push('! quá 20 phút – dừng'); child.kill(); }, 20 * 60e3);
@@ -99,6 +112,8 @@ function remove(id, user) {
 }
 
 // các kỳ đã công bố (dùng cho bản đồ công khai, trang Biến động, MobileGIS)
+// kỳ chạy xong nhưng chưa công bố (hiện ở đầu trang Phân tích và trang Cảnh báo để người có quyền công bố)
+function pending() { return list().filter((r) => !r.published && r.status === 'succeeded' && r.summary); }
 function published() { return list().filter((r) => r.published && r.status === 'succeeded' && r.summary); }
 
 // tiến trình khởi động lại giữa chừng: kỳ đang chạy/đợi coi như lỗi để chạy lại
@@ -148,4 +163,4 @@ const auto = {
   publicCandidates() { return readJ(path.join(WEB, 'change-candidates.public.geojson')) || { type: 'FeatureCollection', features: [] }; },
 };
 
-module.exports = { InputError, validate, create, list, get, candidates, overlayFile, publish, remove, published, start, auto, DIR };
+module.exports = { InputError, validate, create, list, get, candidates, overlayFile, publish, remove, published, pending, start, auto, DIR };

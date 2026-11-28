@@ -18,14 +18,21 @@ const jobs = require('../services/jobs');
 const weatherSvc = require('../services/weather');
 const firmsSvc = require('../services/firms');
 const { ROLES, STAFF_ROLES, can, requireLogin, requirePerm, checkCsrf, rateLimit } = require('../middleware/security');
+const scopeLib = require('../lib/scope');
 
 const r = express.Router();
 const memUpload = (maxMb, filter) => multer({ storage: multer.memoryStorage(), limits: { fileSize: maxMb * 1024 * 1024, files: 1 }, fileFilter: (req, f, cb) => cb(null, filter.test(f.mimetype) || filter.test(f.originalname)) });
 const flash = (req, type, text) => { req.session.flash = { type, text }; };
 const me = (req) => req.session.user;
+// phân quyền theo khu vực: chặn thao tác trên đối tượng ngoài địa bàn được giao (kiểm tra ở máy chủ, không chỉ ẩn trên giao diện)
+function denyScope(req, res, communeCode) {
+  if (scopeLib.inScope(me(req) && me(req).scope, communeCode)) return false;
+  res.status(403).render('admin/forbidden', { title: 'Ngoài địa bàn phụ trách', perm: 'Đối tượng nằm ngoài xã/phường bạn được phân quyền quản lý' });
+  return true;
+}
 const back = (req, res, fallback) => res.redirect(req.get('referer') || fallback);
 
-r.use((req, res, next) => { res.locals.ROLES = ROLES; res.locals.section = ''; next(); });
+r.use((req, res, next) => { res.locals.ROLES = ROLES; res.locals.section = ''; res.locals.GEO = require('../services/geoio'); res.locals.scopeOf = (u) => scopeLib.communesOf(u); next(); });
 
 // ---------- authentication ----------
 r.get('/dang-nhap', (req, res) => {
@@ -138,12 +145,17 @@ r.get('/du-lieu/api', requirePerm('dashboard.view'), (req, res) => {
 const layersSvc = require('../services/layers');
 const { convertLayer, LAYER_EXT } = layersSvc;
 
-r.post('/du-lieu/tai-len', requirePerm('data.manage'), memUpload(25, /json|geojson|zip|sheet|excel|csv|octet-stream/i).single('file'), checkCsrf, (req, res) => {
-  if (!req.file || !LAYER_EXT.test(req.file.originalname)) { flash(req, 'error', 'Chọn tệp GeoJSON, Shapefile nén .zip, Excel .xlsx hoặc .csv (tối đa 25 MB).'); return res.redirect('/quan-tri/du-lieu#them'); }
+r.post('/du-lieu/vector/:id/to-mau', requirePerm('data.manage'), (req, res) => {
+  const row = layersSvc.setColorField(me(req), req.params.id, String(req.body.field || ''));
+  flash(req, row ? 'ok' : 'error', row ? (row.style.field ? `Đã tô màu lớp theo trường “${row.style.field}” (${row.style.values.length} giá trị phổ biến nhất).` : 'Đã bỏ tô màu theo trường – lớp dùng một màu.') : 'Không tìm thấy lớp.');
+  res.redirect('/quan-tri/du-lieu#vector');
+});
+r.post('/du-lieu/tai-len', requirePerm('data.manage'), memUpload(200, /json|geojson|zip|sheet|excel|csv|octet-stream|kml|kmz|xml/i).single('file'), checkCsrf, async (req, res) => {
+  if (!req.file || !LAYER_EXT.test(req.file.originalname)) { flash(req, 'error', 'Chọn tệp GeoJSON, KML/KMZ, Shapefile hoặc MapInfo nén .zip, Excel .xlsx hoặc .csv (tối đa 200 MB).'); return res.redirect('/quan-tri/du-lieu#them'); }
   let gj; let info = null;
-  try { ({ gj, info } = convertLayer(req.file.buffer, req.file.originalname, req.body.crs)); } catch (e) { flash(req, 'error', e.message); return res.redirect('/quan-tri/du-lieu#them'); }
-  const { v } = layersSvc.create(me(req), { title: req.body.title, source: req.body.source, description: req.body.description, color: req.body.color, gj, info, originalName: req.file.originalname });
-  flash(req, v.errors.length ? 'error' : 'ok', v.errors.length ? `Kiểm tra không đạt: ${v.errors.join('; ')}` : `Đã nhập ${v.count} đối tượng (${info ? info.format.slice(1).toUpperCase() : 'GeoJSON'}, hệ toạ độ nguồn ${info ? info.source_crs : 'WGS84'}) vào vùng chờ duyệt.${(v.warnings || []).length ? ' Lưu ý: ' + v.warnings.slice(0, 3).join(' ') : ''}`);
+  try { const g = require('../services/geoio'); ({ gj, info } = convertLayer(req.file.buffer, req.file.originalname, req.body.he ? g.crsFrom({ ...req.body, ktt: req.body.ktt === 'other' ? req.body.ktt_khac : req.body.ktt }) : (req.body.crs || 'auto'), req.body.bang_ma)); } catch (e) { flash(req, 'error', e.message); return res.redirect('/quan-tri/du-lieu#them'); }
+  let v; try { ({ v } = await layersSvc.create(me(req), { title: req.body.title, source: req.body.source, description: req.body.description, color: req.body.color, gj, info, originalName: req.file.originalname, data_year: req.body.data_year, series: req.body.series })); } catch (e) { flash(req, 'error', `Không lưu được lớp: ${e.message}`); return res.redirect('/quan-tri/du-lieu#them'); }
+  flash(req, v.errors.length ? 'error' : 'ok', v.errors.length ? `Kiểm tra không đạt: ${v.errors.join('; ')}` : `Đã nhập ${v.count} đối tượng (${info ? info.format.slice(1).toUpperCase() : 'GeoJSON'}, hệ toạ độ nguồn ${info ? (info.source_crs_label || info.source_crs) : 'WGS84'}; giữ nguyên ${v.fc && v.fc.features[0] ? Object.keys(v.fc.features[0].properties || {}).length : 0} trường thuộc tính) vào vùng chờ duyệt.${(v.warnings || []).length ? ' Lưu ý: ' + v.warnings.slice(0, 3).join(' ') : ''}`);
   return res.redirect('/quan-tri/du-lieu');
 });
 
@@ -256,6 +268,10 @@ r.get('/hien-truong', requirePerm('dashboard.view'), async (req, res, next) => {
   try {
     const db = require('../db/pool');
     const data = db.enabled ? await field.adminOverview() : { assignments: [], verifications: [], surveys: [], conflicts: [] };
+    // cán bộ có địa bàn chỉ thấy nhiệm vụ, khảo sát thuộc xã mình phụ trách (xác minh: theo xã của vị trí ghi nhận)
+    data.assignments = scopeLib.filter(me(req), data.assignments, (a) => a.scope_id);
+    data.surveys = scopeLib.filter(me(req), data.surveys, (x) => x.commune_code);
+    data.verifications = scopeLib.filter(me(req), data.verifications, (x) => (Number.isFinite(Number(x.lon)) && x.lon !== null ? (repo.communeAt(Number(x.lon), Number(x.lat)) || {}).code : null));
     res.render('admin/field', {
       title: 'Nhiệm vụ & xác minh hiện trường', section: 'field', tab: req.query.tab || 'nhiem-vu', dbOn: db.enabled, ...data,
       specialists: store.all('users').filter((u) => u.role === 'specialist' && u.active), communes: repo.communes(),
@@ -302,7 +318,7 @@ function monthsAvailable() {
 r.post('/phan-tich/bien-dong', requirePerm('jobs.run'), (req, res) => {
   const runs = require('../services/changeRuns');
   try {
-    const run = runs.create(me(req), { ...req.body, canApprove: can(me(req), 'alerts.approve') });
+    const run = runs.create(me(req), { ...req.body, canApprove: can(me(req), 'analysis.publish') });
     delete req.session.runForm;
     flash(req, 'ok', `Đã đưa kỳ phân tích ${run.code} (${run.title}) vào hàng chạy.`);
     return res.redirect(`/quan-tri/phan-tich/bien-dong/${run.id}`);
@@ -323,7 +339,7 @@ r.get('/phan-tich/bien-dong/:id/vung.geojson', requirePerm('dashboard.view'), (r
   return run ? res.json(runs.candidates(run)) : next();
 });
 r.get('/phan-tich/tu-dong/vung.geojson', requirePerm('dashboard.view'), (req, res) => res.json(readJson(path.join(config.paths.data, 'web', 'change-candidates.geojson')) || { type: 'FeatureCollection', features: [] }));
-r.post('/phan-tich/bien-dong/:id/cong-bo', requirePerm('alerts.approve'), (req, res) => {
+r.post('/phan-tich/bien-dong/:id/cong-bo', requirePerm('analysis.publish'), (req, res) => {
   const runs = require('../services/changeRuns');
   try { runs.publish(req.params.id, me(req), req.body.on !== '0', String(req.body.note || '').slice(0, 500)); flash(req, 'ok', req.body.on !== '0' ? 'Đã công bố kỳ phân tích ra Bản đồ WebGIS, trang Biến động rừng và MobileGIS.' : 'Đã thu hồi công bố.'); }
   catch (e) { flash(req, 'error', e.message); }
@@ -334,12 +350,12 @@ r.post('/phan-tich/bien-dong/:id/xoa', requirePerm('jobs.run'), (req, res) => {
   try { runs.remove(req.params.id, me(req)); flash(req, 'ok', 'Đã xoá kỳ phân tích.'); return res.redirect('/quan-tri/phan-tich#bien-dong'); }
   catch (e) { flash(req, 'error', e.message); return res.redirect(`/quan-tri/phan-tich/bien-dong/${req.params.id}`); }
 });
-r.post('/phan-tich/tu-dong/che-do', requirePerm('alerts.approve'), (req, res) => {
+r.post('/phan-tich/tu-dong/che-do', requirePerm('analysis.publish'), (req, res) => {
   require('../services/changeRuns').auto.setMode(req.body.mode, me(req));
   flash(req, 'ok', req.body.mode === 'auto' ? 'Kết quả phân tích tự động sẽ được công bố ngay sau mỗi lần chạy.' : 'Kết quả phân tích tự động sẽ chờ duyệt trước khi công bố.');
   return res.redirect('/quan-tri/phan-tich#bien-dong');
 });
-r.post('/phan-tich/tu-dong/cong-bo', requirePerm('alerts.approve'), (req, res) => {
+r.post('/phan-tich/tu-dong/cong-bo', requirePerm('analysis.publish'), (req, res) => {
   try { require('../services/changeRuns').auto.approve(me(req), String(req.body.note || '').slice(0, 500)); flash(req, 'ok', 'Đã công bố kết quả phân tích tự động mới nhất.'); }
   catch (e) { flash(req, 'error', e.message); }
   return res.redirect('/quan-tri/phan-tich#bien-dong');
@@ -367,7 +383,9 @@ r.get('/api/jobs/:id', requirePerm('dashboard.view'), (req, res) => res.json(sto
 r.get('/canh-bao', requirePerm('dashboard.view'), (req, res) => {
   res.render('admin/alerts', {
     title: 'Quản lý cảnh báo', section: 'alerts', tab: req.query.tab || 'diem-nong',
-    hotspots: repo.hotspots({ staff: true }), dangerAlerts: alerts.fireDangerAlerts(3), candidates: repo.changeCandidates({ staff: true }).features.map((f) => f.properties).sort((a, b) => b.area_ha - a.area_ha),
+    hotspots: scopeLib.filter(me(req), repo.hotspots({ staff: true }), (h) => h.communeCode), dangerAlerts: scopeLib.filter(me(req), alerts.fireDangerAlerts(3), (a) => a.communeCode),
+    candidates: scopeLib.filter(me(req), repo.changeCandidates({ staff: true }).features.map((f) => f.properties), (c) => c.commune_code).sort((a, b) => b.area_ha - a.area_ha),
+    scopeLabel: scopeLib.label(me(req), Object.fromEntries(repo.communes().map((c) => [c.code, c.fullName]))),
     HS: repo.HOTSPOT_STATUS, CS: repo.CANDIDATE_STATUS, DS: alerts.DANGER_STATUS, users: store.all('users').filter((u) => u.active),
     filter: req.query, SOURCES: firepoints.SOURCES, form: req.session.fpForm || {},
   });
@@ -385,6 +403,7 @@ r.post('/canh-bao/diem-nong', requirePerm('alerts.verify'), async (req, res, nex
   try {
     const { ref, status, note, assignee } = req.body;
     if (!HS_FLOW.includes(status)) return back(req, res, '/quan-tri/canh-bao');
+    if (denyScope(req, res, (repo.hotspots({ staff: true }).find((h) => h.id === ref) || {}).communeCode)) return undefined;
     store.setDecision('hotspot', ref, { status, note: String(note || '').slice(0, 1000), assignee: assignee || null }, me(req));
     store.audit(me(req), 'hotspot.status', ref, { status, note });
     const task = status === 'assigned' && assignee ? await ensureFieldTask(req, 'hotspot', ref, assignee) : null;
@@ -410,6 +429,7 @@ r.post('/canh-bao/nhap-tay', requirePerm('alerts.manual'), async (req, res, next
 r.post('/canh-bao/bien-dong', requirePerm('alerts.verify'), (req, res) => {
   const { ref, status, note } = req.body;
   if (!Object.keys(repo.CANDIDATE_STATUS).includes(status)) return back(req, res, '/quan-tri/canh-bao?tab=bien-dong');
+  if (denyScope(req, res, ((repo.changeCandidates({ staff: true }).features.find((f) => String(f.properties.id) === String(ref)) || {}).properties || {}).commune_code)) return undefined;
   store.setDecision('candidate', ref, { status, note: String(note || '').slice(0, 1000) }, me(req));
   store.audit(me(req), 'candidate.status', ref, { status, note });
   flash(req, 'ok', 'Đã cập nhật kết quả xác minh biến động.');
@@ -489,7 +509,10 @@ r.post('/tin-tuc/:id/trang-thai', requirePerm('news.manage'), (req, res) => {
 
 // ---------- A08 field reports ----------
 r.get('/phan-anh', requirePerm('reports.view'), (req, res) => {
-  let list = store.all('reports').slice().reverse().map(reports.decorate);
+  let list = scopeLib.filter(me(req), store.all('reports').slice().reverse().map(reports.decorate), (x) => x.commune_code);
+  const originCount = { all: list.length, citizen: list.filter((x) => x.origin.key === 'citizen').length, staff: list.filter((x) => x.origin.key === 'staff').length };
+  if (req.query.nguon === 'can-bo') list = list.filter((x) => x.origin.key === 'staff');
+  if (req.query.nguon === 'nguoi-dan') list = list.filter((x) => x.origin.key === 'citizen');
   if (req.query.trang_thai) list = list.filter((x) => x.status === req.query.trang_thai);
   if (req.query.loai) list = list.filter((x) => x.type === req.query.loai);
   if (req.query.kiem_tra === 'chua') list = list.filter((x) => !x.reviewed_at);
@@ -499,11 +522,12 @@ r.get('/phan-anh', requirePerm('reports.view'), (req, res) => {
     id: x.id, code: x.code, type: x.type, typeLabel: x.typeLabel, marker: x.marker, status: x.status, statusLabel: x.statusLabel, statusTone: x.statusTone,
     lat: x.lat, lon: x.lon, commune: x.commune_name, created_at: x.created_at, reviewed: Boolean(x.reviewed_at), description: String(x.description || '').slice(0, 160),
   })) : [];
-  res.render('admin/reports', { title: 'Quản lý phản ánh hiện trường', section: 'reports', list, types: reports.TYPES, statuses: reports.STATUS, filter: req.query, view, points, needsMap: view === 'map', sameLoc: reports.sameLocation });
+  res.render('admin/reports', { title: 'Quản lý phản ánh hiện trường', section: 'reports', list, types: reports.TYPES, statuses: reports.STATUS, filter: req.query, view, points, needsMap: view === 'map', sameLoc: reports.sameLocation, originCount });
 });
 r.get('/phan-anh/:id', requirePerm('reports.view'), (req, res, next) => {
   const x = store.get('reports', req.params.id) || reports.byCode(req.params.id);
   if (!x) return next();
+  if (denyScope(req, res, x.commune_code)) return undefined;
   store.audit(me(req), 'report.view', x.code);
   const fp = x.fire_point ? repo.hotspots().find((h) => h.manual && h.manual.code === x.fire_point) : null;
   return res.render('admin/report-detail', { title: `Phản ánh ${x.code}`, section: 'reports', x: reports.decorate(x), statuses: reports.STATUS, users: store.all('users').filter((u) => u.active && u.role === 'specialist'), fp, HS: repo.HOTSPOT_STATUS, same: reports.sameLocation(x) });
@@ -511,6 +535,7 @@ r.get('/phan-anh/:id', requirePerm('reports.view'), (req, res, next) => {
 r.post('/phan-anh/:id', requirePerm('reports.manage'), async (req, res, next) => {
   const x = store.get('reports', req.params.id);
   if (!x) return next();
+  if (denyScope(req, res, x.commune_code)) return undefined;
   const b = req.body;
   const patch = { public: b.public === 'on', public_photos: b.public_photos === 'on', assigned_to: b.assigned_to || null, response: String(b.response || '').slice(0, 2000) || null };
   if (reports.STATUS[b.status] && b.status !== x.status) {
@@ -555,6 +580,7 @@ r.post('/phan-anh/:id/diem-chay', requirePerm('alerts.manual'), (req, res, next)
 
 // ---------- Bản đồ và lớp dữ liệu → Quản lý bản đồ (PDF/GeoTIFF) ----------
 r.use('/ban-do', require('./maps-admin'));
+r.use('/', require('./tools-admin')); // khoanh vùng, xuất dữ liệu theo hệ toạ độ, chuyển toạ độ
 
 // ---------- A12 documents ----------
 r.get('/tai-lieu', requirePerm('dashboard.view'), (req, res) => res.render('admin/documents', { title: 'Quản lý tài liệu, văn bản', section: 'docs', docs: repo.documents(), categories: repo.DOC_CATEGORIES }));
@@ -602,7 +628,7 @@ r.post('/nguoi-dung', requirePerm('users.manage'), async (req, res) => {
   if (!/^[a-z0-9._-]{3,40}$/.test(username) || !ROLES[b.role]) { flash(req, 'error', 'Tên đăng nhập 3–40 ký tự (a-z, 0-9, . _ -) và vai trò hợp lệ.'); return res.redirect('/quan-tri/nguoi-dung'); }
   if (store.find('users', (u) => u.username === username)) { flash(req, 'error', 'Tên đăng nhập đã tồn tại.'); return res.redirect('/quan-tri/nguoi-dung'); }
   const pass = crypto.randomBytes(9).toString('base64url');
-  store.insert('users', { username, name: String(b.name || '').slice(0, 120), email: String(b.email || '').slice(0, 120), role: b.role, scope: b.scope || null, active: true, password_hash: await bcrypt.hash(pass, 11) });
+  store.insert('users', { username, name: String(b.name || '').slice(0, 120), email: String(b.email || '').slice(0, 120), role: b.role, scope: scopeLib.normalize(b.scope), active: true, password_hash: await bcrypt.hash(pass, 11) });
   store.audit(me(req), 'user.create', username, { role: b.role });
   req.session.newPassword = { username, pass };
   return res.redirect('/quan-tri/nguoi-dung');
@@ -626,7 +652,7 @@ r.post('/nguoi-dung/:id', requirePerm('users.manage'), async (req, res) => {
     flash(req, 'ok', `Đã cập nhật thông tin ${u.username}.`);
   } else if (b.action === 'role' && ROLES[b.role]) {
     if (u.id === me(req).id && b.role !== 'admin') { flash(req, 'error', 'Không thể tự hạ quyền quản trị của mình.'); return res.redirect('/quan-tri/nguoi-dung'); }
-    store.update('users', u.id, { role: b.role, scope: b.scope || null }); store.audit(me(req), 'user.role', u.username, { role: b.role, scope: b.scope });
+    store.update('users', u.id, { role: b.role, scope: scopeLib.normalize(b.scope) }); store.audit(me(req), 'user.role', u.username, { role: b.role, scope: scopeLib.normalize(b.scope) });
   }
   return res.redirect('/quan-tri/nguoi-dung');
 });
