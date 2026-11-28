@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../widgets/charts.dart';
@@ -24,7 +25,7 @@ class _FirePageState extends ConsumerState<FirePage> {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
+      child: ResponsiveScaffold(
         appBar: AppBar(
           title: const Text('Cảnh báo cháy rừng'),
           actions: [IconButton(tooltip: 'Tải lại', icon: const Icon(Icons.refresh), onPressed: () => [ref.invalidate(fireAlertsProvider), ref.invalidate(dangerProvider), ref.invalidate(fireHistoryProvider)])],

@@ -27,6 +27,7 @@
       <section class="card"><div class="card-h"><h2><%- ic('chat-dots-fill') %> Bình luận của tôi</h2></div>
         <div class="card-b"><% if (!myComments.length) { %><p class="muted">Chưa có bình luận.</p><% } %>
           <% myComments.forEach(c => { %><div style="border-bottom:1px solid var(--line);padding:6px 0"><a href="/tin-tuc/<%= c.article.slug %>"><%= c.article.title || '(tin đã gỡ)' %></a><div class="src"><%= fmt.dateTime(c.created_at) %> · <%= c.statusLabel %></div><div><%= c.body.slice(0, 160) %></div></div><% }) %></div></section>
+      <a class="btn btn-outline btn-block" href="/yeu-cau-xoa-tai-khoan">Yêu cầu xóa tài khoản</a>
       <form method="post" action="/dang-xuat"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-block"><%- ic('box-arrow-right') %> Đăng xuất</button></form>
     </div>
   </div>

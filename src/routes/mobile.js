@@ -161,7 +161,7 @@ r.get('/home', optionalAuth, (req, res) => {
   const fd = repo.fireDanger();
   res.json({
     forest: fs, hotspots_7d: hs.length, hotspots_unverified: hs.filter((h) => ['new', 'assigned', 'verifying'].includes(h.status)).length,
-    danger_today: fd ? { date: fd.today, max_level: Math.max(0, ...fd.communes.map((c) => (c.current ? c.current.cls : 0))), source: 'Chỉ số P Nesterov – tự động, chưa phải cảnh báo chính thức' } : null,
+    danger_today: fd ? { date: fd.today_local || fd.today || null, max_level: Math.max(0, ...fd.communes.map((c) => (c.current ? c.current.cls : 0))), source: 'Chỉ số P Nesterov – tự động, chưa phải cảnh báo chính thức' } : null,
     alerts: alerts.feed({ limit: 6 }), news: content.list({}).slice(0, 5).map(newsCard), freshness: repo.dataFreshness(),
   });
 });
@@ -264,26 +264,30 @@ r.get('/assignments', requireAuth(), wrap(async (req, res) => {
 r.post('/assignments', requireAuth('tasks.assign'), wrap(async (req, res) => res.status(201).json(await field.createAssignment({ id: req.auth.sub, username: store.get('users', req.auth.sub).username, role: req.auth.role }, req.body || {}))));
 r.get('/assignments/:id', requireAuth(), wrap(async (req, res) => res.json(await field.openAssignment(req.auth, req.params.id))));
 r.post('/assignments/:id/:action(accept|start)', requireAuth('field.survey'), wrap(async (req, res) => res.json(await field.changeAssignment(req.auth, req.params.id, req.params.action, (req.body || {}).base_version))));
-r.get('/surveys', requireAuth(), wrap(async (req, res) => res.json(page(req, await field.listSurveys(req.auth, req.query)))));
+r.get('/surveys', requireAuth('dashboard.view'), wrap(async (req, res) => res.json(page(req, await field.listSurveys(req.auth, req.query)))));
 r.post('/surveys', requireAuth('field.survey'), wrap(async (req, res) => {
   const b = req.body || {};
   const out = await field.createSurvey(req.auth, b, /^[0-9a-f-]{36}$/i.test(String(b.client_uuid || '')) ? b.client_uuid : null);
   return res.status(out.duplicate ? 200 : 201).json(out);
 }));
-r.get('/surveys/:id', requireAuth(), wrap(async (req, res) => {
+r.get('/surveys/:id', requireAuth('dashboard.view'), wrap(async (req, res) => {
   const s = await field.getSurvey(req.params.id);
   if (!s || (req.auth.role === 'specialist' && s.surveyor_id !== req.auth.sub && !can({ role: req.auth.role }, 'field.review'))) return res.status(404).json({ error: 'Không tìm thấy khảo sát.', code: 'NOT_FOUND' });
   return res.json(s);
 }));
 r.patch('/surveys/:id', requireAuth('field.survey'), wrap(async (req, res) => res.json(await field.updateSurvey(req.auth, req.params.id, req.body || {}, (req.body || {}).base_version))));
 r.post('/surveys/:id/review', requireAuth('field.review'), wrap(async (req, res) => res.json(await field.reviewSurvey({ id: req.auth.sub, username: store.get('users', req.auth.sub).username, role: req.auth.role }, req.params.id, (req.body || {}).decision, (req.body || {}).note))));
-r.get('/verifications', requireAuth(), wrap(async (req, res) => res.json(page(req, await field.listVerifications(req.auth, req.query)))));
+r.get('/verifications', requireAuth('dashboard.view'), wrap(async (req, res) => res.json(page(req, await field.listVerifications(req.auth, req.query)))));
 r.post('/verifications', requireAuth('field.verify'), wrap(async (req, res) => {
   const b = req.body || {};
   const out = await field.createVerification(req.auth, b, /^[0-9a-f-]{36}$/i.test(String(b.client_uuid || '')) ? b.client_uuid : null);
   return res.status(out.duplicate ? 200 : 201).json(out);
 }));
-r.get('/verifications/:id', requireAuth(), wrap(async (req, res) => res.json(await field.getVerification(req.params.id))));
+r.get('/verifications/:id', requireAuth('dashboard.view'), wrap(async (req, res) => {
+  const verification = await field.getVerification(req.params.id);
+  if (!verification) return res.status(404).json({ error: 'Không tìm thấy kết quả xác minh.', code: 'NOT_FOUND' });
+  return res.json(verification);
+}));
 r.post('/verifications/:id/review', requireAuth('field.review'), wrap(async (req, res) => res.json(await field.reviewVerification({ id: req.auth.sub, username: store.get('users', req.auth.sub).username, role: req.auth.role }, req.params.id, (req.body || {}).decision, (req.body || {}).note))));
 
 // ---------- offline sync (M17) ----------
@@ -301,6 +305,7 @@ r.get('/notifications', optionalAuth, wrap(async (req, res) => {
   res.json(page(req, db.enabled ? await require('../services/notifier').feed(req.auth, communes) : await field.notifications(req.auth, communes)));
 }));
 r.post('/notifications/test', requireAuth(), rateLimit('m-notify-test', 10, 3600e3), wrap(async (req, res) => {
+  if (!require('../db/pool').enabled) throw new field.FieldError(503, 'DB_REQUIRED', 'Gửi thông báo thử cần cơ sở dữ liệu PostgreSQL. Vui lòng cấu hình máy chủ.');
   // người dùng tự gửi thông báo thử tới các thiết bị của mình (kiểm tra Socket.IO + push nền tảng)
   const n = await require('../services/notifier').create({ source_ref: `test:${require('crypto').randomUUID()}`, kind: 'system', title: 'Thông báo thử', body: 'Nếu bạn thấy thông báo này, kênh nhận thông báo của thiết bị đang hoạt động.', data: { screen: 'notifications' }, target_user: req.auth.sub, expires_at: new Date(Date.now() + 3600e3).toISOString() });
   res.json({ ok: Boolean(n), id: n && n.id });

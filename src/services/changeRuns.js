@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const sharp = require('sharp');
+const { readJson } = require('../data/files');
 const { paths, python, ROOT } = require('../config');
 const store = require('../data/store');
 
@@ -160,7 +161,13 @@ const auto = {
   },
   // lần đầu (bản cài đặt cũ chưa có bản công khai): coi kết quả hiện có là đã công bố để không làm mất dữ liệu đang hiển thị
   ensure() { if (!readJ(STATE) && fs.existsSync(path.join(WEB, 'change-candidates.geojson'))) this.approve({ username: 'system', role: 'system' }, 'Khởi tạo từ kết quả đang công bố'); },
-  publicCandidates() { return readJ(path.join(WEB, 'change-candidates.public.geojson')) || { type: 'FeatureCollection', features: [] }; },
+  publicCandidates() {
+    try {
+      const current = readJson(path.join(WEB, 'change-candidates.public.geojson'));
+      if (current) return current;
+    } catch { /* tệp công bố chưa đọc được */ }
+    return { type: 'FeatureCollection', features: [] };
+  },
 };
 
 module.exports = { InputError, validate, create, list, get, candidates, overlayFile, publish, remove, published, pending, start, auto, DIR };

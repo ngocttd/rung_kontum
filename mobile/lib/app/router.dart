@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../core/notify_local.dart';
 import '../core/notify_open.dart';
@@ -32,6 +33,7 @@ import '../features/reports/my_reports_page.dart';
 import '../features/reports/report_form_page.dart';
 import '../features/weather/weather_page.dart';
 import 'theme.dart';
+import 'layout.dart';
 
 /// Cầu nối Riverpod → GoRouter.refreshListenable (điều hướng lại khi đăng nhập/đăng xuất).
 class _SessionListenable extends ChangeNotifier {
@@ -112,14 +114,16 @@ class _Shell extends ConsumerStatefulWidget {
   ConsumerState<_Shell> createState() => _ShellState();
 }
 
-class _ShellState extends ConsumerState<_Shell> {
+class _ShellState extends ConsumerState<_Shell> with WidgetsBindingObserver {
   StatefulNavigationShell get shell => widget.shell;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // thông báo: Socket.IO khi mở ứng dụng + Firebase Cloud Messaging khi ở nền/đã đóng
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       ref.read(realtimeProvider.notifier).connect();
       ref.read(pushProvider.notifier).enable();
       // chạm thông báo lúc ứng dụng đã đóng: nội dung đến trước khi khung ứng dụng sẵn sàng → mở ngay bây giờ
@@ -130,16 +134,28 @@ class _ShellState extends ConsumerState<_Shell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     LocalNotifs.tapped.removeListener(_openTapped);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(realtimeProvider.notifier).connect();
+      ref.read(pushProvider.notifier).enable();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) {
+      // Socket ở nền có thể ACK làm máy chủ hủy FCM trong khi iOS không hiện local notification.
+      ref.read(realtimeProvider.notifier).disconnect();
+    }
   }
 
   void _openTapped() {
     final d = LocalNotifs.tapped.value;
     if (d == null || !mounted) return;
     LocalNotifs.tapped.value = null;
-    if (ref.read(sessionProvider).signedIn && d['id'] != null) {
-      ref.read(apiProvider).post('/api/mobile/notifications/read', {'ids': [d['id']]}).catchError((_) => <String, dynamic>{});
+    if (ref.read(sessionProvider).signedIn && RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch('${d['notification_id'] ?? ''}')) {
+      ref.read(apiProvider).post('/api/mobile/notifications/read', {'ids': [d['notification_id']]}).catchError((_) => <String, dynamic>{});
     }
     openNotificationLink(context, ref, d);
   }
@@ -151,14 +167,38 @@ class _ShellState extends ConsumerState<_Shell> {
       ref.read(realtimeProvider.notifier).connect();
       ref.read(pushProvider.notifier).enable();
     });
+    // điểm nóng / điểm cháy mới xuất hiện trên bản đồ → báo ngay trong ứng dụng, chạm "Xem" để bay tới vị trí
+    ref.listen(realtimeProvider.select((s) => s.hotspotAlert), (a, b) {
+      if (b == null || identical(a, b)) return;
+      final n = (b['count'] as num?)?.toInt() ?? 1;
+      final confirmed = b['confirmed'] == true;
+      final lat = (b['lat'] as num?)?.toDouble(), lon = (b['lon'] as num?)?.toDouble();
+      final label = n > 1
+          ? 'Có $n điểm nóng mới trên bản đồ'
+          : confirmed
+              ? 'Cảnh báo cháy rừng${b['commune'] != null ? ' tại ${b['commune']}' : ''} (đã xác nhận)'
+              : 'Điểm nóng mới${b['commune'] != null ? ' tại ${b['commune']}' : ''} (chưa xác minh)';
+      final m = ScaffoldMessenger.of(context);
+      m.hideCurrentSnackBar();
+      m.showSnackBar(SnackBar(
+        duration: const Duration(seconds: 12),
+        backgroundColor: AppColors.fire,
+        behavior: SnackBarBehavior.floating,
+        content: Row(children: [
+          const Icon(Icons.local_fire_department, color: Colors.white),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
+        ]),
+        action: lat == null || lon == null ? null : SnackBarAction(label: 'Xem', textColor: Colors.white, onPressed: () => context.go('/map', extra: MapFocus(LatLng(lat, lon), zoom: 13, layer: 'hotspots'))),
+      ));
+    });
     final u = ref.watch(sessionProvider.select((s) => s.user));
     final field = u != null && (u.role == 'specialist' || u.role == 'leader');
     final pending = ref.watch(outboxProvider.select((o) => o.waiting + o.conflicts));
     return Scaffold(
       body: shell,
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: AppNavigationBar(
         selectedIndex: shell.currentIndex,
-        height: 66,
         onDestinationSelected: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
         destinations: [
           const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Trang chủ'),

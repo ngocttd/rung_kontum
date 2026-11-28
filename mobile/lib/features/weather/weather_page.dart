@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../widgets/charts.dart';
@@ -21,7 +22,7 @@ class _WeatherPageState extends ConsumerState<WeatherPage> {
   @override
   Widget build(BuildContext context) {
     final list = ref.watch(weatherProvider);
-    return Scaffold(
+    return ResponsiveScaffold(
       appBar: AppBar(title: const Text('Thời tiết, khí hậu')),
       body: AsyncView(
         value: list,
@@ -44,15 +45,16 @@ class _WeatherPageState extends ConsumerState<WeatherPage> {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Row(children: [
-                  Icon(_icon(cur['icon']?.toString()), size: 64, color: AppColors.orange),
-                  const SizedBox(width: 12),
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${fmtNum(cur['temp'] as num?)}°C', style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w800, color: AppColors.navy)),
-                    Text(cur['description']?.toString() ?? '', style: const TextStyle(color: AppColors.muted)),
+                child: ResponsiveColumns(minColumnWidth: 240, maxColumns: 2, spacing: 16, children: [
+                  Row(children: [
+                    Icon(_icon(cur['icon']?.toString()), size: 56, color: AppColors.orange),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text('${fmtNum(cur['temp'] as num?)}°C', style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w800, color: AppColors.navy))),
+                      Text(cur['description']?.toString() ?? '', style: const TextStyle(color: AppColors.muted)),
+                    ])),
                   ]),
-                  const Spacer(),
-                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Wrap(spacing: 16, runSpacing: 6, children: [
                     _mini(Icons.water_drop_outlined, '${cur['humidity'] ?? '—'}%', 'Độ ẩm'),
                     _mini(Icons.air, '${fmtNum(((cur['wind_ms'] ?? 0) as num) * 3.6)} km/h', 'Gió'),
                     _mini(Icons.umbrella_outlined, '${cur['rain1h'] ?? 0} mm', 'Mưa 1 giờ'),
@@ -72,12 +74,12 @@ class _WeatherPageState extends ConsumerState<WeatherPage> {
                 return Column(children: [
                   SectionCard(
                     title: 'Dự báo 7 ngày',
-                    child: SizedBox(
-                      height: 118,
-                      child: ListView(scrollDirection: Axis.horizontal, children: [
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         for (final x in days)
                           Container(
-                            width: 78,
+                            width: 84 + (MediaQuery.textScalerOf(context).scale(12) - 12).clamp(0, 24) * 6,
                             margin: const EdgeInsets.only(right: 6),
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(color: AppColors.bg, borderRadius: BorderRadius.circular(10)),
@@ -112,7 +114,7 @@ class _WeatherPageState extends ConsumerState<WeatherPage> {
 
   Widget _mini(IconData i, String v, String l) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(i, size: 16, color: AppColors.blue), const SizedBox(width: 4), Text(v, style: const TextStyle(fontWeight: FontWeight.w700)), Text(' $l', style: const TextStyle(fontSize: 11, color: AppColors.muted))]),
+        child: Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [Icon(i, size: 16, color: AppColors.blue), Text(v, style: const TextStyle(fontWeight: FontWeight.w700)), Text(l, style: const TextStyle(fontSize: 11, color: AppColors.muted))]),
       );
 
   IconData _icon(String? c) {

@@ -126,12 +126,11 @@ const shortMapTitle = (m) => String(m.title || '').replace(/^Bản đồ\s+/i, '
 function settings() { return Object.fromEntries(store.all('layer_settings').map((s) => [s.id, s])); }
 
 // Danh mục đầy đủ (kể cả lớp ẩn) – dùng cho quản trị; public() lọc lớp ẩn
-async function full({ mapLayers } = {}) {
-  const ov = Object.fromEntries(repo.overlays().map((o) => [o.id, o]));
+async function full({ mapLayers, overlays = repo.overlays() } = {}, L = labels()) {
+  const ov = Object.fromEntries(overlays.map((o) => [o.id, o]));
   const maps = mapLayers || await require('./maps').publishedLayers().catch(() => []);
   const items = [];
   let order = 0;
-  const L = labels();
   const lab = (t) => (typeof t === 'string' && t.startsWith('@') ? L[t.slice(1)] : t);
   for (const [id, kind, group, title0, icon, info0, opts] of STATIC) {
     const title = lab(title0); const info = info0 ? String(lab(info0)).replace('@decision', L.decision) : info0;
@@ -186,8 +185,8 @@ async function full({ mapLayers } = {}) {
 
 // cây nhóm cho trang bản đồ: [{ ...group, items[] }] – chỉ lớp không ẩn
 async function tree(opts) {
-  const items = (await full(opts)).filter((i) => !i.hidden);
   const L = labels();
+  const items = (await full(opts, L)).filter((i) => !i.hidden);
   return groups().filter((g) => !g.hidden).map((g) => ({ ...g, title: g.key === 'forest' && !g.customized ? L.forest : g.title, items: items.filter((i) => i.group === g.key) })).filter((g) => g.items.length);
 }
 

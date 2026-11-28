@@ -2,6 +2,7 @@
   "name": "webgis-rung-kontum",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@11.9.0",
   "description": "WebGIS giám sát tài nguyên rừng, dự báo và cảnh báo mất rừng, cháy rừng vùng Kon Tum",
   "main": "server.js",
   "scripts": {
@@ -15,7 +16,10 @@
     "db:import": "node scripts/db_import.cjs",
     "post-restore": "node scripts/post_restore.cjs",
     "test:mobile": "node scripts/test_mobile_api.cjs",
-    "test:push": "node scripts/test_push.cjs"
+    "test:push": "node scripts/test_push.cjs",
+    "test:accounts": "node --test --test-force-exit scripts/test_accounts.cjs",
+    "test:errors": "node --test --test-force-exit scripts/test_route_errors.cjs",
+    "test:notifications": "node --test scripts/test_fcm_unit.cjs scripts/test_notification_api.cjs"
   },
   "engines": {
     "node": ">=20"

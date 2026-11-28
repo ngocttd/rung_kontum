@@ -3,12 +3,15 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'notification_payload.dart';
+
 /// Hiển thị thông báo trên thiết bị (khay hệ thống) cho bản tin nhận khi ứng dụng đang mở (Socket.IO, hoặc FCM khi socket chưa nối).
 /// Ứng dụng ở nền/đã đóng: hệ điều hành tự hiển thị bản tin FCM trên kênh Android cùng mã (canh_bao / chung).
 class LocalNotifs {
   LocalNotifs._();
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _ready = false;
+  static final _deduplicator = NotificationDeduplicator();
 
   /// Bản tin được chạm (payload JSON) – router mở màn hình tương ứng.
   static final ValueNotifier<Map<String, dynamic>?> tapped = ValueNotifier(null);
@@ -56,10 +59,12 @@ class LocalNotifs {
   static Future<void> show(Map<String, dynamic> n) async {
     if (kIsWeb) return;
     await init();
+    if (!_deduplicator.claim(n['id'])) return;
     final urgent = n['kind'] == 'fire_danger' || n['kind'] == 'fire_confirmed' || n['priority'] == 'high';
     final ch = urgent ? _alerts : _general;
     final body = n['body']?.toString() ?? '';
-    await _plugin.show(
+    try {
+      await _plugin.show(
       id: (n['id']?.toString() ?? DateTime.now().toIso8601String()).hashCode & 0x7fffffff,
       title: n['title']?.toString() ?? 'MobileGIS Kon Tum',
       body: body,
@@ -67,7 +72,11 @@ class LocalNotifs {
         android: AndroidNotificationDetails(ch.id, ch.name, channelDescription: ch.description, importance: ch.importance, priority: urgent ? Priority.high : Priority.defaultPriority, styleInformation: BigTextStyleInformation(body)),
         iOS: const DarwinNotificationDetails(presentAlert: true, presentSound: true),
       ),
-      payload: jsonEncode({'id': n['id'], 'kind': n['kind'], ...((n['link'] ?? n['data']) as Map? ?? {}).cast<String, dynamic>()}),
+      payload: jsonEncode(notificationPayload(n)),
     );
+    } catch (_) {
+      _deduplicator.forget(n['id']);
+      rethrow;
+    }
   }
 }

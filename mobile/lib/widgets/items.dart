@@ -73,11 +73,13 @@ class NewsTile extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(n['title']?.toString() ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.25)),
                 const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.schedule, size: 13, color: AppColors.muted),
-                  const SizedBox(width: 3),
-                  Text(fmtDate(n['published_at']), style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
-                  if (n['status'] != null && n['status'] != 'published') ...[const SizedBox(width: 6), const StatusChip('Chờ duyệt', color: AppColors.orange, dense: true)],
+                Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.schedule, size: 13, color: AppColors.muted),
+                    const SizedBox(width: 3),
+                    Text(fmtDate(n['published_at']), style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                  ]),
+                  if (n['status'] != null && n['status'] != 'published') const StatusChip('Chờ duyệt', color: AppColors.orange, dense: true),
                 ]),
               ]),
             ),
@@ -96,8 +98,11 @@ class ReportTile extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 4),
         leading: CircleAvatar(backgroundColor: AppColors.forestLight, child: Icon(Icons.campaign_outlined, color: StatusChip.toneOf(r['status'] as String?))),
         title: Text('${r['code']} · ${r['typeLabel'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
-        subtitle: Text('${r['commune_name'] ?? ''} · ${fmtDateTime(r['created_at'])}', style: const TextStyle(fontSize: 12)),
-        trailing: StatusChip(r['statusLabel']?.toString() ?? '', color: StatusChip.toneOf(r['status'] as String?), dense: true),
+        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${r['commune_name'] ?? ''} · ${fmtDateTime(r['created_at'])}', style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 4),
+          StatusChip(r['statusLabel']?.toString() ?? '', color: StatusChip.toneOf(r['status'] as String?), dense: true),
+        ]),
       );
 }
 
@@ -121,10 +126,9 @@ class TaskTile extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
+                Wrap(spacing: 6, runSpacing: 4, children: [
                   Text(t['code']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.navy)),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(kinds[t['kind']] ?? '', style: const TextStyle(fontSize: 12, color: AppColors.muted), overflow: TextOverflow.ellipsis)),
+                  Text(kinds[t['kind']] ?? '', style: const TextStyle(fontSize: 12, color: AppColors.muted)),
                 ]),
                 const SizedBox(height: 3),
                 Text(t['title']?.toString() ?? '', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),

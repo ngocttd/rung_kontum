@@ -7,12 +7,16 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/location.dart';
 import '../../core/session.dart';
 import '../../widgets/common.dart';
+import '../../widgets/network_map.dart';
 import 'object_page.dart';
+import 'map_data.dart';
+import 'map_geometry.dart';
 
 /// Vị trí cần mở bản đồ tới (từ tin, cảnh báo, nhiệm vụ…).
 class MapFocus {
@@ -37,20 +41,29 @@ class _MapPageState extends ConsumerState<MapPage> {
   final map = MapController();
   final search = TextEditingController();
   String basemap = 'satellite';
-  final on = <String>{'province', 'communes', 'hotspots'};
+  final on = <String>{'province', 'communes', 'hotspots', 'reports'};
   final opacity = <String, double>{};
   String choro = ''; // '', danger_cls, cover
   int hotspotHours = 168;
   Fix? me;
+  bool legendOpen = false;
   Measure measure = Measure.none;
   final pts = <LatLng>[];
   List<Map<String, dynamic>> results = [];
+  bool _showMap = false;
+  bool _mapReady = false;
+  String? _baseUrl;
+  Widget? _baseTiles;
 
   @override
   void initState() {
     super.initState();
     final s = ref.read(sessionProvider);
     if (s.user != null && (s.user!.role == 'specialist' || s.user!.role == 'leader')) on.add('tasks');
+    // Phản hồi chọn tab trước khi khởi tạo FlutterMap trong khung tiếp theo.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _showMap = true);
+    });
   }
 
   @override
@@ -60,10 +73,13 @@ class _MapPageState extends ConsumerState<MapPage> {
   }
 
   void _applyFocus() {
+    if (!_mapReady || !mounted) return;
     final f = widget.focus;
     if (f is MapFocus) {
       if (f.layer != null) setState(() => on.add(f.layer!));
-      WidgetsBinding.instance.addPostFrameCallback((_) => map.move(f.point, f.zoom));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _mapReady) map.move(f.point, f.zoom);
+      });
     }
   }
 
@@ -114,31 +130,50 @@ class _MapPageState extends ConsumerState<MapPage> {
   }
 
   @override
+  void dispose() {
+    search.dispose();
+    map.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (!_showMap) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     final s = ref.watch(sessionProvider);
+    // đăng nhập/đăng xuất sau khi mở bản đồ: lớp nhiệm vụ nội bộ chỉ dành cho cán bộ/lãnh đạo
+    ref.listen(sessionProvider.select((x) => x.user?.role), (a, b) {
+      setState(() => b == 'specialist' || b == 'leader' ? on.add('tasks') : on.remove('tasks'));
+    });
     final layers = ref.watch(layersProvider).asData?.value.data;
     final basemaps = ((s.map['basemaps'] as List?) ?? []).cast<Map>();
     final bm = basemaps.firstWhere((b) => b['id'] == basemap, orElse: () => basemaps.isEmpty ? {'url': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', 'attribution': '© OpenStreetMap'} : basemaps.first);
     final api = ref.watch(apiProvider);
     final rasters = ((layers?['raster'] as List?) ?? []).cast<Map>();
+    if (_baseTiles == null || _baseUrl != bm['url']) {
+      _baseUrl = bm['url'] as String;
+      _baseTiles = MapTileLayer(urlTemplate: _baseUrl!);
+    }
 
     final children = <Widget>[
-      TileLayer(urlTemplate: bm['url'] as String, userAgentPackageName: 'vn.gov.kontum.mobilegis', maxNativeZoom: 19),
+      _baseTiles!,
       for (final r in rasters.where((r) => on.contains(r['id'])))
         if (r['tiles'] != null)
           Opacity(
             opacity: opacity[r['id']] ?? 0.85,
-            child: TileLayer(
+            child: MapTileLayer(
+              key: ValueKey(r['id']),
               urlTemplate: api.url(r['tiles']['url'] as String),
               minNativeZoom: (r['tiles']['minzoom'] as num?)?.toInt() ?? 7,
               maxNativeZoom: (r['tiles']['maxzoom'] as num?)?.toInt() ?? 14,
-              userAgentPackageName: 'vn.gov.kontum.mobilegis',
-              tileProvider: NetworkTileProvider(headers: api.authHeaders),
+              headers: api.authHeaders,
+              allowMissingTiles: true,
             ),
           )
         else if (r['image']?['coordinates'] != null)
           OverlayImageLayer(overlayImages: [
-            OverlayImage(
+            MapOverlayImage(
               bounds: _boundsOf(r['image']['coordinates'] as List),
               imageProvider: NetworkImage(api.url(r['image']['url'] as String)),
               opacity: opacity[r['id']] ?? 0.85,
@@ -164,19 +199,25 @@ class _MapPageState extends ConsumerState<MapPage> {
 
     return Scaffold(
       body: Stack(children: [
-        FlutterMap(
+        NetworkMap(
+          noticeBottom: measure == Measure.none ? 84 : 144,
           mapController: map,
           options: MapOptions(
             initialCameraFit: CameraFit.bounds(bounds: _aoi, padding: const EdgeInsets.all(24)),
             minZoom: 6,
             maxZoom: 18,
             onTap: _tap,
-            onMapReady: _applyFocus,
+            onMapReady: () {
+              if (!mounted) return;
+              setState(() => _mapReady = true);
+              _applyFocus();
+            },
             interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
           ),
           children: children,
         ),
-        // tìm kiếm
+        if (_mapReady) ...[
+        // Đưa ô nhập/tìm kiếm vào khung sau khi canvas bản đồ đã sẵn sàng.
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -223,6 +264,7 @@ class _MapPageState extends ConsumerState<MapPage> {
           child: Column(children: [
             _btn(Icons.layers_outlined, 'Lớp dữ liệu', () => _layerSheet(rasters)),
             _btn(Icons.public, 'Bản đồ nền', () => _basemapSheet(basemaps)),
+            _btn(Icons.legend_toggle, 'Chú giải', () => setState(() => legendOpen = !legendOpen), active: legendOpen),
             _btn(Icons.my_location, 'Vị trí của tôi', _locate),
             _btn(Icons.straighten, 'Đo đạc', _measureMenu, active: measure != Measure.none),
             _btn(Icons.zoom_out_map, 'Toàn vùng', () => map.fitCamera(CameraFit.bounds(bounds: _aoi, padding: const EdgeInsets.all(24)))),
@@ -235,9 +277,39 @@ class _MapPageState extends ConsumerState<MapPage> {
             top: MediaQuery.of(context).padding.top + 74,
             child: NoticeBox('Sai số GPS lớn (±${me!.accuracy!.round()} m). Khi gửi dữ liệu có thể chọn vị trí trên bản đồ.', warn: true),
           ),
+        if (legendOpen)
+          Positioned(
+            left: 8,
+            right: 66,
+            bottom: measure != Measure.none ? 140 : 84,
+            child: ConstrainedBox(constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .42), child: _legendPanel(rasters)),
+          )
+        else
+          Positioned(
+            left: 12,
+            bottom: measure != Measure.none ? 140 : 84,
+            child: Material(
+              color: Colors.white,
+              elevation: 3,
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => setState(() => legendOpen = true),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.legend_toggle, size: 17, color: AppColors.forest),
+                    SizedBox(width: 5),
+                    Text('Chú giải', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.navy)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
         if (measure != Measure.none) Positioned(left: 12, right: 12, bottom: 84, child: _measureBar()),
         // nhóm lớp nhanh (prototype)
         Positioned(left: 8, right: 8, bottom: 8, child: _quickBar(rasters)),
+        ],
       ]),
     );
   }
@@ -252,41 +324,142 @@ class _MapPageState extends ConsumerState<MapPage> {
         ),
       );
 
+  /// Chú giải: chỉ liệt kê ký hiệu của các lớp đang bật (cùng bộ biểu tượng với bản đồ web).
+  Widget _legendPanel(List<Map> rasters) {
+    final cat = ref.read(sessionProvider).catalogs;
+    final typeLabels = {for (final t in ((cat['report_types'] as List?) ?? []).cast<Map>()) t['key'].toString(): t['label'].toString()};
+    Widget head(String t) => Padding(padding: const EdgeInsets.only(top: 8, bottom: 2), child: Text(t, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.forest, letterSpacing: .4)));
+    Widget row(Widget sym, String label) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(children: [SizedBox(width: 28, child: Center(child: sym)), const SizedBox(width: 8), Expanded(child: Text(label, style: const TextStyle(fontSize: 12)))]),
+        );
+    Widget pin(String asset) => Image.asset('assets/markers/$asset.png', height: 24);
+    Widget box(Color c, {Color? border}) => Container(width: 18, height: 12, decoration: BoxDecoration(color: c, border: border == null ? null : Border.all(color: border, width: 1.5), borderRadius: BorderRadius.circular(2)));
+    Widget line(Color c, double w) => Container(width: 22, height: w, color: c);
+    Widget dot(Color c) => Container(width: 14, height: 14, decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)]));
+
+    final w = <Widget>[];
+    if (on.contains('province') || on.contains('communes')) {
+      w.add(head('RANH GIỚI'));
+      if (on.contains('province')) w.add(row(line(const Color(0xFF9B4DFF), 3), 'Ranh giới Kon Tum (cũ)'));
+      if (on.contains('communes')) w.add(row(line(Colors.grey.shade400, 1.5), 'Ranh giới xã/phường'));
+    }
+    if (on.contains('communes') && choro == 'danger_cls') {
+      w.add(head('CẤP NGUY CƠ CHÁY HÔM NAY'));
+      const names = {1: 'Cấp I – Thấp', 2: 'Cấp II – Trung bình', 3: 'Cấp III – Cao', 4: 'Cấp IV – Nguy hiểm', 5: 'Cấp V – Cực kỳ nguy hiểm'};
+      for (final e in names.entries) {
+        w.add(row(box(AppColors.dangerOf(e.key).withValues(alpha: .6)), e.value));
+      }
+    }
+    if (on.contains('communes') && choro == 'cover') {
+      w.add(head('TỶ LỆ CHE PHỦ RỪNG'));
+      w.add(Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(height: 10, decoration: BoxDecoration(borderRadius: BorderRadius.circular(3), gradient: const LinearGradient(colors: [Color(0xFFF5F0C8), AppColors.forestDark]))),
+          const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('0 %', style: TextStyle(fontSize: 11)), Text('90 % trở lên', style: TextStyle(fontSize: 11))]),
+        ]),
+      ));
+    }
+    if (on.contains('hotspots')) {
+      w.add(head('ĐIỂM NÓNG / CHÁY RỪNG'));
+      for (final h in const [
+        ('hotspot-unverified', 'Điểm nóng mới (chưa xác minh)'),
+        ('fire-investigating', 'Cần / đang xác minh'),
+        ('fire-confirmed', 'Đã xác nhận cháy / đang xử lý'),
+        ('fire-rejected', 'Không phải cháy rừng'),
+        ('fire-resolved', 'Đã kết thúc'),
+      ]) {
+        w.add(row(pin(h.$1), h.$2));
+      }
+    }
+    if (on.contains('reports')) {
+      w.add(head('PHẢN ÁNH CÔNG KHAI'));
+      for (final e in _reportIcons.entries) {
+        w.add(row(pin(e.value), typeLabels[e.key] ?? _reportFallback[e.key] ?? e.key));
+      }
+      w.add(const Padding(padding: EdgeInsets.only(top: 2), child: Text('Vị trí phản ánh được làm tròn ~1 km để bảo mật người gửi.', style: TextStyle(fontSize: 10.5, color: AppColors.muted))));
+    }
+    if (on.contains('candidates')) {
+      w.add(head('BIẾN ĐỘNG RỪNG NGHI VẤN'));
+      for (final c in const [('new', 'Mới phát hiện – chưa xác minh'), ('verifying', 'Đang xác minh'), ('confirmed', 'Đã xác nhận mất rừng'), ('seasonal', 'Rụng lá mùa khô'), ('rejected', 'Không phải mất rừng')]) {
+        w.add(row(dot(StatusChip.toneOf(c.$1)), c.$2));
+      }
+    }
+    if (on.contains('tasks')) {
+      w.add(head('HIỆN TRƯỜNG'));
+      w.add(row(pin('survey'), 'Nhiệm vụ hiện trường (nội bộ)'));
+    }
+    if (me != null) {
+      w.add(head('VỊ TRÍ CỦA BẠN'));
+      w.add(row(dot(AppColors.blue), 'Vị trí GPS (vòng tròn = sai số)'));
+    }
+    for (final r in rasters.where((r) => on.contains(r['id']) && (r['legend'] as List?)?.isNotEmpty == true)) {
+      w.add(head(r['title'].toString().toUpperCase()));
+      w.add(_Legend((r['legend'] as List).cast<Map>(), inset: 0));
+    }
+    if (w.isEmpty) w.add(const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Text('Chưa bật lớp nào. Bấm biểu tượng lớp để bật.', style: TextStyle(fontSize: 12, color: AppColors.muted))));
+
+    return Card(
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 4, 8),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.legend_toggle, size: 18, color: AppColors.navy),
+            const SizedBox(width: 6),
+            const Expanded(child: Text('Chú giải', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.navy))),
+            IconButton(visualDensity: VisualDensity.compact, tooltip: 'Đóng', icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() => legendOpen = false)),
+          ]),
+          Flexible(child: SingleChildScrollView(child: Padding(padding: const EdgeInsets.only(right: 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: w)))),
+        ]),
+      ),
+    );
+  }
+
   Widget _quickBar(List<Map> rasters) {
     // lớp phủ chuẩn hoá Dynamic World năm mới nhất đã trọn (dw-YYYY); không dùng bản đồ dự án
     final dw = rasters.map((r) => r['id'].toString()).where((id) => RegExp(r'^dw-\d{4}$').hasMatch(id)).toList()..sort();
     final forestId = dw.length > 1 ? dw[dw.length - 2] : (dw.isNotEmpty ? dw.last : 'lc-2023');
+    final u = ref.read(sessionProvider).user;
+    final hasTasks = u != null && (u.role == 'specialist' || u.role == 'leader' || u.role == 'admin');
     final groups = <(String, IconData, List<String>)>[
       ('Hành chính', Icons.account_balance_outlined, ['province', 'communes']),
       ('Rừng', Icons.forest_outlined, [forestId]),
       ('Điểm cháy', Icons.local_fire_department_outlined, ['hotspots']),
-      ('Ảnh vệ tinh', Icons.satellite_alt_outlined, ['s2-latest']),
+      ('Phản ánh', Icons.campaign_outlined, ['reports']),
       ('Biến động', Icons.park_outlined, ['candidates']),
+      if (hasTasks) ('Nhiệm vụ', Icons.assignment_outlined, ['tasks']),
     ];
+    Widget btn((String, IconData, List<String>) g) {
+      final active = g.$3.every(on.contains);
+      return InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => setState(() {
+          for (final id in g.$3) {
+            active ? on.remove(id) : on.add(id);
+          }
+        }),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(g.$2, size: 22, color: active ? AppColors.forest : AppColors.muted),
+            Text(g.$1, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: active ? AppColors.forest : AppColors.muted)),
+          ]),
+        ),
+      );
+    }
+
     return Card(
       elevation: 3,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(children: [
-          for (final g in groups)
-            Expanded(
-              child: InkWell(
-                onTap: () => setState(() {
-                  final all = g.$3.every(on.contains);
-                  for (final id in g.$3) {
-                    all ? on.remove(id) : on.add(id);
-                  }
-                }),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(g.$2, color: g.$3.every(on.contains) ? AppColors.forest : AppColors.muted),
-                    Text(g.$1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: g.$3.every(on.contains) ? AppColors.forest : AppColors.muted)),
-                  ]),
-                ),
-              ),
-            ),
-        ]),
+        child: LayoutBuilder(builder: (context, c) {
+          if (c.maxWidth >= groups.length * 68) {
+            return Row(children: [for (final g in groups) Expanded(child: btn(g))]);
+          }
+          return SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [for (final g in groups) btn(g)]));
+        }),
       ),
     );
   }
@@ -361,7 +534,7 @@ class _MapPageState extends ConsumerState<MapPage> {
           groups.putIfAbsent(r['group_label']?.toString() ?? 'Khác', () => []).add(r);
         }
         final staff = ref.read(sessionProvider).user;
-        return DraggableScrollableSheet(
+        return SafeDraggableSheet(
           expand: false,
           initialChildSize: .7,
           maxChildSize: .95,
@@ -427,12 +600,31 @@ class _H extends StatelessWidget {
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 4), child: Text(t, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.forest, letterSpacing: .5)));
 }
 
+/// Biểu tượng phản ánh theo loại (cùng bộ với web: máy chủ gửi `marker` cho từng loại).
+const _reportIcons = {
+  'chay-rung': 'fire-investigating',
+  'pha-rung': 'forest-violation',
+  'lan-chiem': 'land-encroachment',
+  'van-chuyen': 'timber-transport',
+  'dong-vat': 'wildlife',
+  'khac': 'report-other',
+};
+const _reportFallback = {
+  'chay-rung': 'Cháy rừng',
+  'pha-rung': 'Phá rừng, khai thác trái phép',
+  'lan-chiem': 'Xâm lấn đất rừng',
+  'van-chuyen': 'Vận chuyển lâm sản trái phép',
+  'dong-vat': 'Động vật hoang dã',
+  'khac': 'Khác',
+};
+
 class _Legend extends StatelessWidget {
-  const _Legend(this.items);
+  const _Legend(this.items, {this.inset = 20});
   final List<Map> items;
+  final double inset;
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 16, 8),
+        padding: EdgeInsets.fromLTRB(inset, 0, 16, 8),
         child: Wrap(spacing: 10, runSpacing: 4, children: [
           for (final l in items)
             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -466,43 +658,60 @@ double polygonAreaM2(List<LatLng> p) {
 }
 
 // ---------- lớp vector ----------
-class _ProvinceLayer extends ConsumerWidget {
+class _ProvinceLayer extends ConsumerStatefulWidget {
   const _ProvinceLayer();
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final g = ref.watch(provinceGeoProvider).asData?.value.data;
-    if (g == null) return const SizedBox.shrink();
-    final lines = <Polyline>[];
-    for (final f in (g['features'] as List).cast<Map>()) {
-      for (final ring in ringsOf(f['geometry'] as Map)) {
-        lines.add(Polyline(points: ring.map((p) => LatLng(p[1], p[0])).toList(), color: const Color(0xFF9B4DFF), strokeWidth: 2.6));
-      }
+  ConsumerState<_ProvinceLayer> createState() => _ProvinceLayerState();
+}
+
+class _ProvinceLayerState extends ConsumerState<_ProvinceLayer> {
+  List<List<LatLng>>? _geometry;
+  Widget _layer = const SizedBox.shrink();
+
+  @override
+  Widget build(BuildContext context) {
+    final geometry = ref.watch(provinceMapGeometryProvider).asData?.value;
+    if (geometry != null && !identical(geometry, _geometry)) {
+      _geometry = geometry;
+      _layer = PolylineLayer(polylines: [
+        for (final ring in geometry)
+          Polyline(points: ring, color: const Color(0xFF9B4DFF), strokeWidth: 2.6),
+      ]);
     }
-    return PolylineLayer(polylines: lines);
+    return _layer;
   }
 }
 
-class _CommunesLayer extends ConsumerWidget {
+class _CommunesLayer extends ConsumerStatefulWidget {
   const _CommunesLayer({required this.choro});
   final String choro;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final g = ref.watch(communesGeoProvider).asData?.value.data;
-    if (g == null) return const SizedBox.shrink();
-    final polys = <Polygon>[];
-    for (final f in (g['features'] as List).cast<Map>()) {
-      final p = f['properties'] as Map;
+  ConsumerState<_CommunesLayer> createState() => _CommunesLayerState();
+}
+
+class _CommunesLayerState extends ConsumerState<_CommunesLayer> {
+  List<PolygonGeometry>? _geometry;
+  String? _choro;
+  Widget _layer = const SizedBox.shrink();
+
+  @override
+  Widget build(BuildContext context) {
+    final geometry = ref.watch(communeMapGeometryProvider).asData?.value;
+    if (geometry == null) return _layer;
+    if (identical(geometry, _geometry) && widget.choro == _choro) return _layer;
+    _geometry = geometry;
+    _choro = widget.choro;
+    final polygons = <Polygon>[];
+    for (final polygon in geometry) {
+      final p = polygon.properties;
       Color fill = Colors.transparent;
-      if (choro == 'danger_cls' && p['danger_cls'] != null) fill = AppColors.dangerOf(p['danger_cls'] as num).withValues(alpha: .45);
-      if (choro == 'cover' && p['cover'] != null) fill = Color.lerp(const Color(0xFFF5F0C8), AppColors.forestDark, ((p['cover'] as num) / 90).clamp(0, 1).toDouble())!.withValues(alpha: .55);
-      final geom = f['geometry'] as Map;
-      final polysCoords = geom['type'] == 'Polygon' ? [geom['coordinates'] as List] : (geom['coordinates'] as List).cast<List>();
-      for (final poly in polysCoords) {
-        final rings = poly.cast<List>().map((r) => r.map((c) => LatLng(((c as List)[1] as num).toDouble(), (c[0] as num).toDouble())).toList()).toList();
-        polys.add(Polygon(points: rings.first, holePointsList: rings.length > 1 ? rings.sublist(1) : null, color: fill, borderColor: Colors.white.withValues(alpha: .85), borderStrokeWidth: 1.1));
-      }
+      if (widget.choro == 'danger_cls' && p['danger_cls'] != null) fill = AppColors.dangerOf(p['danger_cls'] as num).withValues(alpha: .45);
+      if (widget.choro == 'cover' && p['cover'] != null) fill = Color.lerp(const Color(0xFFF5F0C8), AppColors.forestDark, ((p['cover'] as num) / 90).clamp(0, 1).toDouble())!.withValues(alpha: .55);
+      polygons.add(Polygon(points: polygon.rings.first, holePointsList: polygon.rings.length > 1 ? polygon.rings.sublist(1) : null, color: fill, borderColor: Colors.white.withValues(alpha: .85), borderStrokeWidth: 1.1));
     }
-    return PolygonLayer(polygons: polys);
+    // Giữ cả widget để flutter_map tái sử dụng cache chiếu/tối giản tọa độ.
+    _layer = PolygonLayer(polygons: polygons);
+    return _layer;
   }
 }
 
@@ -570,7 +779,7 @@ class _ReportsLayer extends ConsumerWidget {
     for (final r in ((d['items'] as List?) ?? []).cast<Map>()) {
       if (r['lat'] == null) continue;
       final pt = LatLng((r['lat'] as num).toDouble(), (r['lon'] as num).toDouble());
-      final icon = {'chay-rung': 'fire-investigating', 'pha-rung': 'forest-violation', 'lan-chiem': 'land-encroachment', 'van-chuyen': 'timber-transport', 'dong-vat': 'wildlife'}[r['type']] ?? 'report-other';
+      final icon = _reportIcons[r['type']] ?? 'report-other';
       markers.add(Marker(point: pt, width: 30, height: 36, alignment: Alignment.topCenter, child: GestureDetector(onTap: () => context.push('/object', extra: ObjectRef(kind: 'report', id: r['code'].toString(), props: r.cast<String, dynamic>(), point: pt)), child: Image.asset('assets/markers/$icon.png'))));
     }
     return MarkerLayer(markers: markers);

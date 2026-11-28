@@ -1,9 +1,13 @@
 <%- include('_top') %>
+<% const deletionRequests = users.filter(u => u.account_deletion_requested_at)
+     .sort((a, b) => a.account_deletion_requested_at.localeCompare(b.account_deletion_requested_at));
+   const orderedUsers = [...deletionRequests, ...users.filter(u => !u.account_deletion_requested_at)]; %>
 <% if (newPassword) { %><div class="flash ok">Mật khẩu tạm của <b><%= newPassword.username %></b>: <code style="font-size:15px"><%= newPassword.pass %></code> — chỉ hiển thị một lần, hãy chuyển cho người dùng qua kênh an toàn và yêu cầu đổi mật khẩu.</div><% } %>
+<% if (deletionRequests.length) { %><p class="note info"><strong><%= deletionRequests.length %> yêu cầu xóa tài khoản đang chờ xử lý</strong></p><% } %>
 <section class="card">
   <div class="card-h"><h2><%- ic('people-fill') %> Danh sách người dùng</h2></div>
   <div class="card-b table-wrap"><table class="tbl" data-page-size="15"><thead><tr><th>STT</th><th>Họ tên</th><th>Tên đăng nhập</th><th>Vai trò / phạm vi</th><th>Đăng nhập gần nhất</th><th>Trạng thái</th><th data-sort="off">Thao tác</th></tr></thead><tbody>
-    <% users.forEach((u, i) => { %><tr><td><%= i + 1 %></td><td><%= u.name || '—' %><div class="src"><%= u.email || '' %><%= u.phone ? ' · ' + u.phone : '' %></div>
+    <% orderedUsers.forEach((u, i) => { %><tr><td><%= i + 1 %></td><td><%= u.name || '—' %><div class="src"><%= u.email || '' %><%= u.phone ? ' · ' + u.phone : '' %></div>
       <details class="row-edit"><summary class="src"><%- ic('pencil-fill') %> Sửa</summary><form method="post" action="/quan-tri/nguoi-dung/<%= u.id %>" class="grid" style="gap:6px;margin-top:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="edit">
         <input class="input" name="name" value="<%= u.name || '' %>" placeholder="Họ tên"><input class="input" name="email" type="email" value="<%= u.email || '' %>" placeholder="Email"><input class="input" name="phone" value="<%= u.phone || '' %>" placeholder="Điện thoại"><button class="btn btn-primary btn-sm">Lưu</button></form></details></td><td><%= u.username %></td>
       <td><form method="post" action="/quan-tri/nguoi-dung/<%= u.id %>" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="action" value="role">
@@ -12,7 +16,8 @@
           <div style="position:absolute;z-index:20;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-height:260px;overflow:auto;box-shadow:0 6px 20px rgba(0,0,0,.12);min-width:230px">
             <div class="src" style="margin-bottom:4px">Không chọn xã nào = toàn vùng</div>
             <% communes.forEach(c => { %><label class="check" style="margin:2px 0;display:flex"><input type="checkbox" name="scope" value="<%= c.code %>" <%= sc.includes(c.code) ? 'checked' : '' %>> <%= c.fullName %></label><% }) %></div></details><button class="btn btn-outline btn-sm">Lưu</button></form></td>
-      <td><%= u.last_login ? fmt.dateTime(u.last_login) : '—' %></td><td><span class="badge <%= u.active ? 'b-green' : 'b-red' %>"><%= u.active ? 'Hoạt động' : 'Đã khóa' %></span></td>
+      <td><%= u.last_login ? fmt.dateTime(u.last_login) : '—' %></td><td><span class="badge <%= u.active ? 'b-green' : 'b-red' %>"><%= u.active ? 'Hoạt động' : 'Đã khóa' %></span>
+        <% if (u.account_deletion_requested_at) { %><div><span class="badge b-orange">Chờ xóa tài khoản</span> <time class="src" datetime="<%= u.account_deletion_requested_at %>"><%= fmt.dateTime(u.account_deletion_requested_at) %></time></div><% } %></td>
       <td><form method="post" action="/quan-tri/nguoi-dung/<%= u.id %>" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-outline btn-sm" name="action" value="toggle"><%- ic(u.active ? 'lock-fill' : 'unlock-fill') %> <%= u.active ? 'Khóa' : 'Mở khóa' %></button><button class="btn btn-outline btn-sm" name="action" value="reset" onclick="return confirm('Cấp lại mật khẩu?')"><%- ic('key-fill') %> Cấp lại mật khẩu</button></form></td></tr><% }) %>
   </tbody></table></div>
 </section>

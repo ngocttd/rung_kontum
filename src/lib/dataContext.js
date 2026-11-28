@@ -6,8 +6,8 @@ const repo = require('../data/repo');
 const dmy = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
 
 function dataContext(year) {
-  const s = repo.forestSummary(year) || {};
-  const years = repo.statYears().map((y) => y.year);
+  const s = repo.forestSummary(year);
+  const years = s.years;
   const latestYear = years[years.length - 1];
   const fc = repo.forestChange() || null;
   const asOf = s.as_of || null; // ngày số liệu hiện trạng (vd 2025-12-31)
@@ -23,10 +23,9 @@ function dataContext(year) {
   const fcFrom = hz ? Number(hz[1]) : null; const fcTo = hz ? Number(hz[2]) : null;
   const v = fc && fc.forecast ? fc.forecast.validation || {} : {};
   const pl = (t) => { const m = String(t || '').match(/(\d{4})-(\d{4})/); return m ? `${m[1]}–${m[2]}` : ''; };
-  const ov = Object.fromEntries(repo.overlays().map((o) => [o.id, o]));
+  const s2 = repo.preparedOverlays().findLast((o) => o.id === 's2-latest');
   // ảnh Sentinel-2 tháng: tháng đầu – tháng cuối của chuỗi
   let months = []; try { months = require('../services/imagery').months().map((m) => (typeof m === 'string' ? m : m.month)).filter(Boolean).sort(); } catch { /* chưa có chuỗi ảnh */ }
-  const s2 = ov['s2-latest'];
   // biến động nghi vấn Sentinel-2 theo năm (theo năm bắt đầu của kỳ so sánh) – sau năm cuối của Hansen
   const s2Change = {};
   for (const w of (fc && fc.candidates && fc.candidates.windows) || []) {

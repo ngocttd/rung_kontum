@@ -1,7 +1,8 @@
 // Thông báo MobileGIS:
 //  1. Nguồn sự thật: bảng mobile.notifications (PostgreSQL). Thông báo được sinh từ sự kiện nghiệp vụ đã chốt –
 //     cảnh báo cháy đã phê duyệt, cháy đã xác minh, hồ sơ phản ánh đổi trạng thái, phản ánh/tin báo cháy mới (cán bộ),
-//     nhiệm vụ mới/trả lại, kết quả duyệt xác minh. KHÔNG sinh từ điểm nóng chưa xác minh (đặc tả mục 9). source_ref UNIQUE chống trùng giữa nhiều tiến trình.
+//     nhiệm vụ mới/trả lại, kết quả duyệt xác minh. Điểm nóng chưa xác minh KHÔNG phát cảnh báo khẩn công khai (đặc tả mục 9); báo cho cán bộ
+//     phụ trách xã/lãnh đạo để xác minh; người dân trong xã nhận bản tin thông tin riêng (mục h, ghi rõ "chưa xác minh"). source_ref UNIQUE chống trùng giữa nhiều tiến trình.
 //  2. Giao tức thời qua Socket.IO (src/services/realtime.js) khi ứng dụng đang mở.
 //  3. Firebase Cloud Messaging (src/services/push/fcm.js) khi ứng dụng ở nền/đã đóng – Android và iOS.
 //     Bản ghi push chờ GRACE_MS; nếu Socket.IO đã giao được thì bỏ qua (không báo trùng).
@@ -15,6 +16,8 @@ const fcm = require('./push/fcm');
 const GRACE_MS = 4000;
 const MAX_ATTEMPTS = 6;
 const RECENT_MS = 3 * 864e5; // chỉ phát sự kiện trong 3 ngày gần nhất (tránh dồn thông báo cũ khi mới triển khai)
+const HOTSPOT_NEW_MS = 12 * 36e5; // điểm nóng mới: chỉ báo nếu vệ tinh ghi nhận trong 12 giờ gần nhất
+const HOTSPOT_BATCH = 20; // tối đa 20 bản tin điểm nóng mới mỗi lượt quét (30 giây) – tránh dồn khi mới triển khai
 
 // ---------- đối tượng nhận ----------
 // d = { user_id, role, scope, communes[] } của thiết bị/kết nối
@@ -25,6 +28,8 @@ function matches(n, d) {
     return !n.target_communes || !n.target_communes.length || !d.scope || String(d.scope).split(',').some((c) => n.target_communes.includes(c));
   }
   if (n.is_public) {
+    // bản tin công khai riêng cho người dân (data.public_only): cán bộ đã nhận bản tin theo địa bàn nên không nhận thêm bản này
+    if (n.data && n.data.public_only && d.role && d.role !== 'citizen') return false;
     const subs = d.communes || [];
     return !subs.length || !n.target_communes || !n.target_communes.length || subs.some((c) => n.target_communes.includes(c));
   }
@@ -36,7 +41,7 @@ const DEVICE_MATCH_SQL = `
   WHERE d.push_enabled AND d.push_provider IS NOT NULL AND d.push_endpoint IS NOT NULL AND (
     ($1::uuid IS NOT NULL AND d.user_id = $1::uuid)
     OR ($1::uuid IS NULL AND $2::text[] IS NOT NULL AND u.role = ANY($2) AND ($3::text[] IS NULL OR u.scope IS NULL OR u.scope = '' OR string_to_array(u.scope, ',') && $3::text[]))
-    OR ($1::uuid IS NULL AND $2::text[] IS NULL AND $4 AND (cardinality(d.subscribed_communes) = 0 OR $3::text[] IS NULL OR d.subscribed_communes && $3::text[]))
+    OR ($1::uuid IS NULL AND $2::text[] IS NULL AND $4 AND ($5::boolean IS NOT TRUE OR u.role IS NULL OR u.role = 'citizen') AND (cardinality(d.subscribed_communes) = 0 OR $3::text[] IS NULL OR d.subscribed_communes && $3::text[]))
   )`;
 
 // ---------- tạo thông báo ----------
@@ -53,7 +58,7 @@ async function create(n) {
     [id, n.source_ref, n.kind, n.title.slice(0, 200), (n.body || '').slice(0, 1000), JSON.stringify(n.data || {}), n.target_user || null, n.target_roles || null, n.target_communes || null, Boolean(n.is_public), n.priority || 'normal', n.expires_at || null]);
     const row = r.rows[0];
     if (!row) { await client.query('ROLLBACK'); return null; } // đã có (tiến trình khác tạo trước)
-    const devs = await client.query(DEVICE_MATCH_SQL, [row.target_user, row.target_roles, row.target_communes, row.is_public]);
+    const devs = await client.query(DEVICE_MATCH_SQL, [row.target_user, row.target_roles, row.target_communes, row.is_public, Boolean(row.data && row.data.public_only)]);
     for (const d of devs.rows) {
       await client.query(`INSERT INTO mobile.notification_deliveries (id, notification_id, device_id, channel, next_attempt_at)
         VALUES ($1,$2,$3,$4, now() + ($5 || ' milliseconds')::interval) ON CONFLICT DO NOTHING`, [crypto.randomUUID(), row.id, d.id, d.push_provider, String(GRACE_MS)]);
@@ -99,7 +104,7 @@ async function scan() {
       });
     }
     // c) hồ sơ phản ánh của người dân đổi trạng thái / có phản hồi
-    for (const r of store.filter('reports', (x) => x.created_by && x.timeline && x.timeline.length > 1)) {
+    for (const r of store.filter('reports', (x) => x.created_by && store.get('users', x.created_by) && x.timeline && x.timeline.length > 1)) {
       const last = r.timeline[r.timeline.length - 1];
       if (!recent(last.at)) continue;
       const label = reports.STATUS[last.status] ? reports.STATUS[last.status].label : last.status;
@@ -135,14 +140,39 @@ async function scan() {
         target_roles: ['specialist', 'leader'], target_communes: r.commune_code ? [r.commune_code] : null, priority: fire ? 'high' : 'normal',
       });
     }
-    // g) điểm cháy nhập tay chờ xác minh → cán bộ phụ trách xã (điểm từ phản ánh đã báo ở mục f)
+    // g) điểm cháy nhập tay chờ xác minh → cán bộ phụ trách xã + lãnh đạo (điểm từ phản ánh đã báo ở mục f)
     for (const h of repo.hotspots()) {
-      if (!h.manual || h.manual.report_code || h.status !== 'new' || !recent(h.utc)) continue;
+      if (!h.manual || h.manual.report_code || !['new', 'assigned'].includes(h.status) || !recent(h.utc)) continue;
       await add({
         source_ref: `ch-new:${h.manual.code}`, kind: 'fire_report', title: `Tin báo cháy ${h.manual.code} cần xác minh${h.commune ? ` – ${h.commune}` : ''}`,
         body: h.sensorLabel, data: { screen: 'hotspot', id: h.id, commune: h.communeCode, lat: h.lat, lon: h.lon },
-        target_roles: ['specialist'], target_communes: h.communeCode ? [h.communeCode] : null, priority: 'high',
+        target_roles: ['specialist', 'leader'], target_communes: h.communeCode ? [h.communeCode] : null, priority: 'high',
       });
+    }
+    // h) điểm nóng vệ tinh (FIRMS) MỚI xuất hiện trên bản đồ → cán bộ phụ trách xã + lãnh đạo để kịp xác minh.
+    //    Vẫn là điểm nóng CHƯA xác minh: tiêu đề/nội dung ghi rõ. Người dân trong xã (hoặc theo dõi xã đó) nhận thêm một bản tin công khai riêng, mức bình thường.
+    //    Dùng kind 'fire_report' (đã có trong ràng buộc CSDL) – mã nguồn khác biệt qua source_ref `hn:`. Giới hạn số bản tin mỗi lượt quét.
+    let hot = 0;
+    for (const h of repo.hotspots()) {
+      if (h.manual || h.status !== 'new' || Date.now() - new Date(h.utc).getTime() > RECENT_MS) continue;
+      if (hot >= HOTSPOT_BATCH) break;
+      const inForest = Boolean(h.context && h.context.in_forest);
+      const strong = String(h.confidence || '').toLowerCase() === 'high' || Number(h.confidence) >= 80;
+      const place = h.commune || 'vùng giám sát Kon Tum';
+      const cit = h.communeCode ? create({
+        source_ref: `hn-pub:${h.id}`, kind: 'fire_report', title: `Điểm nóng mới tại ${place} (chưa xác minh)`,
+        body: 'Vệ tinh vừa phát hiện nhiệt bất thường gần khu vực này, chưa xác định là cháy rừng (có thể là đốt nương rẫy). Tránh xa khu vực, không đốt lửa; nếu thấy cháy lan hãy gọi 114 hoặc báo kiểm lâm/chính quyền xã.',
+        data: { screen: 'hotspot', id: h.id, commune: h.communeCode, lat: h.lat, lon: h.lon, public_only: true },
+        target_communes: [h.communeCode], is_public: true, priority: 'normal', expires_at: new Date(Date.now() + 2 * 864e5).toISOString(),
+      }).catch((e) => { console.warn('[notifier] không tạo được thông báo hn-pub:', e.message); return null; }) : Promise.resolve(null);
+      if (await create({
+        source_ref: `hn:${h.id}`, kind: 'fire_report', title: `Điểm nóng mới – ${place}${inForest ? ' (trong vùng rừng)' : ''}`,
+        body: `${h.sensorLabel} phát hiện lúc ${new Date(h.utc).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })} – chưa xác minh. Cần kiểm tra thực địa để xác nhận cháy rừng hay đốt nương rẫy.`,
+        data: { screen: 'hotspot', id: h.id, commune: h.communeCode, lat: h.lat, lon: h.lon },
+        target_roles: ['specialist', 'leader'], target_communes: h.communeCode ? [h.communeCode] : null, priority: inForest || strong ? 'high' : 'normal',
+        expires_at: new Date(Date.now() + 2 * 864e5).toISOString(),
+      }).catch((e) => { console.warn('[notifier] không tạo được thông báo hn:', e.message); return null; })) { hot += 1; created += 1; }
+      if (await cit) created += 1;
     }
   } catch (e) {
     console.warn('[notifier] quét lỗi:', e.message);

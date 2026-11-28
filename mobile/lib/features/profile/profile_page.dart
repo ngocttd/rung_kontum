@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../app/config.dart';
 import '../../app/theme.dart';
+import '../../app/layout.dart';
+import '../../core/external_link.dart';
 import '../../core/api.dart';
 import '../../core/data.dart';
 import '../../core/outbox.dart';
@@ -34,7 +37,7 @@ class ProfilePage extends ConsumerWidget {
           onTap: onTap,
         );
 
-    return Scaffold(
+    return ResponsiveScaffold(maxWidth: 760,
       appBar: AppBar(title: const Text('Cá nhân')),
       body: ListView(padding: const EdgeInsets.all(14), children: [
         Card(
@@ -52,7 +55,7 @@ class ProfilePage extends ConsumerWidget {
           child: Column(children: [
             if (u != null) item(Icons.person_outline, 'Thông tin cá nhân', () => _account(context, ref, u)),
             item(Icons.campaign_outlined, 'Quản lý phản ánh của tôi', () => context.push('/reports')),
-            if (u != null && (u.role == 'specialist' || u.role == 'leader')) item(Icons.assignment_outlined, 'Nhiệm vụ hiện trường', () => context.push('/tasks')),
+            if (u != null && u.isStaff) item(Icons.assignment_outlined, 'Nhiệm vụ hiện trường', () => context.push('/tasks')),
             if (u?.can('field.review') == true) item(Icons.fact_check_outlined, 'Duyệt kết quả xác minh', () => context.push('/review')),
             item(Icons.notifications_none, 'Thông báo', () => context.push('/notifications'), badge: unread),
             item(Icons.sync, 'Dữ liệu ngoại tuyến & đồng bộ', () => context.push('/sync'), badge: o.waiting + o.conflicts, trailing: o.online ? null : 'Ngoại tuyến'),
@@ -66,6 +69,10 @@ class ProfilePage extends ConsumerWidget {
             item(Icons.menu_book_outlined, 'Hướng dẫn sử dụng', () => launchUrl(Uri.parse(ref.read(apiProvider).url('/huong-dan/mobile')), mode: LaunchMode.externalApplication)),
             item(Icons.support_agent, 'Hỗ trợ – đường dây nóng', () => _support(context, s)),
             item(Icons.info_outline, 'Về ứng dụng', () => _about(context)),
+            if (AppConfig.privacyPolicyUrl.isNotEmpty)
+              item(Icons.privacy_tip_outlined, 'Chính sách quyền riêng tư', () => openAccountLink(context, AppConfig.privacyPolicyUrl)),
+            if (u != null && AppConfig.accountDeletionUrl.isNotEmpty)
+              item(Icons.person_remove_outlined, 'Xóa tài khoản', () => openAccountLink(context, AppConfig.accountDeletionUrl), color: AppColors.fire),
           ]),
         ),
         const SizedBox(height: 14),
@@ -111,8 +118,7 @@ class ProfilePage extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(context).viewInsets.bottom + 20),
+      builder: (_) => FormSheet(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Thông tin cá nhân', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           KV('Họ tên', u.name),

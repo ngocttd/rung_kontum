@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:share_plus/share_plus.dart';
-
+import '../../app/layout.dart';
 import '../../app/theme.dart';
+import '../../core/api.dart';
+import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
+import '../../core/share_text.dart';
 import '../../widgets/common.dart';
 import '../field/verification_page.dart';
 import 'map_page.dart';
@@ -33,6 +35,7 @@ class ObjectPage extends ConsumerWidget {
     final p = data.props;
     final u = s.user;
     final canVerify = u?.can('field.verify') == true && ['hotspot', 'candidate', 'report'].contains(data.kind);
+    final canAssign = u?.can('tasks.assign') == true && ['hotspot', 'candidate', 'report'].contains(data.kind);
     final (title, image, chip, chipColor) = switch (data.kind) {
       'hotspot' => (
           'Điểm nóng cháy ${p['sensorLabel'] ?? ''}',
@@ -46,7 +49,7 @@ class ObjectPage extends ConsumerWidget {
       _ => (p['title']?.toString() ?? 'Đối tượng', 'assets/images/p04-fire-small.webp', (p['statusLabel'] ?? '').toString(), AppColors.orange),
     };
 
-    return Scaffold(
+    return ResponsiveScaffold(
       body: CustomScrollView(slivers: [
         SliverAppBar(
           pinned: true,
@@ -57,7 +60,7 @@ class ObjectPage extends ConsumerWidget {
             IconButton(
               tooltip: 'Chia sẻ',
               icon: const Icon(Icons.share_outlined),
-              onPressed: () => SharePlus.instance.share(ShareParams(text: '$title\nToạ độ: ${fmtCoord(data.point.latitude, data.point.longitude)}\nhttps://maps.google.com/?q=${data.point.latitude},${data.point.longitude}')),
+              onPressed: () => shareText(context, '$title\nToạ độ: ${fmtCoord(data.point.latitude, data.point.longitude)}\nhttps://maps.google.com/?q=${data.point.latitude},${data.point.longitude}'),
             ),
           ],
           flexibleSpace: FlexibleSpaceBar(
@@ -97,13 +100,26 @@ class ObjectPage extends ConsumerWidget {
               ]),
               const SizedBox(height: 10),
               if (canVerify)
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: AppColors.orange),
-                  icon: const Icon(Icons.fact_check_outlined),
-                  label: const Text('Xác minh tại hiện trường'),
-                  onPressed: () => context.push('/verify', extra: VerifyArgs(kind: data.kind, alertId: data.kind == 'report' ? (p['code'] ?? data.id).toString() : data.id, title: title, point: data.point)),
-                )
-              else if (data.kind != 'report')
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.orange, minimumSize: const Size.fromHeight(44)),
+                    icon: const Icon(Icons.fact_check_outlined),
+                    label: const Text('Xác minh tại hiện trường'),
+                    onPressed: () => context.push('/verify', extra: VerifyArgs(kind: data.kind, alertId: data.kind == 'report' ? (p['code'] ?? data.id).toString() : data.id, title: title, point: data.point)),
+                  ),
+                ),
+              if (canAssign)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+                    icon: const Icon(Icons.assignment_ind_outlined),
+                    label: const Text('Giao nhiệm vụ xác minh'),
+                    onPressed: () => _assignVerification(context, ref, title),
+                  ),
+                ),
+              if (!canVerify && !canAssign && data.kind != 'report')
                 OutlinedButton.icon(
                   icon: const Icon(Icons.campaign_outlined),
                   label: const Text('Gửi phản ánh tại vị trí này'),
@@ -113,6 +129,64 @@ class ObjectPage extends ConsumerWidget {
           ),
         ),
       ]),
+    );
+  }
+
+  Future<void> _assignVerification(BuildContext context, WidgetRef ref, String defaultTitle) async {
+    final note = TextEditingController();
+    DateTime? due;
+    String? err;
+    var busy = false;
+    final refId = data.kind == 'report' ? (data.props['code'] ?? data.id).toString() : data.id;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, set) => FormSheet(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Text('Giao nhiệm vụ xác minh hiện trường', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.navy)),
+            const SizedBox(height: 6),
+            Text('$defaultTitle ($refId)', style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+            const SizedBox(height: 10),
+            TextField(controller: note, maxLines: 3, decoration: const InputDecoration(labelText: 'Hướng dẫn kiểm tra thực địa')),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event),
+              title: Text(due == null ? 'Chọn hạn hoàn thành (tuỳ chọn)' : 'Hạn: ${due!.day}/${due!.month}/${due!.year} 17:00'),
+              onTap: () async {
+                final d = await showDatePicker(context: ctx, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: DateTime.now().add(const Duration(days: 2)));
+                if (d != null) set(() => due = DateTime(d.year, d.month, d.day, 17));
+              },
+            ),
+            if (err != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: NoticeBox(err!, warn: true)),
+            FilledButton.icon(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      set(() => [busy = true, err = null]);
+                      try {
+                        final r = await ref.read(apiProvider).post<Map<String, dynamic>>('/api/mobile/assignments', {
+                          'kind': data.kind,
+                          'ref_id': refId,
+                          'instructions': note.text.trim(),
+                          'due_at': due?.toUtc().toIso8601String(),
+                        });
+                        ref.invalidate(assignmentsProvider);
+                        if (sheetCtx.mounted) {
+                          Navigator.pop(sheetCtx);
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã giao nhiệm vụ ${r['code']} cho cán bộ phụ trách địa bàn.')));
+                        }
+                      } on ApiException catch (e) {
+                        set(() => [busy = false, err = e.message]);
+                      }
+                    },
+              icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.send),
+              label: const Text('Giao nhiệm vụ'),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 

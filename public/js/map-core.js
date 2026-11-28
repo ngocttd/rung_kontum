@@ -13,11 +13,32 @@
   const MARKERS = ['hotspot-unverified', 'fire-investigating', 'fire-confirmed', 'fire-rejected', 'fire-resolved', 'forest-violation', 'land-encroachment',
     'timber-transport', 'wildlife', 'report-other', 'report-photo', 'gps', 'survey'];
   const cache = {};
-  KT.fetchCached = (url) => (cache[url] = cache[url] || KT.getJSON(url));
+  KT.fetchCached = (url) => {
+    if (!cache[url]) {
+      const request = KT.getJSON(url).catch((error) => {
+        if (cache[url] === request) delete cache[url];
+        throw error;
+      });
+      cache[url] = request;
+    }
+    return cache[url];
+  };
   KT.fetchFresh = async (url) => {
     const r = await fetch(url, { cache: 'no-cache', headers: { Accept: 'application/json' } });
     if (!r.ok) throw new Error(`${url}: ${r.status}`);
     const j = await r.json(); cache[url] = Promise.resolve(j); return j;
+  };
+
+  // Thông báo nổi trên trang (vd. điểm nóng mới): role="alert", tự tắt sau 15 giây, có nút hành động tuỳ chọn.
+  KT.toast = (text, { action, onAction, ms = 15000 } = {}) => {
+    let box = document.getElementById('kt-toasts');
+    if (!box) { box = document.createElement('div'); box.id = 'kt-toasts'; box.setAttribute('aria-live', 'assertive'); document.body.appendChild(box); }
+    const el = document.createElement('div'); el.className = 'kt-toast'; el.setAttribute('role', 'alert');
+    const msg = document.createElement('span'); msg.textContent = text; el.appendChild(msg);
+    const close = () => el.remove();
+    if (action) { const b = document.createElement('button'); b.type = 'button'; b.className = 'kt-toast-act'; b.textContent = action; b.addEventListener('click', () => { try { onAction && onAction(); } finally { close(); } }); el.appendChild(b); }
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'kt-toast-x'; x.setAttribute('aria-label', 'Đóng'); x.textContent = '×'; x.addEventListener('click', close); el.appendChild(x);
+    box.appendChild(el); setTimeout(close, ms);
   };
 
   // Đồng bộ trực tiếp: máy chủ phát "changed" (Socket.IO /mobile, chung với MobileGIS) khi trạng thái xác minh,
@@ -109,19 +130,53 @@
       })));
     }
 
-    async function buildAll() {
+    let styleVersion = 0;
+    const pendingBuilds = new Map();
+
+    // Put a newly enabled vector back in its original drawing order.
+    function positionLayer(id) {
+      const d = view.defs[id];
+      let before;
+      if (d.kind === 'overlay') before = map.getLayer('communes-line') && 'communes-line';
+      else {
+        const later = view.order.slice(view.order.indexOf(id) + 1);
+        before = later.flatMap((key) => view.defs[key].layers).find((layer) => map.getLayer(layer));
+      }
+      if (before) d.layers.forEach((layer) => { if (map.getLayer(layer)) map.moveLayer(layer, before); });
+    }
+
+    function buildLayer(id) {
+      const d = view.defs[id];
+      if (!view.ready || !d.visible) return;
+      if (pendingBuilds.has(id)) return pendingBuilds.get(id);
+      const version = styleVersion;
+      const work = d.build(map, d).then(() => {
+        if (!view.ready) return;
+        applyState(id);
+        if (d.visible) positionLayer(id);
+      }).catch((e) => { if (version === styleVersion) console.warn('layer', id, e); })
+        .finally(() => { if (pendingBuilds.get(id) === work) pendingBuilds.delete(id); });
+      pendingBuilds.set(id, work);
+      return work;
+    }
+
+    async function buildAll(version) {
       await loadMarkers();
       if (!map.hasImage('wind-arrow')) await new Promise((res) => map.loadImage('/assets/symbols/wind-direction.png', (e, img) => { if (!e && !map.hasImage('wind-arrow')) map.addImage('wind-arrow', img, { pixelRatio: 4 }); res(); }));
+      if (version !== styleVersion) return;
+      view.ready = true;
       for (const id of view.order) {
-        const d = view.defs[id];
-        try { await d.build(map, d); applyState(id); } catch (e) { console.warn('layer', id, e); }
+        if (version !== styleVersion) return;
+        if (view.defs[id].visible) await buildLayer(id);
+        else applyState(id);
       }
+      if (version !== styleVersion) return;
       if (view.terrain) setTerrain(true);
       if (map.getLayer('communes-line')) Object.values(view.defs).forEach((d) => { if (d.kind === 'overlay' && d.visible) d.layers.forEach((l) => map.getLayer(l) && map.moveLayer(l, 'communes-line')); });
       if (view.onBuilt) view.onBuilt();
     }
 
-    map.on('style.load', () => { view.ready = true; buildAll(); });
+    map.on('style.load', () => { buildAll(styleVersion); });
     // Containers may change size while fonts/layout settle: refit once loaded unless a page set its own view.
     map.once('load', () => { map.resize(); if (!view.skipFit && !opts.bounds) map.fitBounds(BOUNDS, { padding: opts.padding ?? 20, duration: 0 }); });
     // Keep the whole AOI in view when the container is resized by layout, until the user moves the map.
@@ -131,12 +186,18 @@
       new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => { map.resize(); if (!view.userMoved && !view.skipFit && !opts.bounds) map.fitBounds(BOUNDS, { padding: opts.padding ?? 20, duration: 0 }); }, 120); }).observe(el);
     }
 
-    view.define = (id, def) => { view.defs[id] = { visible: true, ...def }; view.order.push(id); if (view.ready) def.build(map, view.defs[id]).then(() => applyState(id)); return view; };
+    view.define = (id, def) => {
+      view.defs[id] = { visible: true, ...def };
+      view.order.push(id);
+      if (view.ready) buildLayer(id);
+      return view;
+    };
     view.setVisible = (id, v) => {
       const d = view.defs[id]; if (!d) return;
       d.visible = v;
-      if (v && view.ready && d.kind === 'overlay' && !map.getLayer(d.layers[0])) {
-        d.build(map, d).then(() => { applyState(id); if (map.getLayer('communes-line')) d.layers.forEach((l) => map.getLayer(l) && map.moveLayer(l, 'communes-line')); }).catch((e) => console.warn('layer', id, e));
+      if (!view.ready) return;
+      if (v && !map.getLayer(d.layers[0])) {
+        buildLayer(id);
         return;
       }
       applyState(id);
@@ -144,7 +205,14 @@
       if (v && d.kind === 'overlay' && map.getLayer('communes-line')) d.layers.forEach((l) => map.getLayer(l) && map.moveLayer(l, 'communes-line'));
     };
     view.setOpacity = (id, v) => { if (!view.defs[id]) return; view.defs[id].opacity = v; applyState(id); };
-    view.setBasemap = (name) => { if (!BASEMAPS[name] || name === view.basemap) return; view.basemap = name; map.setStyle(BASEMAPS[name]); };
+    view.setBasemap = (name) => {
+      if (!BASEMAPS[name] || name === view.basemap) return;
+      view.basemap = name;
+      view.ready = false;
+      styleVersion += 1;
+      pendingBuilds.clear();
+      map.setStyle(BASEMAPS[name]);
+    };
     function setTerrain(on) {
       if (on) {
         if (!map.getSource('mapbox-dem')) map.addSource('mapbox-dem', { type: 'raster-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1', tileSize: 512, maxzoom: 14 });
@@ -212,6 +280,7 @@
         async build(map) {
           const data = await KT.fetchCached('/api/public/fire/hotspots');
           if (!map.getSource('hotspots')) map.addSource('hotspots', { type: 'geojson', data });
+          const known = new Set(data.features.map((f) => f.properties.id)); // mốc so sánh: điểm nóng đã có lúc mở trang
           if (!map.getLayer('hotspots-glow')) map.addLayer({ id: 'hotspots-glow', type: 'circle', source: 'hotspots', paint: { 'circle-radius': 16, 'circle-color': '#ff5a1f', 'circle-opacity': 0.25, 'circle-blur': 0.6 } });
           if (!map.hotspotsLive) {
             map.hotspotsLive = true;
@@ -222,6 +291,13 @@
                 const fresh = await KT.fetchFresh('/api/public/fire/hotspots');
                 const src = map.getSource('hotspots');
                 if (src) src.setData(fresh);
+                // điểm nóng MỚI xuất hiện (chưa xác minh) → báo ngay trên trang, bấm để bay tới vị trí
+                const added = fresh.features.filter((f) => !known.has(f.properties.id) && (f.properties.status || 'new') === 'new');
+                fresh.features.forEach((f) => known.add(f.properties.id));
+                if (added.length) {
+                  const [lng, lat] = added[0].geometry.coordinates; const c = added[0].properties.commune;
+                  KT.toast(added.length > 1 ? `Có ${added.length} điểm nóng mới trên bản đồ (chưa xác minh)` : `Điểm nóng mới${c ? ` tại ${c}` : ''} (chưa xác minh)`, { icon: 'fire', action: 'Xem vị trí', onAction: () => map.flyTo({ center: [lng, lat], zoom: 12.5 }) });
+                }
                 document.dispatchEvent(new CustomEvent('kt:hotspots', { detail: fresh }));
               } catch (e) { /* giữ dữ liệu cũ */ } finally { busy = false; }
             };
@@ -262,7 +338,7 @@
       return {
         kind: 'vector', layers: [`${id}-arrow`, `${id}-label`], visible: false,
         async build(map) {
-          const data = await KT.fetchCached(`/api/public/weather/wind?nguon=${source}`).catch(() => ({ type: 'FeatureCollection', features: [] }));
+          const data = await KT.fetchCached(`/api/public/weather/wind?nguon=${source}`);
           if (!map.getSource(id)) map.addSource(id, { type: 'geojson', data });
           if (!map.getLayer(`${id}-arrow`)) map.addLayer({ id: `${id}-arrow`, type: 'symbol', source: id, layout: { 'icon-image': 'wind-arrow', 'icon-size': ['interpolate', ['linear'], ['get', 'speed_ms'], 0, 0.7, 8, 1.3], 'icon-rotate': ['+', ['get', 'dir_from'], 180], 'icon-allow-overlap': true, 'icon-rotation-alignment': 'map' } });
           if (!map.getLayer(`${id}-label`)) map.addLayer({ id: `${id}-label`, type: 'symbol', source: id, minzoom: 8.5, layout: { 'text-field': ['concat', ['to-string', ['get', 'speed_ms']], ' m/s'], 'text-size': 10.5, 'text-offset': [0, 1.6], 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'], 'text-allow-overlap': false }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#174a7c', 'text-halo-width': 1.6 } });
@@ -447,4 +523,16 @@
     if (o.id === 'forest-loss-risk') return `<h4>${KT.esc(o.title)}</h4>${o.legend.map((l) => `<div class="row"><span class="sw" style="background:${l.color}"></span>Cấp ${l.value} – ${KT.RISK_LABEL[l.value]}</div>`).join('')}`;
     return `<h4>${KT.esc(o.title)}</h4><div class="ramp" style="background:linear-gradient(90deg,${o.legend.map((l) => l.color).join(',')})"></div><div class="ramp-l"><span>${o.legend[0].value}</span><span>${o.legend[o.legend.length - 1].value}</span></div>`;
   };
+})();
+
+/* Điện thoại: chú giải thu gọn sau nút "Chú giải" (không che nút đổi nền / bản đồ); máy tính để nguyên như cũ. */
+(function () {
+  const init = () => document.querySelectorAll('.map-shell').forEach((shell) => {
+    if (!shell.querySelector('.legend') || shell.querySelector('.legend-toggle')) return;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'legend-toggle'; b.setAttribute('aria-expanded', 'false'); b.textContent = 'Chú giải';
+    b.addEventListener('click', () => { const open = shell.classList.toggle('legend-open'); b.setAttribute('aria-expanded', String(open)); });
+    shell.appendChild(b);
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

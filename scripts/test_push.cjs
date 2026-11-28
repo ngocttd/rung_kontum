@@ -27,7 +27,7 @@ const fakeToken = () => `${crypto.randomBytes(11).toString('base64url')}:APA91b$
 (async () => {
   const admin = new Client({ host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 5432), user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME || 'rung_kontum' });
   await admin.connect();
-  const cleanup = { reports: [], devices: [], sockets: [] };
+  const cleanup = { reports: [], devices: [], sockets: [], notifications: [] };
   let mock;
   try {
     const boot = (await call('GET', '/api/mobile/bootstrap')).j;
@@ -60,6 +60,13 @@ const fakeToken = () => `${crypto.randomBytes(11).toString('base64url')}:APA91b$
     ok(sDan.connected && sCb.connected, 'Kết nối Socket.IO /mobile bằng token truy cập');
     const bad = await new Promise((r) => { const s = io(`${BASE}/mobile`, { path: '/socket.io', transports: ['websocket'], auth: { token: 'sai' }, reconnection: false }); s.on('connect', () => { s.close(); r(false); }); s.on('connect_error', (e) => { s.close(); r(/TOKEN/.test(e.message)); }); });
     ok(bad, 'Token sai bị từ chối khi kết nối socket');
+
+    const selfTest = await call('POST', '/api/mobile/notifications/test', { token: dan.access_token });
+    if (selfTest.j && selfTest.j.id) cleanup.notifications.push(selfTest.j.id);
+    ok(selfTest.status === 200 && selfTest.j.ok && selfTest.j.id, 'API gửi thông báo thử tạo bản ghi thành công');
+    const selfNotification = await waitFor(() => inbox.dan.find((n) => n.id === selfTest.j.id));
+    ok(selfNotification && selfNotification.kind === 'system' && selfNotification.link.screen === 'notifications', 'Thông báo thử được giao qua Socket.IO với đúng màn hình đích');
+    ok(!inbox.cb.some((n) => n.id === selfTest.j.id), 'Thông báo thử riêng tư không gửi sang tài khoản khác');
 
     // phản ánh của người dân
     const loc = boot.communes[0].center;
@@ -128,8 +135,8 @@ const fakeToken = () => `${crypto.randomBytes(11).toString('base64url')}:APA91b$
     await new Promise((r) => mock.listen(0, '127.0.0.1', r));
     const mb = `http://127.0.0.1:${mock.address().port}`;
     fs.writeFileSync(path.join(tmp, 'sa.json'), JSON.stringify({ type: 'service_account', project_id: 'kontum-test', private_key_id: 'kid1', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }), client_email: 'fcm@kontum-test.iam.gserviceaccount.com', token_uri: `${mb}/token` }));
-    Object.assign(process.env, { FCM_SERVICE_ACCOUNT_FILE: path.join(tmp, 'sa.json'), FCM_ENDPOINT: mb });
-    delete process.env.FCM_PROJECT_ID; delete process.env.FCM_TOKEN_URI;
+    // Ghi đè rõ project giả lập: config.js có thể nạp lại .env khi require fcm lần đầu.
+    Object.assign(process.env, { FCM_SERVICE_ACCOUNT_FILE: path.join(tmp, 'sa.json'), FCM_ENDPOINT: mb, FCM_PROJECT_ID: 'kontum-test', FCM_TOKEN_URI: `${mb}/token` });
     const fcm = require('../src/services/push/fcm');
     const tok = fakeToken();
     const r1 = await fcm.send(tok, { id: crypto.randomUUID(), source_ref: 'fd:test', kind: 'fire_danger', title: 'Cảnh báo cháy rừng Cấp IV', body: 'Kiểm thử', priority: 'high', data: { screen: 'fire', commune: '23284' } });
@@ -158,6 +165,7 @@ const fakeToken = () => `${crypto.randomBytes(11).toString('base64url')}:APA91b$
     for (const s of cleanup.sockets) s.close();
     if (mock) mock.close();
     // dọn dữ liệu thử (tài khoản quản trị DB vì bảng xác minh bất biến)
+    await admin.query('DELETE FROM mobile.notifications WHERE id = ANY($1)', [cleanup.notifications]).catch(() => {});
     await admin.query("DELETE FROM mobile.notifications WHERE data->>'code' = ANY($1) OR source_ref LIKE ANY($2)", [cleanup.reports, cleanup.reports.map((c) => `pa:${c}:%`)]).catch(() => {});
     await admin.query("DELETE FROM mobile.notifications WHERE kind = 'verification' AND body LIKE '%kiểm thử thông báo%'").catch(() => {});
     await admin.query('DELETE FROM mobile.mobile_devices WHERE id = ANY($1)', [cleanup.devices]).catch(() => {});

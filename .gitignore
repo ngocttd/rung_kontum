@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 .secrets/
+gee-key.json
 node_modules/
 __pycache__/
 .tools/

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/format.dart';
 import '../../core/outbox.dart';
 import '../../widgets/common.dart';
@@ -13,7 +14,7 @@ class SyncPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final o = ref.watch(outboxProvider);
     final n = ref.read(outboxProvider.notifier);
-    return Scaffold(
+    return ResponsiveScaffold(
       appBar: AppBar(title: const Text('Đồng bộ ngoại tuyến'), actions: [
         if (o.items.any((i) => i.status == OutboxStatus.done)) TextButton(onPressed: n.clearDone, child: const Text('Xoá đã gửi')),
       ]),

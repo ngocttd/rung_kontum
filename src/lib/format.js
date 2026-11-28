@@ -1,8 +1,16 @@
 const TZ = 'Asia/Ho_Chi_Minh';
+const numberFormats = new Map();
+const dateFormat = new Intl.DateTimeFormat('vi-VN', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' });
+const timeFormat = new Intl.DateTimeFormat('vi-VN', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
 
 function num(v, digits = 0) {
   if (v === null || v === undefined || Number.isNaN(Number(v))) return '—';
-  return Number(v).toLocaleString('vi-VN', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  let format = numberFormats.get(digits);
+  if (!format) {
+    format = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    numberFormats.set(digits, format);
+  }
+  return format.format(Number(v));
 }
 
 function pct(v, digits = 1) {
@@ -19,13 +27,13 @@ function toDate(v) {
 function date(v) {
   const d = toDate(v);
   if (!d) return typeof v === 'string' ? v : '—';
-  return d.toLocaleDateString('vi-VN', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' });
+  return dateFormat.format(d);
 }
 
 function dateTime(v) {
   const d = toDate(v);
   if (!d) return '—';
-  return `${d.toLocaleTimeString('vi-VN', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })} ${date(d)}`;
+  return `${timeFormat.format(d)} ${date(d)}`;
 }
 
 // "YYYY-MM-DD" (local calendar date) → "16/10/2026" without timezone shifts.

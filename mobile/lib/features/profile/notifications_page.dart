@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/notify_open.dart';
@@ -9,7 +10,7 @@ import '../../core/session.dart';
 import '../../widgets/common.dart';
 
 /// Thông báo: chỉ cảnh báo đã phê duyệt / sự kiện đã xác minh, cập nhật hồ sơ của tôi, nhiệm vụ mới.
-/// Không phát cảnh báo khẩn cấp từ điểm nóng chưa xác minh (đặc tả mục 9).
+/// Điểm nóng mới chưa xác minh chỉ báo ở mức thông tin, ghi rõ "chưa xác minh" (đặc tả mục 9); cán bộ phụ trách xã nhận thêm bản tin để xác minh.
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({super.key});
   static const icons = {'fire_danger': Icons.local_fire_department, 'fire_confirmed': Icons.whatshot, 'report': Icons.campaign_outlined, 'assignment': Icons.assignment_outlined, 'report_new': Icons.campaign, 'fire_report': Icons.local_fire_department_outlined};
@@ -17,7 +18,7 @@ class NotificationsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final v = ref.watch(notificationsProvider);
-    return Scaffold(
+    return ResponsiveScaffold(
       appBar: AppBar(title: const Text('Thông báo'), actions: [
         TextButton(
           onPressed: () async {

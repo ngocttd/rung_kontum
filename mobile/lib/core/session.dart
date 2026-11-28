@@ -69,7 +69,17 @@ final prefsProvider = Provider<SharedPreferences>((ref) => throw UnimplementedEr
 
 class ServerUrl extends Notifier<String> {
   @override
-  String build() => ref.read(prefsProvider).getString('server_url') ?? AppConfig.defaultApiBase;
+  String build() {
+    final prefs = ref.read(prefsProvider);
+    final saved = prefs.getString('server_url');
+    final host = saved == null ? null : Uri.tryParse(saved)?.host.toLowerCase();
+    // Chuyển địa chỉ phát triển đã lưu từ các bản cài trước sang máy chủ HTTPS.
+    if (const {'localhost', '127.0.0.1', '::1', '[::1]', '10.0.2.2'}.contains(host)) {
+      prefs.setString('server_url', AppConfig.defaultApiBase);
+      return AppConfig.defaultApiBase;
+    }
+    return saved ?? AppConfig.defaultApiBase;
+  }
   Future<void> set(String url) async {
     final v = AppConfig.normalize(url);
     await ref.read(prefsProvider).setString('server_url', v);

@@ -1,0 +1,238 @@
+{
+  "project_info": {
+    "project_number": "315105906364",
+    "project_id": "even-metrics-413108",
+    "storage_bucket": "even-metrics-413108.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:315105906364:android:58f2a78c460955f9c10ab9",
+        "android_client_info": {
+          "package_name": "com.example.kontum_moblie"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "315105906364-md20413qfmrnthesol7bkc1aetcpkuic.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEUeB1-CNe2VXjRfagTd7NJfDz6CaSPZc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "315105906364-md20413qfmrnthesol7bkc1aetcpkuic.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "315105906364-7aifn0v3hcfhr2btm7coibd7ueb5t4kg.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "vn.gov.kontum.mobilegis.staging"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:315105906364:android:4d942c85ba243dfdc10ab9",
+        "android_client_info": {
+          "package_name": "vn.gov.kontum.kontum_mobilegis"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "315105906364-md20413qfmrnthesol7bkc1aetcpkuic.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEUeB1-CNe2VXjRfagTd7NJfDz6CaSPZc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "315105906364-md20413qfmrnthesol7bkc1aetcpkuic.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "315105906364-7aifn0v3hcfhr2btm7coibd7ueb5t4kg.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "vn.gov.kontum.mobilegis.staging"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:315105906364:android:84b2ce45da1abb10c10ab9",
+        "android_client_info": {
+          "package_name": "vn.gov.kontum.mobilegis"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "315105906364-6m1aup55de5gtipafnf1krdcnhdvb2mo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "vn.gov.kontum.mobilegis",
+            "certificate_hash": "d9c5409ec57573f50011f115c379306b617ca3b0"
+          }
+        },
+        {
+          "client_id": "315105906364-od670g2cge6pahfverh7infsjbk2jc10.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "vn.gov.kontum.mobilegis",
+            "certificate_hash": "ebf6e2a180609f58164094c1d177802a90c0e86d"
+          }
+        },
+        {
+          "client_id": "315105906364-md20413qfmrnthesol7bkc1aetcpkuic.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEUeB1-CNe2VXjRfagTd7NJfDz6CaSPZc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "315105906364-md20413qfmrnthesol7bkc1aetcpkuic.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "315105906364-7aifn0v3hcfhr2btm7coibd7ueb5t4kg.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "vn.gov.kontum.mobilegis.staging"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:315105906364:android:6dfedb6c69f41a51c10ab9",
+        "android_client_info": {
+          "package_name": "vn.gov.kontum.mobilegis.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "315105906364-hi7jko9bd14a6du58kktccoou35fa27n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "vn.gov.kontum.mobilegis.dev",
+            "certificate_hash": "ebf6e2a180609f58164094c1d177802a90c0e86d"
+          }
+        },
+        {
+          "client_id": "315105906364-k7al8ftq6js0sfppf4tqdqfroca521on.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "vn.gov.kontum.mobilegis.dev",
+            "certificate_hash": "d9c5409ec57573f50011f115c379306b617ca3b0"
+          }
+        },
+        {
+          "client_id": "315105906364-md20413qfmrnthesol7bkc1aetcpkuic.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEUeB1-CNe2VXjRfagTd7NJfDz6CaSPZc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "315105906364-md20413qfmrnthesol7bkc1aetcpkuic.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "315105906364-7aifn0v3hcfhr2btm7coibd7ueb5t4kg.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "vn.gov.kontum.mobilegis.staging"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:315105906364:android:5cf3a92845d2d855c10ab9",
+        "android_client_info": {
+          "package_name": "vn.gov.kontum.mobilegis.staging"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "315105906364-0k0fh5adtummobtgh8jrg4n6objjtlu9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "vn.gov.kontum.mobilegis.staging",
+            "certificate_hash": "d9c5409ec57573f50011f115c379306b617ca3b0"
+          }
+        },
+        {
+          "client_id": "315105906364-ao4hi8heoiuco74f7m1i3p7a5qs01sf5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "vn.gov.kontum.mobilegis.staging",
+            "certificate_hash": "ebf6e2a180609f58164094c1d177802a90c0e86d"
+          }
+        },
+        {
+          "client_id": "315105906364-md20413qfmrnthesol7bkc1aetcpkuic.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEUeB1-CNe2VXjRfagTd7NJfDz6CaSPZc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "315105906364-md20413qfmrnthesol7bkc1aetcpkuic.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "315105906364-7aifn0v3hcfhr2btm7coibd7ueb5t4kg.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "vn.gov.kontum.mobilegis.staging"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

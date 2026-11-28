@@ -64,8 +64,13 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     const rep = await call('POST', '/api/mobile/reports', { token: dan.access_token, body: { client_uuid: cu, type: 'chay-rung', description: 'Khói lớn trên sườn đồi phía sau thôn (kiểm thử tự động)', lat: ctr[1], lon: ctr[0], gps_accuracy: 8, location_source: 'gps', attachments: [up.j.object_key] } });
     if (rep.j && rep.j.report) reportIds.push(rep.j.report.id);
     ok(rep.status === 201 && /^PA-/.test(rep.j.report.code) && rep.j.report.status === 'received' && rep.j.report.photos.length === 1, 'TC03 Gửi phản ánh có ảnh/GPS: sinh mã, lưu bằng chứng, trạng thái tiếp nhận');
-    const reused = await call('POST', '/api/mobile/reports', { token: demo.specialist.access_token, body: { type: 'khac', description: 'Thử dùng lại tệp của người khác', lat: ctr[1], lon: ctr[0], attachments: [up.j.object_key] } });
+    const reportCount = store.all('reports').length;
+    const reusedDescription = 'Thử dùng lại tệp của người khác';
+    const reused = await call('POST', '/api/mobile/reports', { token: demo.specialist.access_token, body: { type: 'khac', description: reusedDescription, lat: ctr[1], lon: ctr[0], attachments: [up.j.object_key] } });
     ok(reused.status === 409 || reused.status === 403, 'Không dùng lại tệp đính kèm của hồ sơ khác');
+    await store.drain();
+    const rejected = await db.query('SELECT 1 FROM ops.reports WHERE description = $1', [reusedDescription]);
+    ok(store.all('reports').length === reportCount && !rejected.rowCount, 'Tệp bị từ chối không tạo hồ sơ phản ánh');
     const pub = await call('GET', `/api/mobile/reports/${rep.j.report.code}`);
     ok(pub.status === 200 && !pub.j.reporter && pub.j.lat === Math.round(ctr[1] * 100) / 100, 'Tra cứu công khai không lộ người gửi, toạ độ làm tròn');
 
@@ -89,6 +94,10 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     const open = await call('GET', `/api/mobile/assignments/${asg.j.id}`, { token: cb.access_token });
     const acc = await call('POST', `/api/mobile/assignments/${asg.j.id}/accept`, { token: cb.access_token, body: { base_version: open.j.version } });
     ok(open.status === 200 && acc.j.status === 'accepted', 'Cán bộ địa bàn mở và nhận nhiệm vụ');
+    for (const query of ['mine=true', 'mine=true&status=accepted']) {
+      const assigned = await call('GET', `/api/mobile/assignments?${query}`, { token: cb.access_token });
+      ok(assigned.status === 200 && assigned.j.items.some((a) => a.id === asg.j.id), `Lọc nhiệm vụ của cán bộ (${query})`);
+    }
 
     // TC09 offline conflict on assignment (stale base_version) → conflict, not overwritten
     const conf = await call('POST', '/api/mobile/sync/batch', { token: cb.access_token, body: { items: [{ client_uuid: uuid(), entity: 'assignment', operation: 'start', base_version: 1, payload: { id: asg.j.id } }] } });
@@ -121,6 +130,13 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     try { await db.query("UPDATE mobile.incident_verifications SET verdict = 'not_confirmed' WHERE id = $1", [ver.j.verification.id]); } catch { immutable = true; }
     ok(ver.status === 201 && selfRev.status === 403 && rev.j.review_status === 'approved' && rev.j.reviews.length === 1 && repAfter.status === 'processing' && immutable,
       'TC08 Xác minh và duyệt: lưu bằng chứng, người duyệt, lịch sử bất biến; không tự duyệt');
+    for (const endpoint of ['/surveys', `/surveys/${sv.j.survey.id}`, '/verifications', `/verifications/${ver.j.verification.id}`]) {
+      const citizen = await call('GET', `/api/mobile${endpoint}`, { token: dan.access_token });
+      const staff = await call('GET', `/api/mobile${endpoint}`, { token: ld.access_token });
+      ok(citizen.status === 403 && citizen.j.code === 'FORBIDDEN' && staff.status === 200, `Dữ liệu hiện trường chỉ dành cho cán bộ (${endpoint})`);
+    }
+    const unknownVerification = await call('GET', `/api/mobile/verifications/${uuid()}`, { token: ld.access_token });
+    ok(unknownVerification.status === 404 && unknownVerification.j.code === 'NOT_FOUND', 'Chi tiết xác minh không tồn tại trả 404');
 
     // TC10 restricted document → not public
     const internal = (await db.query("SELECT f.id FROM maps.map_files f JOIN maps.map_datasets d ON d.id = f.dataset_id WHERE d.access = 'internal' OR d.status <> 'published' LIMIT 1")).rows[0];

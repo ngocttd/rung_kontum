@@ -66,6 +66,11 @@ function attach(httpServer) {
 // dữ liệu không nằm trong bảng có trigger (vd. tệp FIRMS mới tải) → báo cho mọi kết nối làm mới
 function broadcast(collection) { if (io) io.of('/mobile').emit('changed', { collection, at: new Date().toISOString() }); }
 
+// tài khoản bị khoá: đóng ngay các kết nối đã xác thực của tài khoản trong tiến trình này
+function disconnectUser(userId) { if (io) io.of('/mobile').in(`user:${userId}`).disconnectSockets(true); }
+// khoá từ nơi khác (tiến trình khác, sửa trực tiếp database) không gọi disconnectUser → kiểm tra lại trước khi giao
+const locked = (d) => Boolean(d.user_id) && !(store.get('users', d.user_id) || {}).active;
+
 // gửi một thông báo tới các kết nối phù hợp trong tiến trình này, chờ xác nhận
 async function deliver(id) {
   if (!io) return;
@@ -75,7 +80,8 @@ async function deliver(id) {
   const payload = { id: n.id, kind: n.kind, title: n.title, body: n.body, link: n.data, priority: n.priority, at: n.created_at };
   const sockets = await io.of('/mobile').fetchSockets();
   const acked = [];
-  await Promise.all(sockets.filter((s) => notifier.matches(n, s.data)).map(async (s) => {
+  sockets.filter((s) => locked(s.data)).forEach((s) => s.disconnect(true));
+  await Promise.all(sockets.filter((s) => !locked(s.data) && notifier.matches(n, s.data)).map(async (s) => {
     try {
       await s.timeout(notifier.GRACE_MS - 500).emitWithAck('notification', payload);
       if (s.data.deviceId) acked.push(s.data.deviceId);
@@ -86,4 +92,4 @@ async function deliver(id) {
 
 const stats = async () => (io ? { connections: (await io.of('/mobile').fetchSockets()).length } : { connections: 0 });
 
-module.exports = { attach, deliver, stats, broadcast };
+module.exports = { attach, deliver, disconnectUser, stats, broadcast };

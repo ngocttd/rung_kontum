@@ -22,8 +22,12 @@ let running = false;
 let backoffUntil = 0;
 let failures = 0;
 
-const aoi = JSON.parse(fs.readFileSync(path.join(paths.boundaries, 'kon-tum-historical-province.geojson'), 'utf8')).features[0].geometry;
-const [W, S, E, N] = bbox(aoi).map((v, i) => Math.round((v + (i < 2 ? -0.02 : 0.02)) * 1000) / 1000);
+let aoi = null;
+let [W, S, E, N] = [107.31, 13.89, 108.58, 15.45];
+try {
+  aoi = JSON.parse(fs.readFileSync(path.join(paths.boundaries, 'kon-tum-historical-province.geojson'), 'utf8')).features[0].geometry;
+  [W, S, E, N] = bbox(aoi).map((v, i) => Math.round((v + (i < 2 ? -0.02 : 0.02)) * 1000) / 1000);
+} catch { /* môi trường dev/kiểm thử chưa có thư mục data/ */ }
 
 function readStatus() { try { return JSON.parse(fs.readFileSync(STATUS, 'utf8')); } catch { return {}; } }
 function writeJson(file, obj) { const tmp = `${file}.${process.pid}.tmp`; fs.writeFileSync(tmp, JSON.stringify(obj, null, 1)); fs.renameSync(tmp, file); }
@@ -67,7 +71,7 @@ async function refresh({ force = false } = {}) {
       const byId = new Map(fc.features.filter((f) => f.properties.acq_date >= cutoff).map((f) => [idOf(sensor, f.properties), f]));
       for (const r of rows) {
         const lon = Number(r.longitude); const lat = Number(r.latitude);
-        if (!geometryContains(aoi, lon, lat)) continue;
+        if (aoi && !geometryContains(aoi, lon, lat)) continue;
         const id = idOf(sensor, r);
         if (!byId.has(id)) added += 1;
         const conf = { l: 'low', n: 'nominal', h: 'high' }[r.confidence] || r.confidence; // VIIRS letters; MODIS stays 0–100
@@ -79,7 +83,13 @@ async function refresh({ force = false } = {}) {
     Object.assign(st, { collected_at: new Date().toISOString(), added, ok: true, error: null, bbox: [W, S, E, N], transactions_per_run: '10–15' });
     if (added) require('./realtime').broadcast('alerts'); // điểm nóng mới → bản đồ web/app làm mới ngay
     failures = 0; backoffUntil = 0;
-    const toDb = () => { if (db.enabled) require('../db/sync').run(['hotspots']).catch((e) => console.warn('[firms] lưu DB lỗi:', e.message)); };
+    const toDb = () => {
+      if (added) {
+        require('./realtime').broadcast('alerts');
+        if (db.enabled) require('./notifier').scan().catch((e) => console.warn('[firms] quét thông báo lỗi:', e.message));
+      }
+      if (db.enabled) require('../db/sync').run(['hotspots']).catch((e) => console.warn('[firms] lưu DB lỗi:', e.message));
+    };
     if (added) spawn(config.python, ['tag_hotspots.py'], { cwd: paths.scripts, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }).on('close', toDb).on('error', toDb);
     else toDb();
   } catch (e) {

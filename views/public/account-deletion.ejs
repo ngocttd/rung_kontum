@@ -1,0 +1,37 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<main class="container page" style="max-width:720px">
+  <nav class="crumbs" aria-label="Đường dẫn"><a href="/">Trang chủ</a><span aria-hidden="true">›</span><span aria-current="page">Yêu cầu xóa tài khoản</span></nav>
+  <article class="card card-b" aria-labelledby="deletion-heading">
+    <h1 id="deletion-heading">Yêu cầu xóa tài khoản</h1>
+    <p>Trang này tiếp nhận yêu cầu xóa tài khoản MobileGIS Kon Tum và dữ liệu cá nhân liên quan. Tài khoản này cũng được dùng trên cổng WebGIS.</p>
+    <% if (error) { %><p class="flash error" role="alert"><%= error %></p><% } %>
+    <% if (!account) { %>
+      <p>Hãy đăng nhập bằng tài khoản bạn muốn xóa. Sau khi đăng nhập, bạn sẽ quay lại trang này để xác nhận yêu cầu.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <a class="btn btn-primary" href="/dang-nhap?next=<%= encodeURIComponent(deletionPath) %>">Đăng nhập tài khoản người dân</a>
+        <a class="btn btn-outline" href="/quan-tri/dang-nhap?next=<%= encodeURIComponent(deletionPath) %>">Đăng nhập tài khoản cán bộ</a>
+      </div>
+    <% } else if (account.account_deletion_requested_at) { %>
+      <div class="note info" role="status">
+        <strong>Yêu cầu đang chờ xử lý.</strong>
+        <p>Hệ thống đã tiếp nhận yêu cầu vào <time datetime="<%= account.account_deletion_requested_at %>"><%= fmt.dateTime(account.account_deletion_requested_at) %></time>. Đơn vị vận hành sẽ xem xét yêu cầu và liên hệ theo thông tin đã đăng ký khi cần.</p>
+      </div>
+    <% } else { %>
+      <form class="grid" method="post" action="<%= deletionPath %>">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <p>Tài khoản gửi yêu cầu <strong><%= account.username %></strong></p>
+        <label class="field">
+          <span>Mật khẩu hiện tại</span>
+          <input class="input" name="password" type="password" required autocomplete="current-password">
+        </label>
+        <label><input name="confirm" type="checkbox" value="yes" required> Tôi xác nhận muốn yêu cầu xóa tài khoản và dữ liệu cá nhân liên quan.</label>
+        <div><button class="btn btn-primary" type="submit">Gửi yêu cầu xóa tài khoản</button></div>
+      </form>
+    <% } %>
+    <p>Yêu cầu được đơn vị vận hành xử lý. Hồ sơ nghiệp vụ có nghĩa vụ lưu giữ có thể được giữ lại theo quy định áp dụng.</p>
+    <p><a href="/chinh-sach-quyen-rieng-tu">Xem chính sách quyền riêng tư</a></p>
+  </article>
+</main>
+<%- include('../partials/footer') %>
+</body></html>

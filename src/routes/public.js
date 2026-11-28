@@ -48,11 +48,15 @@ function dangerSummary() {
 }
 
 r.get('/', (req, res) => {
-  const hs = repo.hotspots();
+  const now = Date.now();
+  const recentSatellite = repo.hotspots().filter((h) => {
+    const age = now - Date.parse(h.utc);
+    return h.sensor !== 'MANUAL' && age >= 0 && age <= 7 * 864e5;
+  });
   const fcg = repo.forestChange();
   res.render('public/home', {
     title: 'Trang chủ', nav: 'home',
-    summary: repo.forestSummary(), hotspots: hs, firms: repo.firmsMeta(), weather: weatherSummary(), danger: dangerSummary(),
+    summary: repo.forestSummary(), hotspots: recentSatellite, firms: repo.firmsMeta(), weather: weatherSummary(), danger: dangerSummary(),
     reportCounts: reports.counts(), alertFeed: alerts.feed({ limit: 4 }), articles: content.list().slice(0, 4), documents: repo.documents().filter((d) => d.type === 'pdf').slice(0, 3),
     change: fcg ? { lossLast: fcg.history.aoi_annual_loss_ha[String(Math.max(...Object.keys(fcg.history.aoi_annual_loss_ha).map(Number)))], candidates: repo.changeCandidates().features.length, auc: fcg.forecast.validation.auc } : null,
     overlays: repo.overlays(),
@@ -61,10 +65,11 @@ r.get('/', (req, res) => {
 
 r.get('/ban-do', async (req, res) => {
   const mapLayers = await maps.publishedLayers().catch(() => []);
-  const layerTree = await require('../services/layerCatalog').tree({ mapLayers });
+  const overlays = repo.overlays();
+  const layerTree = await require('../services/layerCatalog').tree({ mapLayers, overlays });
   const shown = new Set(layerTree.flatMap((g) => g.items.map((i) => i.id)));
   res.render('public/map', {
-    title: 'Bản đồ WebGIS', nav: 'map', overlays: repo.overlays(), custom: repo.customLayers(false), mapLayers: mapLayers.filter((m) => shown.has(`m-${m.id}`)), layerTree,
+    title: 'Bản đồ WebGIS', nav: 'map', overlays, custom: repo.customLayers(false), mapLayers: mapLayers.filter((m) => shown.has(`m-${m.id}`)), layerTree,
     weather: weatherSummary(), danger: dangerSummary(), summary: repo.forestSummary(), firms: repo.firmsMeta(),
     hotspotCount: repo.hotspots().length, fcg: repo.forestChange(),
   });
@@ -76,7 +81,8 @@ r.get('/tai-nguyen-rung', async (req, res, next) => {
     const communes = repo.communes(nam).sort((a, b) => (b.official ? b.official.established_forest_ha : 0) - (a.official ? a.official.established_forest_ha : 0));
     // lớp bản đồ lấy từ danh mục lớp (quản trị chỉnh ở Dữ liệu không gian): năm lớp phủ + lớp "Hiển thị thêm"
     const mapLayers = await maps.publishedLayers().catch(() => []);
-    const items = (await require('../services/layerCatalog').full({ mapLayers })).filter((i) => !i.hidden);
+    const overlays = repo.overlays();
+    const items = (await require('../services/layerCatalog').full({ mapLayers, overlays })).filter((i) => !i.hidden);
     const byMap = Object.fromEntries(mapLayers.map((m) => [`m-${m.id}`, m]));
     const years = {};
     for (const it of items.filter((i) => i.group === 'landcover' || i.group === 'map-lpr')) {
@@ -88,7 +94,6 @@ r.get('/tai-nguyen-rung', async (req, res, next) => {
     Object.values(years).forEach((l) => l.sort((x, z) => x.project - z.project));
     const yearLayers = Object.keys(years).map(Number).sort((a, b) => b - a).map((y) => ({ year: y, layers: years[y] }));
     const extras = items.filter((i) => i.on_forest && i.id !== 'communes' && (i.kind === 'overlay' || i.kind === 'map' || i.kind === 'vector'));
-    const overlays = repo.overlays();
     for (const it of items.filter((i) => i.kind === 'map' && (i.group === 'map-lpr' || i.on_forest))) {
       const m = byMap[it.id];
       overlays.push({ id: it.id, url: m.overlay_url, coordinates: m.overlay_bounds, title: m.title, source: (m.source_org || 'Bản đồ chuyên đề') + (m.map_year ? ' · ' + m.map_year : ''), meaning: m.description || '', opacity: (m.display && m.display.opacity) || 0.85,
@@ -163,6 +168,39 @@ r.post('/tin-tuc/:slug/binh-luan', rateLimit('comment', 6, 3600e3), (req, res) =
 // ---------- tài khoản người dân trên web (dùng chung tài khoản MobileGIS) ----------
 const mobileAuth = require('../services/mobile-auth');
 const safeNext = (n, d) => { const s = String(n || ''); return s.startsWith('/') && !s.startsWith('//') && !s.startsWith('/quan-tri') ? s : d; };
+const deletionPath = '/yeu-cau-xoa-tai-khoan';
+const deletionAccount = (req) => {
+  const session = req.session.citizen || req.session.user;
+  const account = session && store.get('users', session.id);
+  return account && account.active ? account : null;
+};
+const deletionPage = (res, account, error = null, status = 200) => res.status(status).set('Cache-Control', 'no-store').render('public/account-deletion', {
+  title: 'Yêu cầu xóa tài khoản', nav: '', account, error, deletionPath,
+});
+
+r.get('/chinh-sach-quyen-rieng-tu', (req, res) => res.render('public/privacy-policy', { title: 'Chính sách quyền riêng tư', nav: '' }));
+r.get(deletionPath, (req, res) => deletionPage(res, deletionAccount(req)));
+r.post(deletionPath, rateLimit('account-deletion-request', 10, 15 * 60e3), async (req, res, next) => {
+  try {
+    const account = deletionAccount(req);
+    if (!account) return deletionPage(res, null, 'Vui lòng đăng nhập để gửi yêu cầu.', 401);
+    if (account.account_deletion_requested_at) return res.redirect(303, deletionPath);
+    if (req.body.confirm !== 'yes' || typeof req.body.password !== 'string' || !req.body.password) {
+      return deletionPage(res, account, 'Vui lòng nhập mật khẩu hiện tại và xác nhận yêu cầu xóa.', 400);
+    }
+    const verified = await mobileAuth.verifyCredentials({ username: account.username, password: req.body.password }, 'web');
+    if (verified.error) return deletionPage(res, account, verified.error, verified.status);
+    const current = deletionAccount(req);
+    if (!current || current.id !== verified.user.id) return deletionPage(res, null, 'Vui lòng đăng nhập lại để gửi yêu cầu.', 401);
+    if (!current.account_deletion_requested_at) {
+      store.update('users', current.id, { account_deletion_requested_at: store.now() });
+      store.audit(current, 'user.deletion.request', current.id);
+      await store.drain();
+    }
+    return res.redirect(303, deletionPath);
+  } catch (e) { return next(e); }
+});
+
 r.get('/dang-ky', (req, res) => {
   if (req.session.citizen) return res.redirect('/tai-khoan');
   return res.render('public/register', { title: 'Đăng ký tài khoản', nav: '', form: {}, error: null, next: safeNext(req.query.next, '/tai-khoan') });
@@ -177,7 +215,7 @@ r.post('/dang-ky', rateLimit('register', 5, 3600e3), async (req, res, next) => {
     const out = await mobileAuth.createCitizen({ name: b.name, phone: b.phone, email: b.email, password: b.password }, 'web');
     if (out.error) return fail(out.error);
     return req.session.regenerate(() => {
-      req.session.citizen = { id: out.user.id, username: out.user.username, name: out.user.name };
+      req.session.citizen = { id: out.user.id, username: out.user.username, name: out.user.name, v: out.user.session_version || 0 };
       req.session.flash = { type: 'ok', text: 'Đăng ký thành công. Bạn có thể dùng tài khoản này trên ứng dụng MobileGIS.' };
       res.redirect(nextUrl);
     });
@@ -197,7 +235,7 @@ r.post('/dang-nhap', rateLimit('citizen-login', 10, 15 * 60e3), async (req, res,
       return res.render('public/signin', { title: 'Đăng nhập', nav: '', error: 'Đây là tài khoản cán bộ – vui lòng đăng nhập tại trang Quản trị.', username: u.username, next: nextUrl, staff: true });
     }
     return req.session.regenerate(() => {
-      req.session.citizen = { id: u.id, username: u.username, name: u.name };
+      req.session.citizen = { id: u.id, username: u.username, name: u.name, v: u.session_version || 0 };
       store.update('users', u.id, { last_login: store.now() });
       store.audit({ username: u.username, role: 'citizen' }, 'web.auth.login', u.username);
       res.redirect(nextUrl);
@@ -337,7 +375,7 @@ r.get('/tai-lieu', async (req, res) => {
   const counts = Object.fromEntries(Object.keys(repo.DOC_CATEGORIES).map((k) => [k, docs.filter((d) => d.category === k).length]));
   if (!req.query.loai) docs = docs.sort((a, b) => (a.origin === 'map') - (b.origin === 'map'));
   if (req.query.loai) docs = docs.filter((d) => d.category === req.query.loai);
-  if (req.query.q) { const q = req.query.q.toLowerCase(); docs = docs.filter((d) => `${d.title} ${d.issuer || ''} ${d.number || ''}`.toLowerCase().includes(q)); }
+  if (typeof req.query.q === 'string' && req.query.q) { const q = req.query.q.toLowerCase(); docs = docs.filter((d) => `${d.title} ${d.issuer || ''} ${d.number || ''}`.toLowerCase().includes(q)); }
   if (req.query.co_quan) docs = docs.filter((d) => d.issuer === req.query.co_quan);
   const all = allDocs();
   const selected = all.find((d) => d.id === req.query.id) || docs[0] || null;

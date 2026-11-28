@@ -161,5 +161,5 @@
 <%- include('../partials/chartjs') %>
 <%- include('../partials/mapjs') %>
 <%- include('../partials/page-data', { pageData: { overlays: [...overlays, ...mapLayers.map(l => ({ id: 'm-' + l.id, url: l.overlay_url, coordinates: l.overlay_bounds, title: l.title, source: (l.source_org || 'Bản đồ chuyên đề') + (l.map_year ? ' · ' + l.map_year : ''), meaning: l.description || '', opacity: (l.display && l.display.opacity) || 0.8, tiles: l.display && l.display.tiles ? { url: '/ban-do-chuyen-de/tiles/' + l.id + '/{z}/{x}/{y}.png', minzoom: l.display.tiles.minzoom, maxzoom: l.display.tiles.maxzoom, bounds: l.display.tiles.bounds } : undefined }))], custom: custom.map(l => ({ id: l.id, title: l.title, url: '/api/public/layers/custom/' + l.id, style: l.style, tiles: l.big ? '/api/public/layers/custom/' + l.id + '/tiles/{z}/{x}/{y}.mvt' : null, bbox: (l.validation || {}).bbox || null })), danger } }) %>
-<script src="/js/pages/map.js"></script>
+<script src="/js/pages/map.js?v=20261128-1"></script>
 </body></html>

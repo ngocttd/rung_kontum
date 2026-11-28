@@ -50,7 +50,11 @@ function graph() {
   const vx = new Float64Array(ab, o, meta.nV * 2); o += meta.nV * 16;
   const ea = new Int32Array(ab, o, meta.nE * 6); o += meta.nE * 24;
   const el = new Float32Array(ab, o, meta.nE); o += meta.nE * 4;
-  const ga = new Float64Array(ab, o, meta.nG * 2);
+  // Số cạnh lẻ làm phần tọa độ Float64 bắt đầu lệch 4 byte trong tệp.
+  const geometryValues = meta.nG * 2;
+  const ga = o % Float64Array.BYTES_PER_ELEMENT === 0
+    ? new Float64Array(ab, o, geometryValues)
+    : new Float64Array(ab.slice(o), 0, geometryValues);
   const speed = meta.classes.map((c) => meta.speeds[c]);
   // danh sách kề dạng CSR: (cạnh, hướng) cho mỗi đỉnh
   const cnt = new Int32Array(meta.nV + 1);

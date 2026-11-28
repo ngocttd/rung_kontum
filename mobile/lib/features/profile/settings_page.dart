@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/config.dart';
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/api.dart';
 import '../../core/outbox.dart';
@@ -12,7 +13,7 @@ import '../../core/session.dart';
 import '../../main.dart';
 import '../../widgets/common.dart';
 
-/// Đổi địa chỉ máy chủ (đội kiểm thử dùng IP LAN của máy chạy backend).
+/// Đổi địa chỉ máy chủ, mặc định dùng máy chủ HTTPS đã triển khai.
 Future<void> showServerDialog(BuildContext context, WidgetRef ref) async {
   final c = TextEditingController(text: ref.read(serverUrlProvider));
   final v = await showDialog<String>(
@@ -20,7 +21,7 @@ Future<void> showServerDialog(BuildContext context, WidgetRef ref) async {
     builder: (_) => AlertDialog(
       title: const Text('Địa chỉ máy chủ'),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: c, keyboardType: TextInputType.url, decoration: const InputDecoration(hintText: 'https://webgis.kontum.gov.vn')),
+        TextField(controller: c, keyboardType: TextInputType.url, decoration: const InputDecoration(hintText: 'https://kontum.humgsoftware.pro.vn')),
         const SizedBox(height: 8),
         Text('Mặc định: ${AppConfig.defaultApiBase}', style: const TextStyle(fontSize: 12, color: AppColors.muted)),
       ]),
@@ -46,7 +47,7 @@ class SettingsPage extends ConsumerWidget {
     final o = ref.watch(outboxProvider);
     final prefs = ref.watch(prefsProvider);
     final subs = prefs.getStringList('subscribed_communes') ?? const <String>[];
-    return Scaffold(
+    return ResponsiveScaffold(maxWidth: 760,
       appBar: AppBar(title: const Text('Cài đặt')),
       body: ListView(padding: const EdgeInsets.all(14), children: [
         SectionCard(
@@ -80,7 +81,7 @@ class SettingsPage extends ConsumerWidget {
                   isScrollControlled: true,
                   showDragHandle: true,
                   builder: (_) => StatefulBuilder(
-                    builder: (context, set) => DraggableScrollableSheet(
+                    builder: (context, set) => SafeDraggableSheet(
                       expand: false,
                       initialChildSize: .8,
                       builder: (_, sc) => ListView(controller: sc, children: [

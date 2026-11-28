@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const store = require('../data/store');
 
 const ROLES = {
   admin: 'Quản trị hệ thống',
@@ -40,6 +41,23 @@ const PERMISSIONS = {
 };
 
 function can(user, perm) { return Boolean(user && PERMISSIONS[perm] && PERMISSIONS[perm].includes(user.role)); }
+
+// Phiên chỉ giữ bản chụp tài khoản lúc đăng nhập → đối chiếu lại ở mỗi request. session_version tăng mỗi lần
+// khoá/mở khoá, nên phiên mở trước đó không dùng lại được kể cả sau khi tài khoản được mở khoá.
+function sessionAccount(entry) {
+  const u = store.get('users', entry.id);
+  return u && u.active && (entry.v || 0) === (u.session_version || 0) ? u : null;
+}
+function revalidateSession(req, res, next) {
+  const s = req.session;
+  if (s.user) {
+    const u = sessionAccount(s.user);
+    if (u && STAFF_ROLES.includes(u.role)) Object.assign(s.user, { name: u.name, role: u.role, scope: u.scope || null });
+    else { delete s.user; delete s.newPassword; }
+  }
+  if (s.citizen && !sessionAccount(s.citizen)) delete s.citizen;
+  next();
+}
 
 function requireLogin(req, res, next) {
   if (req.session.user) return next();
@@ -94,4 +112,4 @@ function headers(req, res, next) {
   next();
 }
 
-module.exports = { ROLES, STAFF_ROLES, PERMISSIONS, can, requireLogin, requirePerm, csrf, checkCsrf, rateLimit, headers };
+module.exports = { ROLES, STAFF_ROLES, PERMISSIONS, can, revalidateSession, requireLogin, requirePerm, csrf, checkCsrf, rateLimit, headers };

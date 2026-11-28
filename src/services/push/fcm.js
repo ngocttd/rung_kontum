@@ -60,7 +60,9 @@ function dataOf(n) {
 function message(token, n) {
   const high = n.priority === 'high';
   const ttl = n.expires_at ? Math.max(0, Math.floor((new Date(n.expires_at).getTime() - Date.now()) / 1000)) : 7 * 86400;
-  const collapse = String(n.source_ref || n.id).slice(0, 64);
+  const source = String(n.source_ref || n.id);
+  const collapse = Buffer.byteLength(source, 'utf8') <= 64 && /^[\x20-\x7E]+$/.test(source)
+    ? source : crypto.createHash('sha256').update(source).digest('hex');
   return {
     token,
     notification: { title: String(n.title || 'MobileGIS Kon Tum').slice(0, 200), body: String(n.body || '').slice(0, 1000) },
@@ -70,8 +72,8 @@ function message(token, n) {
       notification: { channel_id: high ? 'canh_bao' : 'chung', tag: collapse, ...(high ? { notification_priority: 'PRIORITY_HIGH' } : {}) },
     },
     apns: {
-      headers: { 'apns-priority': high ? '10' : '5', 'apns-collapse-id': collapse, ...(n.expires_at ? { 'apns-expiration': String(Math.floor(new Date(n.expires_at).getTime() / 1000)) } : {}) },
-      payload: { aps: { sound: 'default', 'thread-id': String(n.kind || 'kontum'), ...(high ? { 'interruption-level': 'time-sensitive' } : {}) } },
+      headers: { 'apns-push-type': 'alert', 'apns-priority': '10', 'apns-collapse-id': collapse, ...(n.expires_at ? { 'apns-expiration': String(Math.floor(new Date(n.expires_at).getTime() / 1000)) } : {}) },
+      payload: { aps: { sound: 'default', 'thread-id': String(n.kind || 'kontum') } },
     },
   };
 }
@@ -92,7 +94,7 @@ async function send(token, n) {
   const code = ((err.details || []).find((d) => d.errorCode) || {}).errorCode || err.status || '';
   const reason = `FCM ${r.status} ${code}: ${err.message || ''}`.trim();
   if (r.status === 401) cached = null; // token OAuth hết hạn/bị thu hồi → lấy lại ở lần sau
-  if (r.status === 404 || code === 'UNREGISTERED' || (r.status === 400 && /registration token/i.test(err.message || ''))) return { ok: false, gone: true, reason };
+  if (code === 'UNREGISTERED' || (r.status === 400 && /registration token/i.test(err.message || ''))) return { ok: false, gone: true, reason };
   if (r.status === 429 || r.status >= 500 || r.status === 401) return { ok: false, retry: true, reason };
   return { ok: false, reason };
 }

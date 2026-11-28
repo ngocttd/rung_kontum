@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../app/theme.dart';
+import '../../app/layout.dart';
 import '../../core/data.dart';
 import '../../core/format.dart';
 import '../../core/location.dart';
@@ -15,6 +16,7 @@ import '../../core/session.dart';
 import '../../widgets/common.dart';
 import '../../widgets/location_picker.dart';
 import '../../widgets/media_picker.dart';
+import '../../widgets/network_map.dart';
 import '../map/map_page.dart' show polygonAreaM2;
 
 /// M16 / quy trình 6.3 – Khảo sát, cập nhật hiện trạng: điểm / đường / vùng (chạm bản đồ hoặc đi bộ ghi GPS),
@@ -120,7 +122,7 @@ class _SurveyPageState extends ConsumerState<SurveyPage> {
         : geom == 'line' && verts.length > 1
             ? '${fmtNum(List.generate(verts.length - 1, (i) => const Distance().as(LengthUnit.Meter, verts[i], verts[i + 1])).fold<double>(0, (x, y) => x + y))} m'
             : '${verts.length} điểm';
-    return Scaffold(
+    return ResponsiveScaffold(maxWidth: 760,
       appBar: AppBar(title: Text(a == null ? 'Khảo sát hiện trạng' : 'Khảo sát – ${a['code']}')),
       body: ListView(padding: const EdgeInsets.all(14), children: [
         SegmentedButton<String>(
@@ -136,10 +138,10 @@ class _SurveyPageState extends ConsumerState<SurveyPage> {
             borderRadius: BorderRadius.circular(14),
             child: SizedBox(
               height: 260,
-              child: FlutterMap(
+              child: NetworkMap(
                 options: MapOptions(initialCenter: start, initialZoom: a?['lat'] != null ? 15 : 10, onTap: (_, p) => setState(() => verts.add(p))),
                 children: [
-                  TileLayer(urlTemplate: bms.isEmpty ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' : bms.first['url'] as String, userAgentPackageName: 'vn.gov.kontum.mobilegis'),
+                  MapTileLayer(urlTemplate: bms.isEmpty ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' : bms.first['url'] as String),
                   if (geom == 'polygon' && verts.length > 2) PolygonLayer(polygons: [Polygon(points: verts, color: AppColors.leaf.withValues(alpha: .3), borderColor: AppColors.yellow, borderStrokeWidth: 2)]),
                   if (verts.length > 1) PolylineLayer(polylines: [Polyline(points: verts, color: AppColors.yellow, strokeWidth: 3)]),
                   MarkerLayer(markers: [for (final p in verts) Marker(point: p, width: 12, height: 12, child: Container(decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: AppColors.orange, width: 2))))]),

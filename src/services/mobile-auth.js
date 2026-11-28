@@ -51,6 +51,23 @@ async function sidActive(sid) {
   return ok;
 }
 
+// Khoá/mở khoá tài khoản: huỷ mọi phiên MobileGIS/API và gỡ thiết bị khỏi tài khoản (vẫn nhận cảnh báo công khai).
+// Đặt cả expires_at để máy cũ gửi lại token này chỉ nhận EXPIRED, không kéo theo phiên đăng nhập mới sau khi mở khoá.
+async function revokeUser(userId) {
+  if (!db.enabled) {
+    for (const r of mem.values()) if (r.user_id === userId && !r.revoked_at) r.revoked_at = r.expires_at = new Date();
+    sidCache.clear();
+    return;
+  }
+  await db.query('UPDATE mobile.refresh_tokens SET revoked_at = now(), expires_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
+  sidCache.clear();
+  // bỏ bản push riêng còn chờ gửi tới thiết bị của tài khoản
+  await db.query(`UPDATE mobile.notification_deliveries x SET status = 'skipped', last_error = 'Phiên tài khoản đã bị thu hồi'
+    FROM mobile.notifications n, mobile.mobile_devices d
+    WHERE n.id = x.notification_id AND d.id = x.device_id AND d.user_id = $1 AND x.status = 'pending' AND NOT n.is_public`, [userId]);
+  await db.query('UPDATE mobile.mobile_devices SET user_id = NULL WHERE user_id = $1', [userId]);
+}
+
 function permissionsOf(role) { return Object.keys(PERMISSIONS).filter((p) => PERMISSIONS[p].includes(role)); }
 function publicUser(u) { return { id: u.id, username: u.username, name: u.name, email: u.email || null, phone: u.phone || null, role: u.role, scope: u.scope || null, permissions: permissionsOf(u.role) }; }
 
@@ -141,14 +158,14 @@ async function register(body) {
 async function refresh({ refresh_token: token }) {
   const row = await findRefresh(sha(String(token || '')));
   if (!row) return { error: 'Phiên đăng nhập không hợp lệ.', status: 401, code: 'INVALID_REFRESH' };
+  const u = store.get('users', row.user_id);
+  if (!u || !u.active) return { error: 'Tài khoản đã bị khoá.', status: 401, code: 'INACTIVE' };
+  if (new Date(row.expires_at) <= new Date()) return { error: 'Phiên đăng nhập đã hết hạn.', status: 401, code: 'EXPIRED' };
   if (row.revoked_at) {
     // a rotated (already used) token is presented again → possible theft: end every session of the user
     await revoke('user_id', row.user_id);
     return { error: 'Phiên đăng nhập đã bị thu hồi.', status: 401, code: 'REVOKED' };
   }
-  if (new Date(row.expires_at) < new Date()) return { error: 'Phiên đăng nhập đã hết hạn.', status: 401, code: 'EXPIRED' };
-  const u = store.get('users', row.user_id);
-  if (!u || !u.active) return { error: 'Tài khoản đã bị khoá.', status: 401, code: 'INACTIVE' };
   await revoke('id', row.id); sidCache.delete(row.id);
   return issue(u, row.device_id);
 }
@@ -198,4 +215,4 @@ async function demoLogin({ role, device_id: deviceId }) {
 }
 const demoRoles = () => Object.entries(DEMO_USERS).map(([key, d]) => ({ key, role: d.role, name: d.name, username: d.username }));
 
-module.exports = { verifyAccess, sidActive, login, register, verifyCredentials, createCitizen, refresh, logout, changePassword, demoLogin, demoEnabled, demoRoles, ensureDemoUsers, publicUser, permissionsOf, ACCESS_TTL };
+module.exports = { verifyAccess, sidActive, revokeUser, login, register, verifyCredentials, createCitizen, refresh, logout, changePassword, demoLogin, demoEnabled, demoRoles, ensureDemoUsers, publicUser, permissionsOf, ACCESS_TTL };
